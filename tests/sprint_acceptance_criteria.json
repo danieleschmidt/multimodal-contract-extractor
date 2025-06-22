@@ -1,0 +1,25 @@
+{
+  "create-base-tests-directory-and-configure-pytest": {
+    "description": "Create base tests directory and configure pytest",
+    "cases": [
+      "tests directory exists with __init__.py",
+      "pytest runs successfully with no tests failing",
+      "pytest.ini or pyproject configured if needed"
+    ]
+  },
+  "write-smoke-test-for-contractextractor": {
+    "description": "Write smoke test for ContractExtractor",
+    "cases": [
+      "test imports ContractExtractor without errors",
+      "test runs extract_from_file on sample document",
+      "result contains expected keys"
+    ]
+  },
+  "integrate-tests-with-ci-(placeholder)": {
+    "description": "Integrate tests with CI (placeholder)",
+    "cases": [
+      "CI workflow executes pytest",
+      "fails build on test failures"
+    ]
+  }
+}
