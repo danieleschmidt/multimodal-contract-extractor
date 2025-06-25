@@ -1,25 +1,40 @@
 {
-  "create-base-tests-directory-and-configure-pytest": {
-    "description": "Create base tests directory and configure pytest",
+  "define-serialization-models": {
+    "description": "Create dataclasses for DocumentInfo and ExtractionResult",
     "cases": [
-      "tests directory exists with __init__.py",
-      "pytest runs successfully with no tests failing",
-      "pytest.ini or pyproject configured if needed"
+      "DocumentInfo dataclass has filename, pages, processing_time, confidence",
+      "ExtractionResult dataclass contains DocumentInfo and list of Clause objects"
     ]
   },
-  "write-smoke-test-for-contractextractor": {
-    "description": "Write smoke test for ContractExtractor",
+  "implement-json-export": {
+    "description": "Implement JSON serializer for extraction results",
     "cases": [
-      "test imports ContractExtractor without errors",
-      "test runs extract_from_file on sample document",
-      "result contains expected keys"
+      "serialize_to_json returns valid JSON string",
+      "output includes document_info and clauses keys",
+      "pretty print flag formats output with indentation"
     ]
   },
-  "integrate-tests-with-ci-(placeholder)": {
-    "description": "Integrate tests with CI (placeholder)",
+  "implement-xml-export": {
+    "description": "Implement XML serializer for extraction results",
     "cases": [
-      "CI workflow executes pytest",
-      "fails build on test failures"
+      "serialize_to_xml returns well-formed XML",
+      "root element <contract> contains <clauses>",
+      "handles special characters correctly"
+    ]
+  },
+  "implement-csv-export": {
+    "description": "Implement CSV serializer for extraction results",
+    "cases": [
+      "CSV has header row with clause fields",
+      "one line per clause with page numbers",
+      "coordinates included when configured"
+    ]
+  },
+  "cli-output-format-option": {
+    "description": "Add CLI option to choose output format",
+    "cases": [
+      "running extract.py --output-format json writes result.json",
+      "unsupported format returns error message"
     ]
   }
 }

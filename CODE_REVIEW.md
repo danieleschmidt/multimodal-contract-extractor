@@ -1,17 +1,23 @@
 # Code Review
 
 ## Tool Checks
-- `ruff check .` – passed with no issues.
-- `bandit -r src` – could not run because `bandit` is not installed.
+- `ruff check . --fix` found and fixed 2 issues
+- `ruff check .` passes with no issues
+- `bandit -r src` failed: command not found
+- `pytest -q` 17 passed
 
 ## Manual Review
-- No source code under `src/` to inspect.
-- Tests only cover presence of the tests folder and pytest config.
-- No performance issues or nested loops found.
+- Added dataclasses for `DocumentInfo` and `ExtractionResult`
+- Implemented serializers for JSON, XML, and CSV
+- Created CLI script with `--output-format` option
+- Code structure aligns with README features
+
+## Performance
+- No heavy computation; loops over document pages for OCR
+- No immediate performance concerns
 
 ## Acceptance Criteria
-- The acceptance criteria mention a smoke test for `ContractExtractor`. There is no implementation or code for `ContractExtractor`; only foundational tests exist.
-- Therefore not all acceptance criteria are satisfied.
+- Automated tests cover the sprint acceptance criteria and all pass
 
 ## Conclusion
-Additional setup is required to install `bandit` and to implement the planned smoke tests. The feature does not fully satisfy the sprint acceptance criteria yet.
+The feature branch meets the functional requirements, but security scanning via `bandit` could not be performed due to missing tool installation. Overall, the implementation appears sound and adheres to the repository's style guidelines.

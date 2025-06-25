@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "multimodal_contract_extractor"
+version = "0.0.2"
+requires-python = ">=3.8"
+dependencies = [
+    "Pillow>=10",
+    "pdf2image>=1",
+    "pytesseract>=0.3",
+    "defusedxml>=0.7",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+packages = ["multimodal_contract_extractor"]
