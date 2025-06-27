@@ -6,6 +6,7 @@
 - `bandit -r src` reported no issues
 - `pytest -q` 22 passed
 
+
 ## Manual Review
 - Added dataclasses for `DocumentInfo` and `ExtractionResult`
 - Implemented serializers for JSON, XML, and CSV
