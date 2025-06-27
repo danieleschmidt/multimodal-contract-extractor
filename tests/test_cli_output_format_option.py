@@ -40,3 +40,16 @@ def test_cli_rejects_invalid_format(tmp_path):
     )
     assert result.returncode != 0
     assert "Unsupported format" in result.stderr
+
+
+def test_cli_version_outputs_package_version():
+    result = subprocess.run(
+        [sys.executable, "extract.py", "--version"],
+        cwd=Path(__file__).resolve().parent.parent,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0
+    from multimodal_contract_extractor import __version__
+
+    assert __version__ in result.stdout

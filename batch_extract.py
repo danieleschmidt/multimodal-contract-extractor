@@ -19,22 +19,17 @@ from multimodal_contract_extractor import (  # noqa: E402
     serialize_to_csv,
 )
 
-
 SUPPORTED_FORMATS = {"json", "xml", "csv"}
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Extract contract clauses")
-    parser.add_argument("--file", required=True, help="Path to input document")
+    parser = argparse.ArgumentParser(description="Batch extract contract clauses")
+    parser.add_argument("--input-dir", required=True, help="Directory of documents")
+    parser.add_argument("--output-dir", required=True, help="Directory for results")
     parser.add_argument(
         "--output-format",
         default="json",
         help="Output format: json, xml, or csv",
-    )
-    parser.add_argument(
-        "--output",
-        default=None,
-        help="Output file path (without extension to use output format)",
     )
     parser.add_argument(
         "--include-coordinates",
@@ -56,34 +51,36 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Unsupported format: {args.output_format}", file=sys.stderr)
         return 1
 
-    input_path = Path(args.file)
-    if not input_path.exists():
-        print(f"Input file not found: {input_path}", file=sys.stderr)
+    input_dir = Path(args.input_dir)
+    if not input_dir.is_dir():
+        print(f"Input directory not found: {input_dir}", file=sys.stderr)
         return 1
 
-    if args.output:
-        output_path = Path(args.output)
-        if output_path.suffix == "":
-            output_path = output_path.with_suffix(f".{args.output_format}")
-    else:
-        output_path = Path(f"result.{args.output_format}")
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    info = DocumentInfo(
-        filename=input_path.name,
-        pages=0,
-        processing_time=0.0,
-        confidence=1.0,
-    )
-    result = ExtractionResult(document_info=info, clauses=[])
+    for file_path in input_dir.iterdir():
+        if not file_path.is_file():
+            continue
 
-    if args.output_format == "json":
-        data = serialize_to_json(result, pretty=True)
-    elif args.output_format == "xml":
-        data = serialize_to_xml(result, pretty=True)
-    else:  # csv
-        data = serialize_to_csv(result, include_coordinates=args.include_coordinates)
+        info = DocumentInfo(
+            filename=file_path.name,
+            pages=0,
+            processing_time=0.0,
+            confidence=1.0,
+        )
+        result = ExtractionResult(document_info=info, clauses=[])
 
-    output_path.write_text(data)
+        if args.output_format == "json":
+            data = serialize_to_json(result, pretty=True)
+        elif args.output_format == "xml":
+            data = serialize_to_xml(result, pretty=True)
+        else:  # csv
+            data = serialize_to_csv(result, include_coordinates=args.include_coordinates)
+
+        output_file = output_dir / f"{file_path.stem}.{args.output_format}"
+        output_file.write_text(data)
+
     return 0
 
 

@@ -1,5 +1,7 @@
 """Core package for the Multimodal Contract Extractor."""
 
+__version__ = "0.0.2"
+
 from .document import Document, DocumentPage, load_document
 from .clause_detection import Clause, detect_clauses
 from .serialization import (
@@ -21,4 +23,5 @@ __all__ = [
     "serialize_to_json",
     "serialize_to_xml",
     "serialize_to_csv",
+    "__version__",
 ]

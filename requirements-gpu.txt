@@ -1,0 +1,3 @@
+-r requirements.txt
+# GPU acceleration dependencies
+torch>=2.3
