@@ -6,7 +6,7 @@ from dataclasses import asdict, dataclass
 from typing import List
 import csv
 import io
-from xml.etree.ElementTree import Element, SubElement, tostring
+from xml.etree.ElementTree import Element, SubElement, tostring  # nosec B405
 from defusedxml.minidom import parseString
 
 

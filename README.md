@@ -26,6 +26,31 @@ python batch_extract.py --input-dir ./contracts --output-dir ./results
 
 # Start web interface for interactive processing
 streamlit run web_app.py
+
+# Check CLI version
+python extract.py --version
+python batch_extract.py --version
+```
+
+## Development
+
+Create a virtual environment and install both runtime and development
+dependencies:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+pip install -r requirements-dev.txt
+pip install -e .
+```
+
+Run linting, security checks and the tests to verify your setup:
+
+```bash
+ruff check . --fix
+bandit -r src
+python -m pytest -q
 ```
 
 ## Supported Document Types
@@ -243,6 +268,7 @@ POST /webhooks/document-processed
 ## Deployment Options
 
 ### Local Development
+Install optional GPU dependencies if you want CUDA acceleration:
 ```bash
 # Install with GPU support
 pip install -r requirements-gpu.txt
