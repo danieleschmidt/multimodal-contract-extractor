@@ -1,16 +1,18 @@
 # Code Review
 
 ## Tool Checks
-- `ruff check . --fix` found and fixed 2 issues
+- `ruff check . --fix` made no changes
 - `ruff check .` passes with no issues
 - `bandit -r src` reported no issues
-- `pytest -q` 21 passed
+- `pytest -q` 22 passed
+
 
 ## Manual Review
 - Added dataclasses for `DocumentInfo` and `ExtractionResult`
 - Implemented serializers for JSON, XML, and CSV
 - Created CLI script with `--output-format` option
 - Code structure aligns with README features
+- Added Streamlit web interface script
 
 ## Performance
 - No heavy computation; loops over document pages for OCR
