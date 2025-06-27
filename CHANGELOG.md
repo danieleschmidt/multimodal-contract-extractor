@@ -4,6 +4,7 @@
 - Added `batch_extract.py` for directory-based extraction
 - Exposed `__version__` and added `--version` to both CLI utilities
 - README includes development setup and version checks
+- Added simple Streamlit web interface (`web_app.py`)
 
 ## 🐛 Fixes
 - No bug fixes.
