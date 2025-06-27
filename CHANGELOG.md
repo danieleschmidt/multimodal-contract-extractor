@@ -1,7 +1,9 @@
 # Release v0.0.2
 
 ## ✨ Features
-- No new features.
+- Added `batch_extract.py` for directory-based extraction
+- Exposed `__version__` and added `--version` to both CLI utilities
+- README includes development setup and version checks
 
 ## 🐛 Fixes
 - No bug fixes.
