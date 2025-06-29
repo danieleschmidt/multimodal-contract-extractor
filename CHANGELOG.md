@@ -1,3 +1,16 @@
+# Release v0.1.0
+
+## ✨ Features
+- CLI now accepts ``--log-level`` to control verbosity
+- Streaming document loader reduces memory usage
+- CI workflow runs lint, security and tests
+
+## 🐛 Fixes
+- None
+
+## Other Changes
+- Dependency versions updated
+
 # Release v0.0.2
 
 ## ✨ Features

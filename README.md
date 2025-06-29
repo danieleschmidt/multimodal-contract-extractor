@@ -24,6 +24,9 @@ python extract.py --file contract.pdf --output extracted_data.json
 # Batch process multiple files
 python batch_extract.py --input-dir ./contracts --output-dir ./results
 
+# Enable debug logging
+python extract.py --file contract.pdf --log-level debug
+
 # Start web interface for interactive processing
 streamlit run web_app.py
 
@@ -48,10 +51,11 @@ pip install -e .
 Run linting, security checks and the tests to verify your setup:
 
 ```bash
-ruff check . --fix
-bandit -r src
-python -m pytest -q
+ruff check .
+bandit -r src -q
+pytest -q
 ```
+These same checks run automatically on every pull request via GitHub Actions.
 
 ## Supported Document Types
 
@@ -115,58 +119,27 @@ output:
 
 ### Basic Extraction
 ```python
-from contract_extractor import ContractExtractor
+from multimodal_contract_extractor import load_document, detect_clauses
 
-extractor = ContractExtractor()
-result = extractor.extract_from_file("nda.pdf")
-
-print(result)
-# {
-#   "document_info": {
-#     "filename": "nda.pdf",
-#     "pages": 3,
-#     "processing_time": 15.2,
-#     "confidence": 0.92
-#   },
-#   "clauses": [
-#     {
-#       "type": "confidentiality",
-#       "text": "The receiving party shall not disclose...",
-#       "page": 1,
-#       "coordinates": [100, 200, 400, 250],
-#       "confidence": 0.95
-#     }
-#   ]
-# }
+document = load_document("nda.pdf")
+clauses = detect_clauses(document)
+for clause in clauses:
+    print(clause.type, clause.text)
 ```
 
 ### Batch Processing
-```python
-from contract_extractor import BatchProcessor
-
-processor = BatchProcessor()
-results = processor.process_directory(
-    input_dir="./contracts",
-    output_dir="./extracted",
-    parallel=True
-)
-
-# Process results
-for result in results:
-    print(f"Processed: {result['filename']}")
-    print(f"Clauses found: {len(result['clauses'])}")
+```bash
+# Process a directory of files
+python batch_extract.py --input-dir ./contracts --output-dir ./extracted
 ```
 
 ### Custom Clause Types
 ```python
-extractor = ContractExtractor()
-extractor.add_custom_clause_type(
-    name="renewal_terms",
-    keywords=["renewal", "extend", "continuation"],
-    pattern=r"(renewal|extend).{1,100}(term|period)"
-)
+from multimodal_contract_extractor import load_document, detect_clauses
 
-result = extractor.extract_from_file("service_agreement.pdf")
+custom = {"renewal_terms": ["renewal", "extend", "continuation"]}
+doc = load_document("service_agreement.pdf")
+clauses = detect_clauses(doc, keywords=custom)
 ```
 
 ## Sample Output
@@ -300,6 +273,9 @@ services:
 - **Custom Deployment**: On-premises or private cloud options
 
 ## Performance Benchmarks
+
+For very large PDFs, use ``stream_document`` to load pages in chunks and reduce
+memory usage.
 
 | Document Type | Avg Processing Time | Accuracy | Confidence |
 |---------------|-------------------|----------|------------|

@@ -3,12 +3,23 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+import logging
+import time
 
 # Ensure the src directory is importable when running the CLI without
 # installing the package first.
 SRC_DIR = Path(__file__).resolve().parent / "src"
 if SRC_DIR.exists() and str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
+
+logger = logging.getLogger(__name__)
+
+from multimodal_contract_extractor.cli_utils import (  # noqa: E402
+    SUPPORTED_FORMATS,
+    add_common_arguments,
+    setup_logging,
+)
+
 
 from multimodal_contract_extractor import (  # noqa: E402
     __version__,
@@ -19,28 +30,15 @@ from multimodal_contract_extractor import (  # noqa: E402
     serialize_to_csv,
 )
 
-
-SUPPORTED_FORMATS = {"json", "xml", "csv"}
-
-
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Extract contract clauses")
     parser.add_argument("--file", required=True, help="Path to input document")
-    parser.add_argument(
-        "--output-format",
-        default="json",
-        help="Output format: json, xml, or csv",
-    )
     parser.add_argument(
         "--output",
         default=None,
         help="Output file path (without extension to use output format)",
     )
-    parser.add_argument(
-        "--include-coordinates",
-        action="store_true",
-        help="Include coordinates in CSV output",
-    )
+    add_common_arguments(parser)
     parser.add_argument(
         "--version",
         action="version",
@@ -51,15 +49,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    setup_logging(args.log_level)
+    logger.debug("Arguments: %s", args)
 
     if args.output_format not in SUPPORTED_FORMATS:
-        print(f"Unsupported format: {args.output_format}", file=sys.stderr)
+        logger.error("Unsupported format: %s", args.output_format)
         return 1
 
     input_path = Path(args.file)
     if not input_path.exists():
-        print(f"Input file not found: {input_path}", file=sys.stderr)
+        logger.error("Input file not found: %s", input_path)
         return 1
+
+    logger.info("Processing file %s", input_path)
 
     if args.output:
         output_path = Path(args.output)
@@ -68,10 +70,15 @@ def main(argv: list[str] | None = None) -> int:
     else:
         output_path = Path(f"result.{args.output_format}")
 
+    start_time = time.perf_counter()
+
+    # Placeholder for real extraction work
+    processing_time = time.perf_counter() - start_time
+    logger.info("Processing completed in %.2fs", processing_time)
     info = DocumentInfo(
         filename=input_path.name,
         pages=0,
-        processing_time=0.0,
+        processing_time=processing_time,
         confidence=1.0,
     )
     result = ExtractionResult(document_info=info, clauses=[])
@@ -84,6 +91,7 @@ def main(argv: list[str] | None = None) -> int:
         data = serialize_to_csv(result, include_coordinates=args.include_coordinates)
 
     output_path.write_text(data)
+    logger.info("Wrote output to %s", output_path)
     return 0
 
 
