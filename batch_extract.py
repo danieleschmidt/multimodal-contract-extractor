@@ -18,7 +18,15 @@ from multimodal_contract_extractor.cli_utils import (  # noqa: E402
     SUPPORTED_FORMATS,
     add_common_arguments,
     setup_logging,
+    sanitize_filename,
 )
+from multimodal_contract_extractor.metrics import (
+    PROCESSING_TIME,
+    PAGES_PROCESSED,
+    record_memory_usage,
+    save_metrics,
+)
+import uuid
 
 
 from multimodal_contract_extractor import (  # noqa: E402
@@ -47,7 +55,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    setup_logging(args.log_level)
+    request_id = uuid.uuid4().hex
+    setup_logging(args.log_level, json_logs=args.json_logs, request_id=request_id)
     logger.debug("Arguments: %s", args)
 
     if args.output_format not in SUPPORTED_FORMATS:
@@ -60,6 +69,9 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     output_dir = Path(args.output_dir)
+    if output_dir.exists() and not output_dir.is_dir():
+        logger.error("Output directory is not a directory: %s", output_dir)
+        return 1
     output_dir.mkdir(parents=True, exist_ok=True)
     logger.info("Processing %s -> %s", input_dir, output_dir)
 
@@ -67,28 +79,34 @@ def main(argv: list[str] | None = None) -> int:
         if not file_path.is_file():
             continue
 
-        start = time.perf_counter()
-        info = DocumentInfo(
-            filename=file_path.name,
-            pages=0,
-            processing_time=0.0,
-            confidence=1.0,
-        )
-        result = ExtractionResult(document_info=info, clauses=[])
+        with PROCESSING_TIME.time():
+            start = time.perf_counter()
+            info = DocumentInfo(
+                filename=file_path.name,
+                pages=0,
+                processing_time=0.0,
+                confidence=1.0,
+            )
+            result = ExtractionResult(document_info=info, clauses=[])
 
-        if args.output_format == "json":
-            data = serialize_to_json(result, pretty=True)
-        elif args.output_format == "xml":
-            data = serialize_to_xml(result, pretty=True)
-        else:  # csv
-            data = serialize_to_csv(result, include_coordinates=args.include_coordinates)
+            if args.output_format == "json":
+                data = serialize_to_json(result, pretty=True)
+            elif args.output_format == "xml":
+                data = serialize_to_xml(result, pretty=True)
+            else:  # csv
+                data = serialize_to_csv(result, include_coordinates=args.include_coordinates)
 
-        processing_time = time.perf_counter() - start
-        logger.info("Processed %s in %.2fs", file_path.name, processing_time)
-        output_file = output_dir / f"{file_path.stem}.{args.output_format}"
-        output_file.write_text(data)
-        logger.info("Wrote %s", output_file)
+            processing_time = time.perf_counter() - start
+            logger.info("Processed %s in %.2fs", file_path.name, processing_time)
+            name = sanitize_filename(f"{file_path.stem}.{args.output_format}")
+            output_file = output_dir / name
+            output_file.write_text(data)
+            logger.info("Wrote %s", output_file)
+            PAGES_PROCESSED.inc(info.pages)
 
+    record_memory_usage()
+    if args.metrics_file:
+        save_metrics(args.metrics_file)
     return 0
 
 
