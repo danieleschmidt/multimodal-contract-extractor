@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+          pip install -e .
+      - name: Ruff
+        run: ruff check .
+      - name: Bandit
+        run: bandit -r src -q
+      - name: Tests
+        run: pytest -q

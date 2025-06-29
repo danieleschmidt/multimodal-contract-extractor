@@ -2,6 +2,15 @@ from __future__ import annotations
 
 from pathlib import Path
 import sys
+import tempfile
+
+
+def save_upload(uploaded) -> Path:
+    """Save an uploaded file to a temporary location and return the path."""
+    tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=Path(uploaded.name).suffix)
+    tmp_file.write(uploaded.read())
+    tmp_file.close()
+    return Path(tmp_file.name)
 
 
 def main() -> None:
@@ -20,8 +29,7 @@ def main() -> None:
         st.info("Please upload a PDF or image document.")
         return
 
-    tmp_path = Path("uploaded_contract")
-    tmp_path.write_bytes(uploaded.read())
+    tmp_path = save_upload(uploaded)
     document = load_document(tmp_path)
     clauses = detect_clauses(document)
     info = DocumentInfo(

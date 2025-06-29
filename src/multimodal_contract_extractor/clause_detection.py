@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from typing import Dict, Iterable, List
+import logging
 
 from .document import Document
 from PIL import Image
@@ -39,6 +40,9 @@ DEFAULT_KEYWORDS: Dict[str, List[str]] = {
 }
 
 
+logger = logging.getLogger(__name__)
+
+
 def detect_clauses(
     document: Document, *, keywords: Dict[str, Iterable[str]] | None = None
 ) -> List[Clause]:
@@ -61,6 +65,8 @@ def detect_clauses(
     if keywords is None:
         keywords = DEFAULT_KEYWORDS
 
+    logger.debug("Detecting clauses in %d pages", len(document.pages))
+
     clauses: List[Clause] = []
     for page in document.pages:
         text = _ocr_image(page.image)
@@ -74,8 +80,10 @@ def detect_clauses(
                     )
                     match = pattern.search(text)
                     snippet = match.group(1).strip() if match else word
-                    clauses.append(
-                        Clause(type=clause_type, text=snippet, page=page.number)
+                    clause = Clause(type=clause_type, text=snippet, page=page.number)
+                    clauses.append(clause)
+                    logger.info(
+                        "Detected %s clause on page %d", clause_type, page.number
                     )
                     break
     return clauses
