@@ -3,11 +3,13 @@ from __future__ import annotations
 from pathlib import Path
 import sys
 import tempfile
+import re
 
 
 def save_upload(uploaded) -> Path:
     """Save an uploaded file to a temporary location and return the path."""
-    tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=Path(uploaded.name).suffix)
+    suffix = re.sub(r"[^A-Za-z0-9._-]", "_", Path(uploaded.name).suffix)
+    tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
     tmp_file.write(uploaded.read())
     tmp_file.close()
     return Path(tmp_file.name)

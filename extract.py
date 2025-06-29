@@ -18,7 +18,15 @@ from multimodal_contract_extractor.cli_utils import (  # noqa: E402
     SUPPORTED_FORMATS,
     add_common_arguments,
     setup_logging,
+    build_output_path,
 )
+from multimodal_contract_extractor.metrics import (
+    PROCESSING_TIME,
+    record_memory_usage,
+    save_metrics,
+)
+import uuid
+
 
 
 from multimodal_contract_extractor import (  # noqa: E402
@@ -49,7 +57,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    setup_logging(args.log_level)
+    request_id = uuid.uuid4().hex
+    setup_logging(args.log_level, json_logs=args.json_logs, request_id=request_id)
     logger.debug("Arguments: %s", args)
 
     if args.output_format not in SUPPORTED_FORMATS:
@@ -57,23 +66,22 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     input_path = Path(args.file)
-    if not input_path.exists():
+    if not input_path.is_file():
         logger.error("Input file not found: %s", input_path)
         return 1
 
     logger.info("Processing file %s", input_path)
 
-    if args.output:
-        output_path = Path(args.output)
-        if output_path.suffix == "":
-            output_path = output_path.with_suffix(f".{args.output_format}")
-    else:
-        output_path = Path(f"result.{args.output_format}")
+    try:
+        output_path = build_output_path(args.output, args.output_format)
+    except FileNotFoundError as exc:
+        logger.error(str(exc))
+        return 1
 
-    start_time = time.perf_counter()
-
-    # Placeholder for real extraction work
-    processing_time = time.perf_counter() - start_time
+    with PROCESSING_TIME.time():
+        start_time = time.perf_counter()
+        # Placeholder for real extraction work
+        processing_time = time.perf_counter() - start_time
     logger.info("Processing completed in %.2fs", processing_time)
     info = DocumentInfo(
         filename=input_path.name,
@@ -92,6 +100,9 @@ def main(argv: list[str] | None = None) -> int:
 
     output_path.write_text(data)
     logger.info("Wrote output to %s", output_path)
+    record_memory_usage()
+    if args.metrics_file:
+        save_metrics(args.metrics_file)
     return 0
 
 
