@@ -18,7 +18,6 @@ from multimodal_contract_extractor.cli_utils import (  # noqa: E402
     SUPPORTED_FORMATS,
     add_common_arguments,
     setup_logging,
-    build_output_path,
 )
 from multimodal_contract_extractor.metrics import (
     PROCESSING_TIME,
@@ -36,6 +35,9 @@ from multimodal_contract_extractor import (  # noqa: E402
     serialize_to_json,
     serialize_to_xml,
     serialize_to_csv,
+    SecurityError,
+    validate_file_input,
+    validate_output_path,
 )
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -65,17 +67,19 @@ def main(argv: list[str] | None = None) -> int:
         logger.error("Unsupported format: %s", args.output_format)
         return 1
 
-    input_path = Path(args.file)
-    if not input_path.is_file():
-        logger.error("Input file not found: %s", input_path)
+    # Validate input file with security checks
+    try:
+        input_path = validate_file_input(Path(args.file))
+        logger.info("Processing file %s", input_path)
+    except SecurityError as exc:
+        logger.error("Security validation failed: %s", exc)
         return 1
 
-    logger.info("Processing file %s", input_path)
-
+    # Validate output path with security checks
     try:
-        output_path = build_output_path(args.output, args.output_format)
-    except FileNotFoundError as exc:
-        logger.error(str(exc))
+        output_path = validate_output_path(args.output, args.output_format)
+    except SecurityError as exc:
+        logger.error("Output validation failed: %s", exc)
         return 1
 
     with PROCESSING_TIME.time():

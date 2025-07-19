@@ -36,6 +36,8 @@ from multimodal_contract_extractor import (  # noqa: E402
     serialize_to_json,
     serialize_to_xml,
     serialize_to_csv,
+    SecurityError,
+    validate_file_input,
 )
 
 
@@ -75,8 +77,19 @@ def main(argv: list[str] | None = None) -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
     logger.info("Processing %s -> %s", input_dir, output_dir)
 
+    processed_files = 0
+    skipped_files = 0
+    
     for file_path in input_dir.iterdir():
         if not file_path.is_file():
+            continue
+            
+        # Validate file with security checks
+        try:
+            validate_file_input(file_path)
+        except SecurityError as exc:
+            logger.warning("Skipping file %s: %s", file_path.name, exc)
+            skipped_files += 1
             continue
 
         with PROCESSING_TIME.time():
@@ -103,7 +116,10 @@ def main(argv: list[str] | None = None) -> int:
             output_file.write_text(data)
             logger.info("Wrote %s", output_file)
             PAGES_PROCESSED.inc(info.pages)
+            processed_files += 1
 
+    logger.info("Batch processing complete: %d files processed, %d files skipped", 
+                processed_files, skipped_files)
     record_memory_usage()
     if args.metrics_file:
         save_metrics(args.metrics_file)

@@ -11,6 +11,12 @@ from .serialization import (
     serialize_to_xml,
     serialize_to_csv,
 )
+from .security import (
+    SecurityError,
+    validate_file_input,
+    sanitize_file_path,
+    validate_output_path,
+)
 
 __all__ = [
     "Document",
@@ -24,5 +30,9 @@ __all__ = [
     "serialize_to_json",
     "serialize_to_xml",
     "serialize_to_csv",
+    "SecurityError",
+    "validate_file_input",
+    "sanitize_file_path",
+    "validate_output_path",
     "__version__",
 ]

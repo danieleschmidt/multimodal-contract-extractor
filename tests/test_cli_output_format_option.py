@@ -2,10 +2,12 @@ import subprocess
 import sys
 from pathlib import Path
 
+from .test_helpers import create_test_pdf
+
 
 def test_cli_writes_result_json(tmp_path):
-    input_file = tmp_path / "dummy.txt"
-    input_file.write_text("test")
+    input_file = tmp_path / "dummy.pdf"
+    create_test_pdf(input_file, "test content")
     output_base = tmp_path / "result"
     cmd = [
         sys.executable,
@@ -22,8 +24,8 @@ def test_cli_writes_result_json(tmp_path):
 
 
 def test_cli_rejects_invalid_format(tmp_path):
-    input_file = tmp_path / "dummy.txt"
-    input_file.write_text("test")
+    input_file = tmp_path / "dummy.pdf"
+    create_test_pdf(input_file, "test content")
     cmd = [
         sys.executable,
         "extract.py",

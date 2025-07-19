@@ -3,10 +3,12 @@ import subprocess
 import sys
 from pathlib import Path
 
+from .test_helpers import create_test_pdf
+
 
 def test_extract_cli_metrics_and_json_logs(tmp_path):
-    input_file = tmp_path / "doc.txt"
-    input_file.write_text("data")
+    input_file = tmp_path / "doc.pdf"
+    create_test_pdf(input_file, "test content")
     metrics_file = tmp_path / "metrics.txt"
     cmd = [
         sys.executable,
