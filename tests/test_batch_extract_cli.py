@@ -2,12 +2,14 @@ import subprocess
 import sys
 from pathlib import Path
 
+from .test_helpers import create_test_pdf
+
 
 def test_batch_extract_creates_outputs(tmp_path):
     input_dir = tmp_path / "input"
     input_dir.mkdir()
-    for name in ["a.txt", "b.txt"]:
-        (input_dir / name).write_text("dummy")
+    for name in ["a.pdf", "b.pdf"]:
+        create_test_pdf(input_dir / name, "dummy content")
 
     output_dir = tmp_path / "out"
     cmd = [
@@ -26,7 +28,7 @@ def test_batch_extract_creates_outputs(tmp_path):
 def test_batch_extract_rejects_invalid_format(tmp_path):
     input_dir = tmp_path / "input"
     input_dir.mkdir()
-    (input_dir / "file.txt").write_text("data")
+    create_test_pdf(input_dir / "file.pdf", "test content")
     output_dir = tmp_path / "out"
     cmd = [
         sys.executable,

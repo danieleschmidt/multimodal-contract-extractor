@@ -2,6 +2,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from .test_helpers import create_test_pdf
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -10,16 +12,16 @@ def test_extract_cli_missing_input(tmp_path):
         sys.executable,
         "extract.py",
         "--file",
-        str(tmp_path / "missing.txt"),
+        str(tmp_path / "missing.pdf"),
     ]
     result = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True)
     assert result.returncode != 0
-    assert "Input file not found" in result.stderr
+    assert "Security validation failed" in result.stderr
 
 
 def test_extract_cli_output_dir_missing(tmp_path):
-    input_file = tmp_path / "doc.txt"
-    input_file.write_text("data")
+    input_file = tmp_path / "doc.pdf"
+    create_test_pdf(input_file, "test content")
     missing_dir = tmp_path / "missing" / "result.json"
     cmd = [
         sys.executable,
@@ -31,7 +33,7 @@ def test_extract_cli_output_dir_missing(tmp_path):
     ]
     result = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True)
     assert result.returncode != 0
-    assert "Output directory not found" in result.stderr
+    assert "Output validation failed" in result.stderr
 
 
 def test_batch_extract_cli_missing_input_dir(tmp_path):

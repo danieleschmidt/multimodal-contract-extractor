@@ -3,6 +3,8 @@ import logging
 import re
 from pathlib import Path
 
+from .security import sanitize_request_id
+
 SUPPORTED_FORMATS = {"json", "xml", "csv"}
 
 
@@ -56,7 +58,7 @@ def setup_logging(level: str = "info", *, json_logs: bool = False, request_id: s
         fmt = '{"level":"%(levelname)s","name":"%(name)s","message":"%(message)s","request_id":"%(request_id)s"}'
     handler = logging.StreamHandler()
     handler.setFormatter(logging.Formatter(fmt))
-    rid = request_id or "-"
+    rid = sanitize_request_id(request_id or "-")
     handler.addFilter(_RequestIdFilter(rid))
     logger.setLevel(numeric)
     logger.addHandler(handler)
