@@ -4,23 +4,21 @@
 
 ### 🔴 Critical (Blocking core functionality)
 
-#### TD-001: Placeholder Extraction Implementation
-- **Location**: `extract.py:83`
-- **Issue**: Core extraction logic is a placeholder comment
-- **Impact**: Prevents actual document processing
-- **Effort**: Large (requires ML model integration)
-- **Created**: 2025-07-19
-- **Priority**: P1 - Blocking
-- **Owner**: Backend Team
+#### TD-001: ✅ RESOLVED - Placeholder Extraction Implementation
+- **Location**: `extract.py:87` (was placeholder, now implemented)
+- **Issue**: Core extraction logic was a placeholder comment
+- **Resolution**: Implemented OCR-based extraction with structured output (v0.3.0)
+- **Impact**: Unblocked core document processing functionality
+- **Resolved**: 2025-07-20
+- **Resolved By**: Autonomous development system
 
-#### TD-002: Missing OCR/VLM Integration
-- **Location**: `clause_detection.py`
-- **Issue**: Clause detection lacks actual ML model calls
-- **Impact**: No real clause identification capability
-- **Effort**: Large (model integration, API calls)
-- **Created**: 2025-07-19
-- **Priority**: P1 - Blocking
-- **Owner**: ML Team
+#### TD-002: ✅ RESOLVED - Missing OCR/VLM Integration  
+- **Location**: `clause_detection.py` + new `extraction.py`
+- **Issue**: Clause detection lacked actual OCR/ML model calls
+- **Resolution**: Integrated Tesseract OCR with keyword-based clause classification
+- **Impact**: Enabled real clause identification and confidence scoring
+- **Resolved**: 2025-07-20  
+- **Resolved By**: Autonomous development system
 
 ### 🟡 Medium (Affects maintainability/quality)
 
@@ -98,15 +96,23 @@
 
 ## Metrics
 
-- Total debt items: 7
-- Critical: 2
+- Total debt items: 7 (2 resolved, 5 active)
+- Critical: 0 (was 2, both resolved in v0.3.0) ✅
 - Medium: 3
-- Low: 2
-- Average age: New (established 2025-07-19)
+- Low: 2  
+- Resolution rate: 28.6% (2/7 items resolved)
+- Average resolution time: 1 day (for critical items)
 
 ## Next Actions
 
-1. Address TD-001 and TD-002 as part of core extraction implementation
-2. Plan TD-003 and TD-005 for next sprint
-3. Bundle TD-004 with error handling improvements
+1. ✅ ~~Address TD-001 and TD-002 as part of core extraction implementation~~ **COMPLETED**
+2. Plan TD-003 and TD-005 for next sprint (configuration management and input validation)
+3. Bundle TD-004 with error handling improvements  
 4. Schedule TD-006 and TD-007 for maintenance tasks
+
+## Recent Achievements (v0.3.0)
+
+- **Critical technical debt eliminated**: Core extraction functionality now fully operational
+- **OCR integration completed**: Real document processing with Tesseract OCR
+- **Structured output implemented**: JSON format matches documented specification
+- **Test coverage expanded**: 3 new integration tests ensuring end-to-end functionality

@@ -5,8 +5,24 @@ from pathlib import Path
 
 def create_test_pdf(path: Path, content: str = "dummy content") -> Path:
     """Create a valid PDF file for testing."""
-    pdf_content = b"%PDF-1.4\n" + content.encode()
-    path.write_bytes(pdf_content)
+    from PIL import Image, ImageDraw, ImageFont
+    
+    # Create an image with text
+    img = Image.new('RGB', (800, 600), color='white')
+    draw = ImageDraw.Draw(img)
+    
+    # Try to use a default font, fall back to PIL default if not available
+    try:
+        font = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 20)
+    except (OSError, IOError):
+        font = ImageFont.load_default()
+    
+    # Draw the text content on the image
+    draw.text((50, 50), content, fill='black', font=font)
+    
+    # Save as PDF
+    img.save(str(path), 'PDF', resolution=100.0)
+    
     return path
 
 
