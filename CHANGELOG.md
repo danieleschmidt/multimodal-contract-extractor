@@ -1,3 +1,27 @@
+# Release v0.3.0
+
+## ✨ Features
+- **🚀 MAJOR: Real Document Extraction**: Replaced placeholder with actual OCR-based clause detection
+  - Integrated Tesseract OCR for text extraction from PDF and image documents
+  - Keyword-based clause classification (confidentiality, termination, payment terms, etc.)
+  - Confidence scoring and key term extraction for each detected clause  
+  - Document type inference (NDA, employment agreement, service agreement)
+  - Processing time metrics and structured JSON output matching documented format
+- **📊 Enhanced Output**: Rich extraction results with detailed metadata
+  - Document information including page count, processing time, overall confidence
+  - Clause-level details: ID, type, text, page number, confidence, key terms
+  - Extraction metadata: timestamp, model version, processing method
+- **🧪 Integration Tests**: Comprehensive end-to-end testing
+  - Tests for PDF processing pipeline from load to JSON output
+  - Validation of output structure against documented format
+  - Edge case handling for documents with no detectable clauses
+
+## 🔧 Technical Improvements
+- Created `extraction.py` module bridging OCR detection with CLI
+- Enhanced test helpers to create valid PDFs with text content for OCR testing
+- Updated CLI to use real extraction instead of placeholder functionality
+- Fixed deprecation warnings in datetime usage
+
 # Release v0.2.0
 
 ## ✨ Features

@@ -4,7 +4,6 @@ import argparse
 import sys
 from pathlib import Path
 import logging
-import time
 
 # Ensure the src directory is importable when running the CLI without
 # installing the package first.
@@ -83,17 +82,33 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     with PROCESSING_TIME.time():
-        start_time = time.perf_counter()
-        # Placeholder for real extraction work
-        processing_time = time.perf_counter() - start_time
+        from multimodal_contract_extractor import extract_from_document
+        extraction_result = extract_from_document(input_path)
+        
+    processing_time = extraction_result["document_info"]["processing_time"]
     logger.info("Processing completed in %.2fs", processing_time)
+    
+    # Convert to legacy format for serialization compatibility
     info = DocumentInfo(
-        filename=input_path.name,
-        pages=0,
-        processing_time=processing_time,
-        confidence=1.0,
+        filename=extraction_result["document_info"]["filename"],
+        pages=extraction_result["document_info"]["pages"],
+        processing_time=extraction_result["document_info"]["processing_time"],
+        confidence=extraction_result["document_info"]["overall_confidence"],
     )
-    result = ExtractionResult(document_info=info, clauses=[])
+    
+    # Convert clauses to Clause objects
+    from multimodal_contract_extractor.clause_detection import Clause
+    clauses = [
+        Clause(
+            type=clause_data["type"],
+            text=clause_data["text"],
+            page=clause_data["page"],
+            coordinates=clause_data["coordinates"]
+        )
+        for clause_data in extraction_result["clauses"]
+    ]
+    
+    result = ExtractionResult(document_info=info, clauses=clauses)
 
     if args.output_format == "json":
         data = serialize_to_json(result, pretty=True)

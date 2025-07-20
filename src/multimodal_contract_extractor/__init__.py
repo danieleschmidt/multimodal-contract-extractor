@@ -17,6 +17,7 @@ from .security import (
     sanitize_file_path,
     validate_output_path,
 )
+from .extraction import extract_from_document
 
 __all__ = [
     "Document",
@@ -34,5 +35,6 @@ __all__ = [
     "validate_file_input",
     "sanitize_file_path",
     "validate_output_path",
+    "extract_from_document",
     "__version__",
 ]
