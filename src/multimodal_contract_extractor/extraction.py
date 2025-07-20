@@ -10,6 +10,12 @@ import logging
 
 from .document import load_document, stream_document, Document
 from .clause_detection import detect_clauses
+from .metrics import (
+    record_document_processed, 
+    record_clauses_detected, 
+    record_pages_processed,
+    PROCESSING_TIME
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,16 +38,66 @@ def extract_from_document(file_path: Path) -> Dict[str, Any]:
     Dict[str, Any]
         Structured extraction result matching the documented JSON format
     """
-    start_time = time.perf_counter()
+    # Record processing time with Prometheus histogram
+    with PROCESSING_TIME.time():
+        start_time = time.perf_counter()
+        
+        try:
+            logger.info("Starting extraction for %s", file_path.name)
+            
+            # Adaptive document loading: use streaming for large files to optimize memory usage
+            document = _load_document_adaptive(file_path)
+            clauses = detect_clauses(document)
+            
+            processing_time = time.perf_counter() - start_time
+            
+            # Record metrics
+            record_pages_processed(len(document.pages))
+            
+            # Count clauses by type for metrics
+            clause_counts = {}
+            for clause in clauses:
+                clause_counts[clause.type] = clause_counts.get(clause.type, 0) + 1
+            
+            if clause_counts:
+                record_clauses_detected(clause_counts)
+            
+            # Record successful processing
+            record_document_processed("success")
+            
+            result = _build_extraction_result(document, clauses, processing_time)
+            
+            logger.info(
+                "Extraction completed for %s: %d clauses found in %.2fs", 
+                file_path.name, len(clauses), processing_time
+            )
+            
+            return result
+            
+        except Exception as e:
+            # Record failed processing
+            record_document_processed("error")
+            logger.error("Extraction failed for %s: %s", file_path.name, e)
+            raise
+
+
+def _build_extraction_result(document: Document, clauses: list, processing_time: float) -> Dict[str, Any]:
+    """Build the structured extraction result.
     
-    logger.info("Starting extraction for %s", file_path.name)
-    
-    # Adaptive document loading: use streaming for large files to optimize memory usage
-    document = _load_document_adaptive(file_path)
-    clauses = detect_clauses(document)
-    
-    processing_time = time.perf_counter() - start_time
-    
+    Parameters
+    ----------
+    document : Document
+        The processed document
+    clauses : list
+        Detected clauses
+    processing_time : float
+        Processing time in seconds
+        
+    Returns
+    -------
+    Dict[str, Any]
+        Structured extraction result
+    """
     # Calculate overall confidence (simple average for now)
     if clauses:
         overall_confidence = sum(_calculate_clause_confidence(clause) for clause in clauses) / len(clauses)
@@ -51,7 +107,7 @@ def extract_from_document(file_path: Path) -> Dict[str, Any]:
     # Build result in documented JSON format
     result = {
         "document_info": {
-            "filename": file_path.name,
+            "filename": document.path.name,
             "pages": len(document.pages),
             "processing_time": round(processing_time, 2),
             "overall_confidence": round(overall_confidence, 2),
@@ -75,11 +131,6 @@ def extract_from_document(file_path: Path) -> Dict[str, Any]:
             "processing_method": "ocr_keyword_detection"
         }
     }
-    
-    logger.info(
-        "Extraction completed for %s: %d clauses found in %.2fs", 
-        file_path.name, len(clauses), processing_time
-    )
     
     return result
 

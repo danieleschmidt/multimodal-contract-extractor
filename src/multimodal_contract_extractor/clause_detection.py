@@ -35,10 +35,13 @@ def _ocr_image(image: Image.Image) -> str:
     # Check cache first
     if image_hash in _ocr_cache:
         logger.debug("OCR cache hit for image hash: %s", image_hash[:8])
+        _record_cache_hit()
         return _ocr_cache[image_hash]
     
     # Perform OCR and cache result
     logger.debug("OCR cache miss, performing OCR for hash: %s", image_hash[:8])
+    _record_cache_miss()
+    
     try:
         import pytesseract
     except ImportError as exc:
@@ -51,6 +54,26 @@ def _ocr_image(image: Image.Image) -> str:
         _ocr_cache[image_hash] = text
     
     return text
+
+
+def _record_cache_hit():
+    """Record OCR cache hit metric."""
+    try:
+        from .metrics import record_ocr_cache_hit
+        record_ocr_cache_hit()
+    except ImportError:
+        # Metrics module not available, ignore
+        pass
+
+
+def _record_cache_miss():
+    """Record OCR cache miss metric."""
+    try:
+        from .metrics import record_ocr_cache_miss
+        record_ocr_cache_miss()
+    except ImportError:
+        # Metrics module not available, ignore
+        pass
 
 
 def _hash_image(image: Image.Image) -> str:

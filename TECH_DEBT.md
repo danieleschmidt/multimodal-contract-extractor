@@ -125,3 +125,11 @@
 - **Clause detection optimization**: 83% performance improvement with combined regex patterns
 - **Comprehensive benchmarks**: Performance test suite validates 85.4% end-to-end improvement
 - **Technical debt impact**: Improved code maintainability and reduced processing overhead
+
+### v0.5.0 (2025-07-20) - Enhanced Observability Sprint
+- **Production monitoring readiness**: Complete observability stack implemented
+- **Health check system**: Real-time dependency health monitoring (Tesseract, Poppler, packages)
+- **Enhanced metrics**: Prometheus integration with cache hit rates, processing statistics
+- **Dashboard integration**: Structured data format for monitoring dashboards
+- **Structured logging**: Request ID tracking and JSON log formatting
+- **Technical debt impact**: Production-ready monitoring reduces operational overhead
