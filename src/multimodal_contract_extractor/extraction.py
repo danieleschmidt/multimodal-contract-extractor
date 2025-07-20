@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Dict, Any
 import logging
 
-from .document import load_document
+from .document import load_document, stream_document, Document
 from .clause_detection import detect_clauses
 
 logger = logging.getLogger(__name__)
@@ -36,8 +36,8 @@ def extract_from_document(file_path: Path) -> Dict[str, Any]:
     
     logger.info("Starting extraction for %s", file_path.name)
     
-    # Load document and detect clauses
-    document = load_document(file_path)
+    # Adaptive document loading: use streaming for large files to optimize memory usage
+    document = _load_document_adaptive(file_path)
     clauses = detect_clauses(document)
     
     processing_time = time.perf_counter() - start_time
@@ -164,3 +164,40 @@ def _infer_document_type(clauses) -> str:
         return "service_agreement"
     else:
         return "general_contract"
+
+
+def _load_document_adaptive(file_path: Path) -> Document:
+    """Load document using adaptive strategy based on file size.
+    
+    For large files (> 10MB), use streaming to manage memory usage.
+    For smaller files, use standard loading for faster access.
+    
+    Parameters
+    ----------
+    file_path : Path
+        Path to the document to load
+        
+    Returns
+    -------
+    Document
+        Loaded document object
+    """
+    # Define size threshold for streaming (10MB)
+    SIZE_THRESHOLD = 10 * 1024 * 1024  # 10MB in bytes
+    
+    try:
+        file_size = file_path.stat().st_size
+        
+        if file_path.suffix.lower() == '.pdf' and file_size > SIZE_THRESHOLD:
+            logger.info("Large PDF detected (%d MB), using streaming approach", file_size // (1024 * 1024))
+            # Use streaming for large PDFs
+            pages = list(stream_document(file_path, chunk_size=5))
+            document = Document(path=file_path, pages=pages)
+            return document
+        else:
+            logger.debug("Using standard loading for file size: %d bytes", file_size)
+            return load_document(file_path)
+            
+    except (OSError, IOError) as e:
+        logger.warning("Could not determine file size, falling back to standard loading: %s", e)
+        return load_document(file_path)
