@@ -3,7 +3,6 @@
 import time
 from unittest.mock import patch, MagicMock
 from multimodal_contract_extractor.clause_detection import detect_clauses, _detect_clauses_optimized
-from multimodal_contract_extractor.document import Document
 from tests.test_helpers import create_test_pdf
 
 

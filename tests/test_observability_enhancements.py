@@ -1,11 +1,7 @@
 """Tests for enhanced observability features."""
 
-import json
-import tempfile
 import time
-from pathlib import Path
-from unittest.mock import patch, MagicMock
-import pytest
+from unittest.mock import patch
 
 from multimodal_contract_extractor.extraction import extract_from_document
 from tests.test_helpers import create_test_pdf
