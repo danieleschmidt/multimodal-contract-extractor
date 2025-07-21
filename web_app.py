@@ -304,9 +304,12 @@ def format_clause_display(clause: Dict[str, Any]) -> Dict[str, Any]:
         "key_terms": clause.get("key_terms", [])
     }
 
-
 def save_upload(uploaded) -> Path:
-    """Save an uploaded file to a temporary location and return the path."""
+    """Save an uploaded file to a temporary location and return the path.
+    
+    DEPRECATED: Use TempFileManager context manager instead for proper cleanup.
+    This function is kept for backward compatibility but does not clean up files.
+    """
     suffix = re.sub(r"[^A-Za-z0-9._-]", "_", Path(uploaded.name).suffix)
     tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
     tmp_file.write(uploaded.read())
@@ -314,15 +317,38 @@ def save_upload(uploaded) -> Path:
     return Path(tmp_file.name)
 
 
+def process_upload_with_cleanup(uploaded_file) -> dict:
+    """Process an uploaded file with proper temporary file cleanup.
+    
+    Args:
+        uploaded_file: Streamlit uploaded file object
+        
+    Returns:
+        Dictionary containing extraction results
+        
+    Raises:
+        Exception: If document processing fails
+    """
+    from multimodal_contract_extractor import extract_from_document
+    
+    with TempFileManager(uploaded_file) as tmp_path:
+        logger.info(f"Processing uploaded file: {uploaded_file.name}")
+        
+        # Perform document extraction
+        extraction_result = extract_from_document(tmp_path)
+        
+        logger.info(f"Extraction completed for: {uploaded_file.name}")
+        return extraction_result
+
+
 def main() -> None:
     import streamlit as st  # Lazy import so tests don't require streamlit
     from multimodal_contract_extractor import (
-        load_document,
-        detect_clauses,
+        serialize_to_json,
         DocumentInfo,
         ExtractionResult,
-        serialize_to_json,
     )
+    from multimodal_contract_extractor.clause_detection import Clause
 
     st.title("Multimodal Contract Extractor")
     uploaded = st.file_uploader("Upload contract file")
@@ -330,17 +356,40 @@ def main() -> None:
         st.info("Please upload a PDF or image document.")
         return
 
-    tmp_path = save_upload(uploaded)
-    document = load_document(tmp_path)
-    clauses = detect_clauses(document)
-    info = DocumentInfo(
-        filename=uploaded.name,
-        pages=len(document.pages),
-        processing_time=0.0,
-        confidence=1.0,
-    )
-    result = ExtractionResult(document_info=info, clauses=clauses)
-    st.json(serialize_to_json(result, pretty=True))
+    try:
+        # Use secure processing with automatic cleanup
+        extraction_result = process_upload_with_cleanup(uploaded)
+        
+        # Convert to legacy format for serialization compatibility  
+        info = DocumentInfo(
+            filename=extraction_result["document_info"]["filename"],
+            pages=extraction_result["document_info"]["pages"],
+            processing_time=extraction_result["document_info"]["processing_time"],
+            confidence=extraction_result["document_info"]["overall_confidence"],
+        )
+        
+        # Convert clauses to Clause objects
+        clauses = [
+            Clause(
+                type=clause_data["type"],
+                text=clause_data["text"],
+                page=clause_data["page"],
+                coordinates=clause_data["coordinates"]
+            )
+            for clause_data in extraction_result["clauses"]
+        ]
+        
+        result = ExtractionResult(document_info=info, clauses=clauses)
+        st.json(serialize_to_json(result, pretty=True))
+        
+        # Display processing summary
+        st.success(f"✅ Processed {info.pages} pages in {info.processing_time:.2f}s")
+        if clauses:
+            st.info(f"📋 Found {len(clauses)} clauses with {info.confidence:.1%} average confidence")
+        
+    except Exception as e:
+        st.error(f"❌ Error processing document: {str(e)}")
+        logger.error(f"Document processing failed: {e}", exc_info=True)
 
 
 if __name__ == "__main__":  # pragma: no cover
