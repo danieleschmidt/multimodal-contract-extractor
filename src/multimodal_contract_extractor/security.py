@@ -3,6 +3,7 @@
 import re
 from pathlib import Path
 from typing import Literal
+from .config import get_config
 
 
 class SecurityError(Exception):
@@ -33,11 +34,13 @@ SUPPORTED_EXTENSIONS = {
     ".tif": "image",
 }
 
-# Maximum file size in MB (default: 100MB)
-DEFAULT_MAX_FILE_SIZE_MB = 100
+# Maximum file size in MB - now configurable
+def _get_max_file_size_mb() -> int:
+    """Get maximum file size from configuration."""
+    return get_config().security.max_file_size_mb
 
 
-def validate_file_input(file_path: Path, max_size_mb: int = DEFAULT_MAX_FILE_SIZE_MB) -> Path:
+def validate_file_input(file_path: Path, max_size_mb: int = None) -> Path:
     """
     Validate a file input for security and compatibility.
     
@@ -63,6 +66,8 @@ def validate_file_input(file_path: Path, max_size_mb: int = DEFAULT_MAX_FILE_SIZ
         raise SecurityError(f"Path is not a regular file: {resolved_path}")
     
     # Check file size
+    if max_size_mb is None:
+        max_size_mb = _get_max_file_size_mb()
     check_file_size_limit(resolved_path, max_size_mb)
     
     # Check if file is empty
@@ -107,7 +112,7 @@ def sanitize_file_path(file_path: str) -> str:
     return clean_path
 
 
-def check_file_size_limit(file_path: Path, max_size_mb: int = DEFAULT_MAX_FILE_SIZE_MB) -> None:
+def check_file_size_limit(file_path: Path, max_size_mb: int = None) -> None:
     """
     Check if file size is within allowed limits.
     
@@ -118,6 +123,9 @@ def check_file_size_limit(file_path: Path, max_size_mb: int = DEFAULT_MAX_FILE_S
     Raises:
         SecurityError: If file exceeds size limit
     """
+    if max_size_mb is None:
+        max_size_mb = _get_max_file_size_mb()
+    
     file_size_bytes = file_path.stat().st_size
     file_size_mb = file_size_bytes / (1024 * 1024)
     
@@ -213,7 +221,8 @@ def sanitize_request_id(request_id: str) -> str:
     sanitized = re.sub(r"[^a-zA-Z0-9\-_]", "", request_id)
     
     # Limit length to prevent DoS
-    sanitized = sanitized[:64]
+    config = get_config()
+    sanitized = sanitized[:config.security.request_id_length_limit]
     
     # Ensure non-empty result
     if not sanitized:

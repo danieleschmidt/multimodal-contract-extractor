@@ -7,6 +7,7 @@ import logging
 
 from PIL import Image
 from pdf2image import convert_from_path
+from .config import get_config
 
 
 @dataclass
@@ -64,7 +65,7 @@ def load_document(path: str | Path) -> Document:
     return Document(path=file_path, pages=pages)
 
 
-def stream_document(path: str | Path, *, chunk_size: int = 10) -> Iterable[DocumentPage]:
+def stream_document(path: str | Path, *, chunk_size: int = None) -> Iterable[DocumentPage]:
     """Yield :class:`DocumentPage` objects from ``path`` lazily.
 
     This helper loads PDF pages in chunks to limit memory usage. Image files are
@@ -79,6 +80,8 @@ def stream_document(path: str | Path, *, chunk_size: int = 10) -> Iterable[Docum
     """
 
     file_path = Path(path)
+    if chunk_size is None:
+        chunk_size = get_config().document.default_streaming_chunk_size
     logger.debug("Streaming document from %s", file_path)
     if file_path.suffix.lower() != ".pdf":
         yield DocumentPage(image=Image.open(file_path), number=1)

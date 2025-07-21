@@ -18,6 +18,13 @@ from .security import (
     validate_output_path,
 )
 from .extraction import extract_from_document
+from .config import (
+    Config,
+    load_config,
+    get_config,
+    reload_config,
+    ConfigValidationError,
+)
 
 __all__ = [
     "Document",
@@ -36,5 +43,10 @@ __all__ = [
     "sanitize_file_path",
     "validate_output_path",
     "extract_from_document",
+    "Config",
+    "load_config",
+    "get_config",
+    "reload_config",
+    "ConfigValidationError",
     "__version__",
 ]

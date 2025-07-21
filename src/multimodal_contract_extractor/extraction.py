@@ -10,6 +10,7 @@ import logging
 
 from .document import load_document, stream_document, Document
 from .clause_detection import detect_clauses
+from .config import get_config
 from .metrics import (
     record_document_processed, 
     record_clauses_detected, 
@@ -142,10 +143,11 @@ def _calculate_clause_confidence(clause) -> float:
     In the future, this could integrate ML-based confidence scoring.
     """
     # Base confidence for keyword detection
-    base_confidence = 0.75
+    config = get_config()
+    base_confidence = config.extraction.base_confidence_score
     
     # Bonus for longer text (more context)
-    length_bonus = min(0.15, len(clause.text) / 1000)
+    length_bonus = min(0.15, len(clause.text) / config.extraction.length_bonus_divisor)
     
     # Bonus for specific clause types that are easier to detect
     type_bonus = {
@@ -155,7 +157,7 @@ def _calculate_clause_confidence(clause) -> float:
     }.get(clause.type, 0.0)
     
     confidence = base_confidence + length_bonus + type_bonus
-    return round(min(confidence, 0.95), 2)  # Cap at 95% for keyword-based detection
+    return round(min(confidence, config.extraction.max_confidence_cap), 2)
 
 
 def _extract_key_terms(clause) -> list[str]:
@@ -233,8 +235,9 @@ def _load_document_adaptive(file_path: Path) -> Document:
     Document
         Loaded document object
     """
-    # Define size threshold for streaming (10MB)
-    SIZE_THRESHOLD = 10 * 1024 * 1024  # 10MB in bytes
+    # Define size threshold for streaming  
+    config = get_config()
+    SIZE_THRESHOLD = config.extraction.file_size_threshold_mb * 1024 * 1024  # Convert MB to bytes
     
     try:
         file_size = file_path.stat().st_size
@@ -242,7 +245,7 @@ def _load_document_adaptive(file_path: Path) -> Document:
         if file_path.suffix.lower() == '.pdf' and file_size > SIZE_THRESHOLD:
             logger.info("Large PDF detected (%d MB), using streaming approach", file_size // (1024 * 1024))
             # Use streaming for large PDFs
-            pages = list(stream_document(file_path, chunk_size=5))
+            pages = list(stream_document(file_path, chunk_size=config.extraction.streaming_chunk_size))
             document = Document(path=file_path, pages=pages)
             return document
         else:

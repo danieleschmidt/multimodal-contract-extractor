@@ -8,6 +8,7 @@ from typing import Dict, Any
 import logging
 
 from . import __version__
+from .config import get_config
 
 logger = logging.getLogger(__name__)
 
@@ -74,11 +75,12 @@ def _check_tesseract() -> Dict[str, Any]:
     """Check if Tesseract OCR is available and working."""
     try:
         # Try to run tesseract --version
+        config = get_config()
         result = subprocess.run(
             ["tesseract", "--version"], 
             capture_output=True, 
             text=True, 
-            timeout=5
+            timeout=config.health.check_timeout_seconds
         )
         
         if result.returncode == 0:
@@ -119,11 +121,12 @@ def _check_poppler() -> Dict[str, Any]:
         # Check for pdfinfo (part of poppler-utils)
         if shutil.which("pdfinfo"):
             # Try to get version
+            config = get_config()
             result = subprocess.run(
                 ["pdfinfo", "-v"], 
                 capture_output=True, 
                 text=True, 
-                timeout=5
+                timeout=config.health.check_timeout_seconds
             )
             
             # pdfinfo -v writes to stderr

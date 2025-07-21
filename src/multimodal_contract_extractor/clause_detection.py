@@ -10,6 +10,7 @@ import logging
 
 from .document import Document
 from PIL import Image
+from .config import get_config
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +51,8 @@ def _ocr_image(image: Image.Image) -> str:
     text = pytesseract.image_to_string(image)
     
     # Cache the result (with size limit to prevent unbounded growth)
-    if len(_ocr_cache) < 100:  # Simple size limit
+    config = get_config()
+    if len(_ocr_cache) < config.ocr.cache_size_limit:
         _ocr_cache[image_hash] = text
     
     return text
@@ -171,7 +173,7 @@ def _detect_clauses_legacy(
                 if word.lower() in lower_text:
                     # capture surrounding text for context
                     pattern = re.compile(
-                        rf"(.{{0,100}}{re.escape(word)}.{{0,100}})", re.IGNORECASE
+                        rf"(.{{0,{get_config().ocr.context_window_size}}}{re.escape(word)}.{{0,{get_config().ocr.context_window_size}}})", re.IGNORECASE
                     )
                     match = pattern.search(text)
                     snippet = match.group(1).strip() if match else word
@@ -226,8 +228,10 @@ def _detect_clauses_optimized(
             clause_type = keyword_to_type.get(matched_text)
             if clause_type:
                 # Extract surrounding context
-                start = max(0, match.start() - 100)
-                end = min(len(text), match.end() + 100)
+                config = get_config()
+                context_size = config.ocr.context_window_size
+                start = max(0, match.start() - context_size)
+                end = min(len(text), match.end() + context_size)
                 snippet = text[start:end].strip()
                 
                 clause = Clause(type=clause_type, text=snippet, page=page.number)

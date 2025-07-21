@@ -1,3 +1,37 @@
+# Release v0.7.0
+
+## 🚀 Major Feature: Centralized Configuration Management
+- **NEW: Flexible Configuration System**: Implemented comprehensive configuration management following Twelve-Factor App principles
+  - **YAML Configuration**: Support for `config.yml` files with complete schema validation
+  - **Environment Variables**: Full environment variable override support with `MCE_` prefix
+  - **Singleton Pattern**: Efficient configuration caching with reload capabilities
+  - **12+ Configurable Parameters**: All hardcoded values now configurable
+- **Configuration Categories**:
+  - **OCR Settings**: Cache size limits, context window sizes
+  - **Extraction Settings**: Confidence thresholds, file size limits, streaming parameters
+  - **Security Settings**: File size limits, request ID constraints
+  - **Health Check Settings**: Timeout configurations
+  - **Document Processing**: Streaming chunk sizes and memory management
+- **Developer Experience**: 
+  - Added `config.example.yml` with detailed documentation and production recommendations
+  - Updated README with comprehensive configuration examples
+  - Full API documentation for `load_config()`, `get_config()`, and `reload_config()`
+
+## 🧪 Enhanced Testing & Quality
+- **12 New Configuration Tests**: Comprehensive test suite for configuration loading, validation, and environment overrides
+- **Validation System**: Robust input validation with descriptive error messages
+- **Test Isolation**: Proper singleton management in test suites
+
+## 🔧 Code Quality Improvements
+- **Eliminated Hardcoded Values**: Replaced 12+ magic numbers and constants throughout the codebase
+- **Improved Maintainability**: Centralized configuration makes deployment and customization significantly easier
+- **Better Error Handling**: Configuration validation provides clear feedback for invalid settings
+
+## 📚 Documentation Updates
+- **Configuration Guide**: Comprehensive documentation in README with examples
+- **Production Recommendations**: Guidelines for production deployment configurations
+- **Environment Variable Reference**: Complete list of supported environment variables
+
 # Release v0.6.0
 
 ## 🚨 Critical Bug Fix
