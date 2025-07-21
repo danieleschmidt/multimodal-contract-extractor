@@ -1,3 +1,33 @@
+# Release v0.8.0
+
+## 🔐 Security Enhancement: Temporary File Cleanup
+- **NEW: Secure File Processing**: Implemented comprehensive temporary file management to eliminate security vulnerabilities
+  - **TempFileManager Context Manager**: Automatic cleanup of temporary files with exception safety
+  - **Restrictive File Permissions**: Temporary files created with owner-only access (0o600)
+  - **Path Sanitization**: Enhanced filename sanitization to prevent security issues
+  - **Resource Management**: Guaranteed cleanup even when processing fails
+- **Security Improvements**:
+  - **Automatic Cleanup**: Files are automatically removed when processing completes or fails
+  - **Secure Processing**: `process_upload_with_cleanup()` function for safe file handling
+  - **Exception Safety**: Files cleaned up even if exceptions occur during processing
+  - **Production Ready**: Eliminates temporary file accumulation and exposure risks
+- **Refactored Web Interface**: 
+  - Updated `web_app.py` to use secure processing patterns
+  - Deprecated unsafe `save_upload()` function (kept for backward compatibility)
+  - Added comprehensive logging for security audit trails
+
+## 🧪 Enhanced Security Testing
+- **10 New Security Tests**: Comprehensive test suite for file cleanup and security validation
+- **Context Manager Testing**: Verification of proper cleanup in normal and exception scenarios
+- **Permission Testing**: Validation of restrictive file permissions
+- **Path Traversal Protection**: Tests for prevention of directory traversal attacks
+- **Resource Management**: Tests for handling multiple concurrent file operations
+
+## 📚 Security Documentation
+- **Security Best Practices**: Updated README with comprehensive security guidance
+- **Production Guidelines**: Documentation for secure file handling patterns
+- **Developer Reference**: Complete API documentation for secure file processing
+
 # Release v0.7.0
 
 ## 🚀 Major Feature: Centralized Configuration Management
