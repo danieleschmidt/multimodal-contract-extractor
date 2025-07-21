@@ -4,65 +4,305 @@ from pathlib import Path
 import sys
 import tempfile
 import re
-import os
-import logging
-
-logger = logging.getLogger(__name__)
+from typing import Dict, Any, Optional
+from dataclasses import dataclass
 
 
-class TempFileManager:
-    """Context manager for secure temporary file handling with automatic cleanup."""
+@dataclass
+class FileValidationResult:
+    """Result of file validation."""
+    is_valid: bool
+    error_message: Optional[str] = None
+    file_size_mb: Optional[float] = None
+    file_type: Optional[str] = None
+
+
+@dataclass 
+class FilePreview:
+    """File preview information."""
+    filename: str
+    file_size_mb: float
+    file_type: str
+    is_valid: bool
+    error_message: Optional[str] = None
+
+
+class ProcessingStatusTracker:
+    """Track processing progress and current operation."""
     
-    def __init__(self, uploaded_file):
-        """Initialize with an uploaded file object."""
-        self.uploaded_file = uploaded_file
-        self.temp_path = None
-        
-    def __enter__(self) -> Path:
-        """Create and return temporary file path."""
-        # Sanitize the file extension to prevent security issues
-        original_suffix = Path(self.uploaded_file.name).suffix
-        sanitized_suffix = re.sub(r"[^A-Za-z0-9._-]", "_", original_suffix)
-        
-        # Create temporary file with restricted permissions
-        tmp_file = tempfile.NamedTemporaryFile(
-            delete=False, 
-            suffix=sanitized_suffix,
-            mode='wb'
+    def __init__(self):
+        self.progress: float = 0.0
+        self.operation: str = "Initializing..."
+        self.completed: bool = False
+        self.error: Optional[str] = None
+    
+    def update_progress(self, progress: float) -> None:
+        """Update progress percentage (0-100)."""
+        self.progress = max(0.0, min(100.0, progress))
+    
+    def set_operation(self, operation: str) -> None:
+        """Set current operation description."""
+        self.operation = operation
+    
+    def set_completed(self) -> None:
+        """Mark processing as completed."""
+        self.progress = 100.0
+        self.operation = "Completed"
+        self.completed = True
+    
+    def set_error(self, error: str) -> None:
+        """Set error status."""
+        self.error = error
+        self.operation = f"Error: {error}"
+    
+    def get_status(self) -> Dict[str, Any]:
+        """Get current status as dictionary."""
+        return {
+            "progress": self.progress,
+            "operation": self.operation,
+            "completed": self.completed,
+            "error": self.error
+        }
+
+
+def validate_upload(uploaded) -> FileValidationResult:
+    """Validate uploaded file for processing."""
+    from multimodal_contract_extractor.config import get_config
+    
+    config = get_config()
+    max_size_mb = config.security.max_file_size_mb
+    
+    # Get file info
+    filename = uploaded.name
+    file_size_bytes = len(uploaded.read())
+    uploaded.seek(0)  # Reset file pointer
+    file_size_mb = file_size_bytes / (1024 * 1024)
+    
+    # Determine file type
+    suffix = Path(filename).suffix.lower()
+    file_type = _get_file_type(suffix)
+    
+    # Validate file type
+    supported_types = {'.pdf', '.jpg', '.jpeg', '.png', '.tiff', '.tif', '.bmp'}
+    if suffix not in supported_types:
+        return FileValidationResult(
+            is_valid=False,
+            error_message=f"Unsupported file type '{suffix}'. Supported types: {', '.join(sorted(supported_types))}",
+            file_size_mb=file_size_mb,
+            file_type=file_type
         )
-        
-        try:
-            # Write uploaded content to temp file
-            content = self.uploaded_file.read()
-            tmp_file.write(content)
-            tmp_file.close()
-            
-            # Set restrictive permissions (owner read/write only)
-            self.temp_path = Path(tmp_file.name)
-            os.chmod(self.temp_path, 0o600)
-            
-            logger.debug(f"Created temporary file: {self.temp_path}")
-            return self.temp_path
-            
-        except Exception as e:
-            # Clean up on creation failure
-            tmp_file.close()
-            temp_path = Path(tmp_file.name)
-            if temp_path.exists():
-                temp_path.unlink()
-            logger.error(f"Failed to create temporary file: {e}")
-            raise
     
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Clean up temporary file."""
-        if self.temp_path and self.temp_path.exists():
-            try:
-                self.temp_path.unlink()
-                logger.debug(f"Cleaned up temporary file: {self.temp_path}")
-            except OSError as e:
-                # Log warning but don't raise - file might have been deleted already
-                logger.warning(f"Could not delete temporary file {self.temp_path}: {e}")
+    # Validate file size
+    if file_size_mb > max_size_mb:
+        return FileValidationResult(
+            is_valid=False,
+            error_message=f"File size ({file_size_mb:.1f}MB) exceeds maximum allowed size ({max_size_mb}MB)",
+            file_size_mb=file_size_mb,
+            file_type=file_type
+        )
+    
+    # Validate file content (basic checks)
+    content_start = uploaded.read(1024)
+    uploaded.seek(0)  # Reset file pointer
+    
+    if not _validate_file_content(suffix, content_start):
+        return FileValidationResult(
+            is_valid=False,
+            error_message="File content does not match the expected format",
+            file_size_mb=file_size_mb,
+            file_type=file_type
+        )
+    
+    return FileValidationResult(
+        is_valid=True,
+        file_size_mb=file_size_mb,
+        file_type=file_type
+    )
 
+
+def generate_preview(uploaded) -> FilePreview:
+    """Generate preview information for uploaded file."""
+    validation = validate_upload(uploaded)
+    
+    return FilePreview(
+        filename=uploaded.name,
+        file_size_mb=validation.file_size_mb or 0.0,
+        file_type=validation.file_type or "Unknown",
+        is_valid=validation.is_valid,
+        error_message=validation.error_message
+    )
+
+
+def _get_file_type(suffix: str) -> str:
+    """Get human-readable file type from file extension."""
+    type_map = {
+        '.pdf': 'PDF Document',
+        '.jpg': 'JPEG Image',
+        '.jpeg': 'JPEG Image', 
+        '.png': 'PNG Image',
+        '.tiff': 'TIFF Image',
+        '.tif': 'TIFF Image',
+        '.bmp': 'BMP Image'
+    }
+    return type_map.get(suffix.lower(), 'Unknown')
+
+
+def _validate_file_content(suffix: str, content: bytes) -> bool:
+    """Basic validation of file content based on file headers."""
+    if suffix == '.pdf':
+        return content.startswith(b'%PDF')
+    elif suffix in {'.jpg', '.jpeg'}:
+        return content.startswith(b'\xff\xd8\xff')
+    elif suffix == '.png':
+        return content.startswith(b'\x89PNG\r\n\x1a\n')
+    elif suffix in {'.tiff', '.tif'}:
+        return content.startswith(b'II*\x00') or content.startswith(b'MM\x00*')
+    elif suffix == '.bmp':
+        return content.startswith(b'BM')
+    
+    return True  # Unknown format, allow through
+
+
+def handle_processing_error(error: Exception) -> Dict[str, Any]:
+    """Handle processing errors and return user-friendly information."""
+    error_type = type(error).__name__
+    original_message = str(error)
+    
+    # Map error types to user-friendly messages
+    user_message = format_error_message(error)
+    suggestions = get_error_suggestion(error_type.lower())
+    
+    return {
+        "user_message": user_message,
+        "error_type": error_type,
+        "suggestions": suggestions,
+        "technical_details": original_message
+    }
+
+
+def format_error_message(error: Exception) -> str:
+    """Convert technical errors to user-friendly messages."""
+    error_type = type(error).__name__.lower()
+    error_message = str(error).lower()
+    
+    # Map common errors to user-friendly messages
+    if "tesseract" in error_message or error_type == "filenotfounderror":
+        return "Unable to process the document. The OCR system is not available."
+    elif "poppler" in error_message or "pdfinfo" in error_message:
+        return "Unable to read PDF file. The PDF processing system is not available."
+    elif "memory" in error_message or "memoryerror" in error_type:
+        return "The document is too large to process. Please try a smaller file."
+    elif "timeout" in error_message:
+        return "Document processing took too long. Please try again or use a smaller file."
+    elif "permission" in error_message or "access" in error_message:
+        return "Unable to access the file. Please check file permissions."
+    elif "corrupt" in error_message or "invalid" in error_message:
+        return "The document appears to be corrupted or in an unsupported format."
+    else:
+        return "An error occurred while processing the document. Please try again."
+
+
+def get_error_suggestion(error_code: str) -> str:
+    """Get recovery suggestions for specific error types."""
+    suggestions = {
+        "filenotfounderror": "Please ensure the OCR system is properly installed and configured.",
+        "tesseract_not_found": "Install Tesseract OCR or check that it's available in your system PATH.",
+        "poppler_not_found": "Install Poppler utilities for PDF processing.",
+        "memoryerror": "Try processing a smaller document or free up system memory.",
+        "timeouterror": "Reduce document size or increase processing timeout limits.",
+        "permissionerror": "Check file permissions and ensure the application has access rights.",
+        "valueerror": "Verify the document format is supported (PDF, JPEG, PNG, TIFF, BMP)."
+    }
+    
+    return suggestions.get(error_code, 
+        "Check the document format and size, then try again. If the problem persists, contact support.")
+
+
+def format_results_display(result: Dict[str, Any]) -> Dict[str, Any]:
+    """Format extraction results for enhanced display."""
+    document_info = result.get("document_info", {})
+    clauses = result.get("clauses", [])
+    
+    # Group clauses by type
+    grouped_clauses = group_clauses_by_type(clauses)
+    
+    # Calculate statistics
+    total_clauses = len(clauses)
+    avg_confidence = sum(clause.get("confidence", 0.0) for clause in clauses) / max(1, total_clauses)
+    high_confidence_count = sum(1 for clause in clauses if clause.get("confidence", 0.0) > 0.9)
+    
+    # Document summary
+    document_summary = {
+        "filename": document_info.get("filename", "Unknown"),
+        "pages": document_info.get("pages", 0),
+        "processing_time": document_info.get("processing_time", 0.0),
+        "overall_confidence": document_info.get("confidence", avg_confidence)
+    }
+    
+    # Statistics
+    statistics = {
+        "total_clauses": total_clauses,
+        "average_confidence": avg_confidence,
+        "high_confidence_clauses": high_confidence_count,
+        "clause_types": list(grouped_clauses.keys())
+    }
+    
+    return {
+        "document_summary": document_summary,
+        "grouped_clauses": grouped_clauses,
+        "statistics": statistics,
+        "raw_data": result
+    }
+
+
+def group_clauses_by_type(clauses: list) -> Dict[str, list]:
+    """Group clauses by their type for better organization."""
+    grouped = {}
+    
+    for clause in clauses:
+        clause_type = clause.get("type", "unknown")
+        if clause_type not in grouped:
+            grouped[clause_type] = []
+        
+        # Format each clause for display
+        formatted_clause = format_clause_display(clause)
+        grouped[clause_type].append(formatted_clause)
+    
+    # Sort clauses within each group by confidence (highest first)
+    for clause_type in grouped:
+        grouped[clause_type].sort(
+            key=lambda x: x.get("confidence", 0.0), 
+            reverse=True
+        )
+    
+    return grouped
+
+
+def format_clause_display(clause: Dict[str, Any]) -> Dict[str, Any]:
+    """Format a single clause for display with confidence highlighting."""
+    confidence = clause.get("confidence", 0.0)
+    
+    # Determine confidence level for visual highlighting
+    if confidence >= 0.9:
+        confidence_level = "high"
+        confidence_color = "#28a745"  # Green
+    elif confidence >= 0.7:
+        confidence_level = "medium" 
+        confidence_color = "#ffc107"  # Yellow
+    else:
+        confidence_level = "low"
+        confidence_color = "#dc3545"  # Red
+    
+    return {
+        "type": clause.get("type", "unknown"),
+        "text": clause.get("text", ""),
+        "confidence": confidence,
+        "confidence_level": confidence_level,
+        "confidence_color": confidence_color,
+        "page": clause.get("page"),
+        "coordinates": clause.get("coordinates"),
+        "key_terms": clause.get("key_terms", [])
+    }
 
 def save_upload(uploaded) -> Path:
     """Save an uploaded file to a temporary location and return the path.
