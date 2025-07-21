@@ -85,34 +85,74 @@ Document Input → Preprocessing → OCR Engine → VLM Analysis → Clause Extr
 
 ## Configuration
 
+The application supports flexible configuration via YAML files and environment variables, following the Twelve-Factor App methodology.
+
+### Configuration File
+
+Create a `config.yml` file in your project directory:
+
 ```yaml
-# config/extraction_config.yml
-models:
-  ocr_engine: "paddleocr"  # or "tesseract", "azure_vision"
-  vlm_model: "gpt-4-vision-preview"
-  fallback_model: "claude-3-sonnet"
+# Multimodal Contract Extractor Configuration
+ocr:
+  cache_size_limit: 100
+  context_window_size: 100
 
 extraction:
-  confidence_threshold: 0.8
-  clause_types:
-    - "termination"
-    - "payment_terms"
-    - "confidentiality"
-    - "liability"
-    - "governing_law"
-    - "dispute_resolution"
-  
-preprocessing:
-  image_enhancement: true
-  noise_reduction: true
-  skew_correction: true
-  contrast_adjustment: true
+  base_confidence_score: 0.75
+  length_bonus_divisor: 1000
+  max_confidence_cap: 0.95
+  file_size_threshold_mb: 10
+  streaming_chunk_size: 5
 
-output:
-  format: "json"  # json, xml, csv
-  include_confidence: true
-  include_coordinates: true
-  pretty_print: true
+security:
+  max_file_size_mb: 100
+  request_id_length_limit: 64
+
+health:
+  check_timeout_seconds: 5
+
+document:
+  default_streaming_chunk_size: 10
+```
+
+See [config.example.yml](config.example.yml) for a complete example with detailed documentation.
+
+### Environment Variables
+
+Override any configuration setting using environment variables with the format `MCE_<SECTION>_<SETTING>`:
+
+```bash
+# OCR settings
+export MCE_OCR_CACHE_SIZE_LIMIT=200
+export MCE_OCR_CONTEXT_WINDOW_SIZE=150
+
+# Extraction settings  
+export MCE_EXTRACTION_BASE_CONFIDENCE_SCORE=0.8
+export MCE_EXTRACTION_MAX_CONFIDENCE_CAP=0.98
+
+# Security settings
+export MCE_SECURITY_MAX_FILE_SIZE_MB=150
+
+# Health check settings
+export MCE_HEALTH_CHECK_TIMEOUT_SECONDS=10
+```
+
+Environment variables take precedence over file settings.
+
+### Loading Configuration
+
+```python
+from multimodal_contract_extractor import load_config, get_config
+
+# Load configuration from file and environment
+config = load_config(config_path='config.yml')
+
+# Get current configuration (loads defaults if not configured)
+config = get_config()
+
+# Access configuration values
+print(f"Cache limit: {config.ocr.cache_size_limit}")
+print(f"Max file size: {config.security.max_file_size_mb}MB")
 ```
 
 ## Usage Examples

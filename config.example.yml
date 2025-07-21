@@ -1,0 +1,96 @@
+# Multimodal Contract Extractor Configuration Example
+# 
+# This configuration file allows you to customize various aspects
+# of the document processing pipeline. All settings are optional
+# and will use sensible defaults if not specified.
+#
+# You can also override any setting using environment variables
+# with the format: MCE_<SECTION>_<SETTING>
+# Example: MCE_OCR_CACHE_SIZE_LIMIT=200
+
+# OCR Configuration
+ocr:
+  # Maximum number of OCR results to cache in memory
+  # Higher values improve performance but use more memory
+  cache_size_limit: 100
+  
+  # Number of characters before/after keywords to extract for context
+  # Higher values provide more context but may affect accuracy
+  context_window_size: 100
+
+# Document Extraction Configuration  
+extraction:
+  # Base confidence score for keyword-based clause detection (0.0-1.0)
+  # Higher values are more conservative, lower values are more permissive
+  base_confidence_score: 0.75
+  
+  # Divisor for length-based confidence bonus calculation
+  # Higher values give smaller bonuses for longer clauses
+  length_bonus_divisor: 1000
+  
+  # Maximum confidence cap for keyword-based detection (0.0-1.0)
+  # Prevents overconfidence in automated detection
+  max_confidence_cap: 0.95
+  
+  # File size threshold in MB for switching to streaming mode
+  # Files larger than this use memory-efficient streaming
+  file_size_threshold_mb: 10
+  
+  # Number of pages to process at once during streaming
+  # Balance between memory usage and processing efficiency
+  streaming_chunk_size: 5
+
+# Security Configuration
+security:
+  # Maximum allowed file size in MB
+  # Files larger than this will be rejected
+  max_file_size_mb: 100
+  
+  # Maximum length for request IDs used in logging
+  # Prevents DoS attacks via very long request IDs
+  request_id_length_limit: 64
+
+# Health Check Configuration
+health:
+  # Timeout in seconds for dependency health checks
+  # Prevents hanging on unresponsive services
+  check_timeout_seconds: 5
+
+# Document Processing Configuration
+document:
+  # Default chunk size for streaming document processing
+  # Number of pages to load at once for large documents
+  default_streaming_chunk_size: 10
+
+# =====================================================
+# Environment Variable Examples
+# =====================================================
+#
+# You can override any of these settings using environment variables:
+#
+# export MCE_OCR_CACHE_SIZE_LIMIT=200
+# export MCE_EXTRACTION_BASE_CONFIDENCE_SCORE=0.8
+# export MCE_SECURITY_MAX_FILE_SIZE_MB=150
+# export MCE_HEALTH_CHECK_TIMEOUT_SECONDS=10
+#
+# Environment variables take precedence over file settings.
+#
+# =====================================================
+# Production Recommendations  
+# =====================================================
+#
+# For production deployments, consider:
+#
+# 1. Increase cache_size_limit if you have sufficient memory
+# 2. Adjust max_file_size_mb based on your use case
+# 3. Set check_timeout_seconds appropriate for your infrastructure
+# 4. Use environment variables for sensitive or deployment-specific settings
+# 5. Monitor memory usage when adjusting streaming parameters
+#
+# Example production settings:
+# ocr:
+#   cache_size_limit: 500
+# security:
+#   max_file_size_mb: 250
+# health:
+#   check_timeout_seconds: 10
