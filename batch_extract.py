@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import argparse
-import sys
-from pathlib import Path
 import logging
-import time
+import sys
+import uuid
+from pathlib import Path
 
 # Ensure the src directory is importable when running the CLI without
 # installing the package first.
@@ -20,15 +20,12 @@ from multimodal_contract_extractor.cli_utils import (  # noqa: E402
     setup_logging,
     sanitize_filename,
 )
-from multimodal_contract_extractor.metrics import (
+from multimodal_contract_extractor.metrics import (  # noqa: E402
     PROCESSING_TIME,
     PAGES_PROCESSED,
     record_memory_usage,
     save_metrics,
 )
-import uuid
-
-
 from multimodal_contract_extractor import (  # noqa: E402
     __version__,
     DocumentInfo,
@@ -93,14 +90,30 @@ def main(argv: list[str] | None = None) -> int:
             continue
 
         with PROCESSING_TIME.time():
-            start = time.perf_counter()
+            from multimodal_contract_extractor import extract_from_document
+            extraction_result = extract_from_document(file_path)
+            
+            # Convert to legacy format for serialization compatibility
             info = DocumentInfo(
-                filename=file_path.name,
-                pages=0,
-                processing_time=0.0,
-                confidence=1.0,
+                filename=extraction_result["document_info"]["filename"],
+                pages=extraction_result["document_info"]["pages"],
+                processing_time=extraction_result["document_info"]["processing_time"],
+                confidence=extraction_result["document_info"]["overall_confidence"],
             )
-            result = ExtractionResult(document_info=info, clauses=[])
+            
+            # Convert clauses to Clause objects
+            from multimodal_contract_extractor.clause_detection import Clause
+            clauses = [
+                Clause(
+                    type=clause_data["type"],
+                    text=clause_data["text"],
+                    page=clause_data["page"],
+                    coordinates=clause_data["coordinates"]
+                )
+                for clause_data in extraction_result["clauses"]
+            ]
+            
+            result = ExtractionResult(document_info=info, clauses=clauses)
 
             if args.output_format == "json":
                 data = serialize_to_json(result, pretty=True)
@@ -109,8 +122,7 @@ def main(argv: list[str] | None = None) -> int:
             else:  # csv
                 data = serialize_to_csv(result, include_coordinates=args.include_coordinates)
 
-            processing_time = time.perf_counter() - start
-            logger.info("Processed %s in %.2fs", file_path.name, processing_time)
+            logger.info("Processed %s in %.2fs", file_path.name, info.processing_time)
             name = sanitize_filename(f"{file_path.stem}.{args.output_format}")
             output_file = output_dir / name
             output_file.write_text(data)

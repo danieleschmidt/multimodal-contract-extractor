@@ -158,7 +158,7 @@ class TestPerformanceBenchmarks:
         result2 = extract_from_document(input_file)
         cached_time = time.perf_counter() - start_time
         
-        print(f"\nEnd-to-end benchmark results:")
+        print("\nEnd-to-end benchmark results:")
         print(f"Cold run time: {total_time:.3f}s")
         print(f"Warm run time: {cached_time:.3f}s")
         print(f"Cache benefit: {((total_time - cached_time) / total_time * 100):.1f}% improvement")
@@ -194,7 +194,7 @@ class TestPerformanceBenchmarks:
         # Verify processing succeeded
         assert result is not None
         
-        print(f"\nMemory usage benchmark:")
+        print("\nMemory usage benchmark:")
         print(f"Memory before: {memory_before:.1f} MB")
         print(f"Memory after: {memory_after:.1f} MB")
         print(f"Memory used: {memory_used:.1f} MB")

@@ -1,10 +1,8 @@
 """Tests for performance optimizations in document processing."""
 
-import tempfile
 import time
 from pathlib import Path
 from unittest.mock import patch, MagicMock
-import pytest
 
 from multimodal_contract_extractor.extraction import extract_from_document
 from multimodal_contract_extractor.document import load_document, stream_document

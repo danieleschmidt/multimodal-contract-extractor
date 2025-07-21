@@ -1,7 +1,7 @@
 """Specific tests for OCR caching functionality."""
 
 import time
-from unittest.mock import patch, call
+from unittest.mock import patch
 from multimodal_contract_extractor.extraction import extract_from_document
 from multimodal_contract_extractor.clause_detection import _hash_image, clear_ocr_cache, get_ocr_cache_stats
 from tests.test_helpers import create_test_pdf

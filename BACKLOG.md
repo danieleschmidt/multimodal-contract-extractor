@@ -2,6 +2,22 @@
 
 ## High-Impact Items (Score: 8-10)
 
+### 🚨 P1: ✅ COMPLETED - Fix Broken Batch Processing (Score: 10)
+- **Impact**: High (core functionality broken) ✅
+- **Effort**: Low (simple fix) 
+- **Risk**: Low (well-defined scope)
+- **Description**: Fixed batch processor that was creating dummy results instead of processing files
+- **Completed**: v0.6.0 (2025-07-21)
+- **Tasks**:
+  - [x] Identified root cause in batch_extract.py:96-103 ✅
+  - [x] Implemented TDD test to verify real extraction ✅
+  - [x] Replaced dummy DocumentInfo creation with actual extract_from_document() calls ✅
+  - [x] Fixed serialization compatibility with legacy ExtractionResult format ✅
+  - [x] Verified real OCR processing with clause detection ✅
+- **Impact**: Critical bug fix enabling proper batch document processing
+
+## High-Impact Items (Score: 8-10)
+
 ### 🎯 P1: ✅ COMPLETED - Implement Real Clause Extraction (Score: 10)
 - **Impact**: High (enables core value proposition) ✅
 - **Effort**: High (ML integration, model selection) 
