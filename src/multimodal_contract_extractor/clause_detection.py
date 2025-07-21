@@ -80,9 +80,9 @@ def _record_cache_miss():
 
 def _hash_image(image: Image.Image) -> str:
     """Create a hash of the image for use as a cache key."""
-    # Convert image to bytes and hash
+    # Convert image to bytes and hash with secure algorithm
     image_bytes = image.tobytes()
-    return hashlib.md5(image_bytes).hexdigest()
+    return hashlib.sha256(image_bytes).hexdigest()
 
 
 def clear_ocr_cache() -> None:

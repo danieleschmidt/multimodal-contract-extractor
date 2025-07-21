@@ -16,7 +16,7 @@ class TestStructuredLogging:
         create_test_pdf(input_file, "Test content with confidential information")
         
         # Mock the CLI to include request ID in logging setup
-        with patch('multimodal_contract_extractor.cli_utils.setup_logging') as mock_setup:
+        with patch('multimodal_contract_extractor.cli_utils.setup_logging'):
             with patch('multimodal_contract_extractor.clause_detection._ocr_image') as mock_ocr:
                 mock_ocr.return_value = "Test content with confidential information"
                 
@@ -40,7 +40,7 @@ class TestStructuredLogging:
             mock_ocr.return_value = "Test content"
             
             # Process document
-            result = extract_from_document(input_file)
+            extract_from_document(input_file)
             
             # Check that we have log entries
             assert len(caplog.records) > 0
