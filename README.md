@@ -155,6 +155,27 @@ print(f"Cache limit: {config.ocr.cache_size_limit}")
 print(f"Max file size: {config.security.max_file_size_mb}MB")
 ```
 
+## Security Features
+
+The application implements comprehensive security measures for file handling and processing:
+
+### Secure File Processing
+- **Automatic Cleanup**: Temporary files are automatically cleaned up using context managers
+- **Restricted Permissions**: Temporary files created with owner-only access (`0o600`)
+- **Path Sanitization**: File extensions are sanitized to prevent security issues
+- **Size Limits**: Configurable file size limits prevent denial-of-service attacks
+- **Exception Safety**: Files are cleaned up even when processing fails
+
+### Production Security
+```python
+# Secure file processing with automatic cleanup
+from web_app import TempFileManager
+
+with TempFileManager(uploaded_file) as tmp_path:
+    # File is automatically cleaned up when exiting this block
+    result = process_document(tmp_path)
+```
+
 ## Usage Examples
 
 ### Basic Extraction
