@@ -4,6 +4,17 @@
 
 ### 🔴 Critical (Blocking core functionality)
 
+#### TD-008: ✅ RESOLVED - Broken Batch Processing  
+- **Location**: `batch_extract.py:96-103` (was creating dummy results)
+- **Issue**: Batch extraction created placeholder DocumentInfo instead of real processing
+- **Resolution**: Implemented actual extract_from_document() calls with proper result conversion
+- **Impact**: Restored core batch processing functionality - now performs real OCR and clause detection
+- **Resolved**: 2025-07-21
+- **Resolved By**: Autonomous development system
+- **Verification**: Added comprehensive test `test_batch_extract_performs_real_extraction`
+
+### 🔴 Critical (Blocking core functionality)
+
 #### TD-001: ✅ RESOLVED - Placeholder Extraction Implementation
 - **Location**: `extract.py:87` (was placeholder, now implemented)
 - **Issue**: Core extraction logic was a placeholder comment
@@ -96,11 +107,11 @@
 
 ## Metrics
 
-- Total debt items: 7 (2 resolved, 5 active)
-- Critical: 0 (was 2, both resolved in v0.3.0) ✅
+- Total debt items: 8 (3 resolved, 5 active)
+- Critical: 0 (was 3, all resolved in v0.3.0-v0.6.0) ✅
 - Medium: 3
 - Low: 2  
-- Resolution rate: 28.6% (2/7 items resolved)
+- Resolution rate: 37.5% (3/8 items resolved)
 - Average resolution time: 1 day (for critical items)
 
 ## Next Actions

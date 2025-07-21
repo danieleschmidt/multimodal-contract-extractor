@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import argparse
-import sys
-from pathlib import Path
 import logging
+import sys
+import uuid
+from pathlib import Path
 
 # Ensure the src directory is importable when running the CLI without
 # installing the package first.
@@ -18,12 +19,11 @@ from multimodal_contract_extractor.cli_utils import (  # noqa: E402
     add_common_arguments,
     setup_logging,
 )
-from multimodal_contract_extractor.metrics import (
+from multimodal_contract_extractor.metrics import (  # noqa: E402
     PROCESSING_TIME,
     record_memory_usage,
     save_metrics,
 )
-import uuid
 
 
 
