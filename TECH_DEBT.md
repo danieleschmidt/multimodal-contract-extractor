@@ -4,6 +4,15 @@
 
 ### 🔴 Critical (Blocking core functionality)
 
+#### TD-009: ✅ RESOLVED - MD5 Security Vulnerability
+- **Location**: `clause_detection.py:85` (image cache key generation)
+- **Issue**: Used insecure MD5 hash algorithm for cache keys, flagged as high-severity security issue
+- **Resolution**: Replaced MD5 with SHA-256 secure hash algorithm 
+- **Impact**: Eliminated critical security vulnerability while maintaining cache functionality
+- **Resolved**: 2025-07-21
+- **Resolved By**: Autonomous development system
+- **Verification**: Added comprehensive test suite `test_secure_hash_fix.py` with algorithm validation
+
 #### TD-008: ✅ RESOLVED - Broken Batch Processing  
 - **Location**: `batch_extract.py:96-103` (was creating dummy results)
 - **Issue**: Batch extraction created placeholder DocumentInfo instead of real processing
@@ -107,11 +116,11 @@
 
 ## Metrics
 
-- Total debt items: 8 (4 resolved, 4 active)
-- Critical: 0 (was 3, all resolved in v0.3.0-v0.6.0) ✅
+- Total debt items: 9 (5 resolved, 4 active)
+- Critical: 0 (was 4, all resolved in v0.3.0-v0.8.0) ✅
 - Medium: 2 (was 3, TD-003 resolved in v0.7.0)
 - Low: 2  
-- Resolution rate: 50% (4/8 items resolved) 
+- Resolution rate: 56% (5/9 items resolved) 
 - Average resolution time: 1 day (for critical and medium items)
 
 ## Next Actions
@@ -144,3 +153,10 @@
 - **Dashboard integration**: Structured data format for monitoring dashboards
 - **Structured logging**: Request ID tracking and JSON log formatting
 - **Technical debt impact**: Production-ready monitoring reduces operational overhead
+
+### v0.8.0 (2025-07-21) - Security Hardening Sprint
+- **Critical security vulnerability fixed**: Replaced MD5 hash with SHA-256 for cache keys
+- **Code quality improvements**: Eliminated 6 unused variable warnings in test files
+- **Security scan improvements**: Reduced high-severity security issues to zero
+- **Comprehensive testing**: Added security-specific test suite for hash algorithm validation
+- **Technical debt impact**: Enhanced security posture and code maintainability

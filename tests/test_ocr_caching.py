@@ -97,12 +97,12 @@ class TestOCRCaching:
         # First run (cold cache)
         start_time = time.perf_counter()
         result1 = extract_from_document(input_file)
-        first_run_time = time.perf_counter() - start_time
+        time.perf_counter() - start_time
         
         # Second run (warm cache)
         start_time = time.perf_counter()
         result2 = extract_from_document(input_file)
-        second_run_time = time.perf_counter() - start_time
+        time.perf_counter() - start_time
         
         # Both should be valid
         assert result1 is not None

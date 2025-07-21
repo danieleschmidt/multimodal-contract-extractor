@@ -28,7 +28,7 @@ class TestAdaptiveDocumentLoading:
             mock_ocr.return_value = "Test document content"
             
             # Call extraction
-            result = extract_from_document(input_file)
+            extract_from_document(input_file)
             
             # Verify standard loading was used for small file  
             mock_load.assert_called_once()
@@ -52,7 +52,7 @@ class TestAdaptiveDocumentLoading:
                 mock_ocr.return_value = "Test document content"
                     
                 # Call extraction
-                result = extract_from_document(input_file)
+                extract_from_document(input_file)
                     
                 # Verify streaming was used for large file
                 mock_stream.assert_called_once()
