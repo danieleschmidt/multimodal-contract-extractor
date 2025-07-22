@@ -118,16 +118,16 @@ _pattern_cache: Dict[str, re.Pattern] = {}
 
 
 def detect_clauses(
-    document: Document, *, keywords: Dict[str, Iterable[str]] | None = None
+    document, *, keywords: Dict[str, Iterable[str]] | None = None
 ) -> List[Clause]:
-    """Detect clauses within a loaded :class:`Document`.
+    """Detect clauses within a loaded :class:`Document` or document stream.
     
     Uses optimized clause detection with combined regex patterns for better performance.
 
     Parameters
     ----------
     document:
-        Document produced by :func:`load_document`.
+        Document produced by :func:`load_document` or generator from :func:`stream_document`.
     keywords:
         Mapping of clause types to lists of search keywords. If ``None``,
         ``DEFAULT_KEYWORDS`` is used.
@@ -137,8 +137,13 @@ def detect_clauses(
     list[Clause]
         Detected clauses with their page numbers.
     """
-    # Use optimized detection by default
-    return _detect_clauses_optimized(document, keywords=keywords)
+    # Check if document is a generator (from stream_document) or Document object
+    if hasattr(document, 'pages'):
+        # Standard Document object
+        return _detect_clauses_optimized(document, keywords=keywords)
+    else:
+        # Generator from stream_document
+        return _detect_clauses_streaming(document, keywords=keywords)
 
 
 def _detect_clauses_legacy(
@@ -421,3 +426,82 @@ def _extract_key_terms(text: str, matched_keyword: str) -> list[str]:
             unique_terms.append(term)
     
     return unique_terms
+
+
+def _detect_clauses_streaming(
+    document_stream, *, keywords: Dict[str, Iterable[str]] | None = None
+) -> List[Clause]:
+    """Detect clauses from a streaming document (generator of DocumentPage objects).
+    
+    This function processes document pages from a stream/generator, suitable for
+    large documents that are processed with stream_document().
+    
+    Parameters
+    ----------
+    document_stream : generator
+        Generator that yields DocumentPage objects from stream_document().
+    keywords : dict[str, list[str]] | None, optional
+        Mapping of clause types to lists of search keywords. If ``None``,
+        ``DEFAULT_KEYWORDS`` is used.
+    
+    Returns
+    -------
+    list[Clause]
+        Detected clauses with their page numbers.
+    """
+    if keywords is None:
+        keywords = DEFAULT_KEYWORDS
+    
+    config = get_config()
+    clauses = []
+    
+    # Use the same optimized pattern as the regular version
+    pattern = _get_cached_pattern(keywords)
+    keyword_mapping = _build_keyword_mapping(keywords)
+    
+    logger.debug("Processing streamed document for clause detection")
+    
+    # Process each page from the stream
+    for page in document_stream:
+        # Extract text using OCR (same as optimized version)
+        page_text = _ocr_image(page.image)
+        
+        # Use combined regex to find all matches at once
+        matches = pattern.finditer(page_text)
+        
+        for match in matches:
+            matched_text = match.group(1).lower()
+            clause_type = keyword_mapping.get(matched_text)
+            
+            if clause_type:
+                # Extract surrounding context
+                context_size = config.ocr.context_window_size
+                start_pos = max(0, match.start() - context_size)
+                end_pos = min(len(page_text), match.end() + context_size)
+                clause_text = page_text[start_pos:end_pos].strip()
+                
+                # Calculate confidence score
+                confidence = _calculate_clause_confidence_score(
+                    clause_text, matched_text, config
+                )
+                
+                # Extract key terms from the clause text
+                key_terms = _extract_key_terms(clause_text, matched_text)
+                
+                # Create clause with enhanced fields
+                clause = Clause(
+                    type=clause_type,
+                    text=clause_text,
+                    page=page.number,
+                    coordinates=None,  # Placeholder for future OCR layout analysis
+                    id=str(uuid.uuid4()),
+                    confidence=confidence,
+                    key_terms=key_terms
+                )
+                
+                clauses.append(clause)
+                logger.info(
+                    "Detected %s clause on page %d (streaming)", clause_type, page.number
+                )
+    
+    return clauses
