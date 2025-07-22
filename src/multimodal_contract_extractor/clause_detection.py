@@ -283,9 +283,10 @@ def _build_combined_pattern(keywords: Dict[str, Iterable[str]]) -> re.Pattern:
     # Sort by length (longest first) to avoid partial matches
     all_keywords.sort(key=len, reverse=True)
     
-    # Build pattern with word boundaries for exact matches
+    # Build pattern that allows partial word matches (like legacy version)
+    # Use word boundaries only at the start to avoid matching within other words
     escaped_keywords = [re.escape(word) for word in all_keywords]
-    pattern_str = r'\b(' + '|'.join(escaped_keywords) + r')\b'
+    pattern_str = r'\b(' + '|'.join(escaped_keywords) + r')'
     
     return re.compile(pattern_str, re.IGNORECASE)
 

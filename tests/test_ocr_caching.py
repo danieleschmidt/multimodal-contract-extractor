@@ -84,7 +84,7 @@ class TestOCRCaching:
         
         # Hashes should be identical for the same content
         assert hash1 == hash2
-        assert len(hash1) == 32  # MD5 hash length
+        assert len(hash1) == 64  # SHA-256 hash length (security improvement)
     
     def test_performance_improvement_with_caching(self, tmp_path):
         """Test that caching provides performance improvement for repeated processing."""
