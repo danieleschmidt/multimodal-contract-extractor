@@ -4,3 +4,4 @@ pytesseract>=0.3
 defusedxml>=0.7
 streamlit>=1.30
 prometheus_client>=0.22
+psutil>=5.9

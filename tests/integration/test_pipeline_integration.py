@@ -115,7 +115,7 @@ class TestPipelineIntegration:
             
             try:
                 # Load custom configuration
-                config = load_config(config_path=config_path)
+                config = load_config(config_path=config_path, reload=True)
                 
                 # Verify config was loaded
                 assert config.extraction.base_confidence_score == 0.9
