@@ -121,7 +121,7 @@ def main(argv: list[str] | None = None) -> int:
     logger.info("Wrote output to %s", output_path)
     record_memory_usage()
     if args.metrics_file:
-        save_metrics(args.metrics_file)
+        save_metrics(args.metrics_file, format=args.metrics_format)
     return 0
 
 

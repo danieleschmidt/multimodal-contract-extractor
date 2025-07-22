@@ -136,7 +136,8 @@ class TestExtractCLIEndToEnd:
             sys.executable, "extract.py",
             "--file", str(input_pdf), 
             "--output", str(output_json),
-            "--metrics", str(metrics_file)
+            "--metrics-file", str(metrics_file),
+            "--metrics-format", "json"
         ], capture_output=True, text=True)
         
         assert result.returncode == 0

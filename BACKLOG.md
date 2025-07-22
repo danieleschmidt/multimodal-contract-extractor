@@ -205,6 +205,20 @@
   - [x] Fixed integration tests and ensured backward compatibility ✅
 - **Impact**: Fixed 2 critical integration test failures and completed API contract specification
 
+### 🔧 P1: ✅ COMPLETED - CLI User Experience Improvements (Score: 8)
+- **Impact**: Medium (improves developer experience, fixes test failures)
+- **Effort**: Low (argument aliases and metrics format support)
+- **Risk**: Low (backward compatible enhancements)
+- **Description**: Enhanced CLI with format alias and JSON metrics support
+- **Completed**: v0.10.1 (2025-07-22)
+- **Tasks**:
+  - [x] Added --format alias for --output-format argument ✅
+  - [x] Implemented JSON metrics format option alongside Prometheus ✅
+  - [x] Enhanced metrics collection with proper histogram and counter access ✅
+  - [x] Fixed test_extract_cli_with_metrics_file integration test ✅
+  - [x] Maintained backward compatibility with existing Prometheus format ✅
+- **Impact**: Fixed CLI argument mismatch and metrics format compatibility, improving developer UX
+
 ## Next Sprint Selection Criteria
 1. Must have Score ≥ 8 OR be blocking other high-value work
 2. Consider team capacity and skill alignment

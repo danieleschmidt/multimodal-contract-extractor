@@ -11,7 +11,7 @@ SUPPORTED_FORMATS = {"json", "xml", "csv"}
 def add_common_arguments(parser: argparse.ArgumentParser) -> None:
     """Add shared CLI options to ``parser``."""
     parser.add_argument(
-        "--output-format",
+        "--output-format", "--format",
         default="json",
         help="Output format: json, xml, or csv",
     )
@@ -34,7 +34,13 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--metrics-file",
         default=None,
-        help="Path to write Prometheus metrics",
+        help="Path to write metrics file",
+    )
+    parser.add_argument(
+        "--metrics-format",
+        default="prometheus",
+        choices=["prometheus", "json"],
+        help="Metrics output format: prometheus (default) or json",
     )
 
 
