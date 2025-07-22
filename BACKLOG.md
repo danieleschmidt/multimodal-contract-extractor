@@ -190,6 +190,21 @@
 - Risk Reduction: 1-5 (technical risk mitigation)
 - Job Size: 1-5 (effort required, 1=small, 5=very large)
 
+### 🎯 P1: ✅ COMPLETED - Enhanced Clause API Structure (Score: 9)
+- **Impact**: High (fixes broken integration tests, complete API contract)
+- **Effort**: Medium (extend dataclass + update detection logic)
+- **Risk**: Low (clear requirements from failing tests)
+- **Description**: Fixed missing fields in Clause dataclass and detection pipeline
+- **Completed**: v0.10.0 (2025-07-22)
+- **Tasks**:
+  - [x] Enhanced Clause dataclass with id, confidence, key_terms, coordinates fields ✅
+  - [x] Updated optimized and legacy clause detection to populate new fields ✅
+  - [x] Implemented confidence scoring based on text length and keyword quality ✅
+  - [x] Added key terms extraction with legal pattern recognition ✅
+  - [x] Added placeholder coordinates (prepared for future OCR layout analysis) ✅
+  - [x] Fixed integration tests and ensured backward compatibility ✅
+- **Impact**: Fixed 2 critical integration test failures and completed API contract specification
+
 ## Next Sprint Selection Criteria
 1. Must have Score ≥ 8 OR be blocking other high-value work
 2. Consider team capacity and skill alignment

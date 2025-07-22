@@ -116,13 +116,13 @@ def _build_extraction_result(document: Document, clauses: list, processing_time:
         },
         "clauses": [
             {
-                "id": f"clause_{i:03d}",
+                "id": clause.id or f"clause_{i:03d}",  # Use clause ID if available, fallback to generated
                 "type": clause.type,
                 "text": clause.text,
                 "page": clause.page,
-                "coordinates": clause.coordinates,
-                "confidence": _calculate_clause_confidence(clause),
-                "key_terms": _extract_key_terms(clause)
+                "coordinates": clause.coordinates if clause.coordinates is not None else [],
+                "confidence": clause.confidence if hasattr(clause, 'confidence') else _calculate_clause_confidence(clause),
+                "key_terms": clause.key_terms if hasattr(clause, 'key_terms') else _extract_key_terms(clause)
             }
             for i, clause in enumerate(clauses, 1)
         ],

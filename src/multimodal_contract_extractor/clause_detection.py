@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import re
 import hashlib
-from dataclasses import dataclass
+import uuid
+from dataclasses import dataclass, field
 from typing import Dict, Iterable, List
 import logging
 
@@ -25,7 +26,10 @@ class Clause:
     type: str
     text: str
     page: int
-    coordinates: tuple[int, int, int, int] | None = None
+    coordinates: list[int] | None = None
+    id: str = ""
+    confidence: float = 0.0
+    key_terms: list[str] = field(default_factory=list)
 
 
 def _ocr_image(image: Image.Image) -> str:
@@ -177,7 +181,29 @@ def _detect_clauses_legacy(
                     )
                     match = pattern.search(text)
                     snippet = match.group(1).strip() if match else word
-                    clause = Clause(type=clause_type, text=snippet, page=page.number)
+                    
+                    # Generate unique ID for this clause
+                    clause_id = f"clause_{uuid.uuid4().hex[:8]}"
+                    
+                    # Calculate confidence score
+                    config = get_config()
+                    confidence = _calculate_clause_confidence_score(snippet, word, config)
+                    
+                    # Extract key terms (the matched keyword and surrounding relevant terms)
+                    key_terms = _extract_key_terms(snippet, word)
+                    
+                    # For now, use placeholder coordinates (would need OCR layout analysis for real coords)
+                    placeholder_coords = [50, 100 + len(clauses) * 50, 550, 150 + len(clauses) * 50]
+                    
+                    clause = Clause(
+                        type=clause_type, 
+                        text=snippet, 
+                        page=page.number,
+                        coordinates=placeholder_coords,
+                        id=clause_id,
+                        confidence=confidence,
+                        key_terms=key_terms
+                    )
                     clauses.append(clause)
                     logger.info(
                         "Detected %s clause on page %d (legacy)", clause_type, page.number
@@ -234,7 +260,28 @@ def _detect_clauses_optimized(
                 end = min(len(text), match.end() + context_size)
                 snippet = text[start:end].strip()
                 
-                clause = Clause(type=clause_type, text=snippet, page=page.number)
+                # Generate unique ID for this clause
+                clause_id = f"clause_{uuid.uuid4().hex[:8]}"
+                
+                # Calculate confidence score
+                config = get_config()
+                confidence = _calculate_clause_confidence_score(snippet, matched_text, config)
+                
+                # Extract key terms (the matched keyword and surrounding relevant terms)
+                key_terms = _extract_key_terms(snippet, matched_text)
+                
+                # For now, use placeholder coordinates (would need OCR layout analysis for real coords)
+                placeholder_coords = [50, 100 + len(clauses) * 50, 550, 150 + len(clauses) * 50]
+                
+                clause = Clause(
+                    type=clause_type, 
+                    text=snippet, 
+                    page=page.number,
+                    coordinates=placeholder_coords,
+                    id=clause_id,
+                    confidence=confidence,
+                    key_terms=key_terms
+                )
                 clauses.append(clause)
                 logger.info(
                     "Detected %s clause on page %d (optimized)", clause_type, page.number
@@ -305,3 +352,72 @@ def clear_pattern_cache() -> None:
     global _pattern_cache
     _pattern_cache.clear()
     logger.debug("Regex pattern cache cleared")
+
+
+def _calculate_clause_confidence_score(text: str, matched_keyword: str, config) -> float:
+    """Calculate confidence score for a detected clause based on text length and keyword match quality.
+    
+    Args:
+        text: The extracted clause text
+        matched_keyword: The keyword that triggered this clause detection
+        config: Configuration object with scoring parameters
+        
+    Returns:
+        Confidence score between 0.0 and 1.0
+    """
+    # Start with base confidence
+    confidence = config.extraction.base_confidence_score
+    
+    # Add bonus for longer text (more context usually means better detection)
+    length_bonus = len(text) / config.extraction.length_bonus_divisor
+    confidence += length_bonus
+    
+    # Add bonus for exact keyword match quality
+    if matched_keyword.lower() in text.lower():
+        confidence += 0.1  # Bonus for containing the matched keyword
+    
+    # Cap the confidence at the maximum allowed
+    confidence = min(confidence, config.extraction.max_confidence_cap)
+    
+    # Ensure confidence is within valid range
+    return max(0.0, min(1.0, confidence))
+
+
+def _extract_key_terms(text: str, matched_keyword: str) -> list[str]:
+    """Extract key terms from the clause text including the matched keyword.
+    
+    Args:
+        text: The clause text to extract terms from
+        matched_keyword: The keyword that triggered this clause detection
+        
+    Returns:
+        List of relevant key terms found in the text
+    """
+    key_terms = []
+    
+    # Always include the matched keyword
+    key_terms.append(matched_keyword.lower())
+    
+    # Extract other potentially relevant terms (simple heuristic)
+    # Look for words that might be important in legal contexts
+    important_patterns = [
+        r'\b\d+\s*(?:days?|months?|years?)\b',  # Time periods
+        r'\$\d+(?:,\d{3})*(?:\.\d{2})?',       # Dollar amounts
+        r'\b\d+%\b',                           # Percentages
+        r'\b(?:annual|monthly|daily|weekly)\b', # Frequency terms
+        r'\b(?:shall|must|will|may|cannot)\b', # Legal modal verbs
+    ]
+    
+    for pattern in important_patterns:
+        matches = re.findall(pattern, text, re.IGNORECASE)
+        key_terms.extend([match.lower() for match in matches])
+    
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_terms = []
+    for term in key_terms:
+        if term not in seen:
+            seen.add(term)
+            unique_terms.append(term)
+    
+    return unique_terms
