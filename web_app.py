@@ -4,8 +4,11 @@ from pathlib import Path
 import sys
 import tempfile
 import re
+import logging
 from typing import Dict, Any, Optional
 from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -304,6 +307,72 @@ def format_clause_display(clause: Dict[str, Any]) -> Dict[str, Any]:
         "key_terms": clause.get("key_terms", [])
     }
 
+
+class TempFileManager:
+    """Context manager for secure temporary file handling with automatic cleanup.
+    
+    Creates temporary files with restricted permissions and ensures cleanup
+    even when exceptions occur during processing.
+    
+    Usage:
+        with TempFileManager(uploaded_file) as temp_path:
+            # Process the file using temp_path
+            result = process_document(temp_path)
+        # File is automatically cleaned up here
+    """
+    
+    def __init__(self, uploaded_file):
+        """Initialize with an uploaded file object.
+        
+        Args:
+            uploaded_file: File object with .name and .read() methods
+        """
+        self.uploaded_file = uploaded_file
+        self.temp_path: Optional[Path] = None
+    
+    def __enter__(self) -> Path:
+        """Create secure temporary file and return its path."""
+        # Sanitize file extension for security
+        original_name = getattr(self.uploaded_file, 'name', 'upload.bin')
+        suffix = re.sub(r"[^A-Za-z0-9._-]", "_", Path(original_name).suffix)
+        
+        # Create temporary file with restricted permissions (owner-only access)
+        tmp_file = tempfile.NamedTemporaryFile(
+            delete=False, 
+            suffix=suffix,
+            mode='wb'
+        )
+        
+        try:
+            # Write uploaded content to temporary file
+            content = self.uploaded_file.read()
+            tmp_file.write(content)
+            tmp_file.close()
+            
+            # Set secure permissions (0o600 = owner read/write only)
+            self.temp_path = Path(tmp_file.name)
+            self.temp_path.chmod(0o600)
+            
+            return self.temp_path
+            
+        except Exception:
+            # Clean up on error during setup
+            tmp_file.close()
+            if hasattr(tmp_file, 'name') and Path(tmp_file.name).exists():
+                Path(tmp_file.name).unlink()
+            raise
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Clean up temporary file."""
+        if self.temp_path and self.temp_path.exists():
+            try:
+                self.temp_path.unlink()
+            except OSError:
+                # File cleanup failed, but don't raise exception
+                # as this could mask the original exception
+                pass
+
+
 def save_upload(uploaded) -> Path:
     """Save an uploaded file to a temporary location and return the path.
     
@@ -336,6 +405,10 @@ def process_upload_with_cleanup(uploaded_file) -> dict:
         
         # Perform document extraction
         extraction_result = extract_from_document(tmp_path)
+        
+        # Preserve original filename in result
+        if "document_info" in extraction_result:
+            extraction_result["document_info"]["filename"] = uploaded_file.name
         
         logger.info(f"Extraction completed for: {uploaded_file.name}")
         return extraction_result
