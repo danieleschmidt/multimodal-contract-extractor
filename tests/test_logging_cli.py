@@ -16,7 +16,7 @@ def test_extract_cli_logs(tmp_path):
     ]
     result = subprocess.run(
         cmd,
-        cwd=Path(__file__).resolve().parent.parent,
+        check=False, cwd=Path(__file__).resolve().parent.parent,
         capture_output=True,
         text=True,
     )
@@ -37,7 +37,7 @@ def test_extract_cli_debug_level(tmp_path):
     ]
     result = subprocess.run(
         cmd,
-        cwd=Path(__file__).resolve().parent.parent,
+        check=False, cwd=Path(__file__).resolve().parent.parent,
         capture_output=True,
         text=True,
     )

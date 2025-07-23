@@ -1,11 +1,11 @@
 from xml.etree import ElementTree as ET
 
+from multimodal_contract_extractor.clause_detection import Clause
 from multimodal_contract_extractor.serialization import (
     DocumentInfo,
     ExtractionResult,
     serialize_to_xml,
 )
-from multimodal_contract_extractor.clause_detection import Clause
 
 INFO = DocumentInfo(filename="file.pdf", pages=1, processing_time=0.0, confidence=1.0)
 CLAUSE = Clause(type="test", text="text", page=1)

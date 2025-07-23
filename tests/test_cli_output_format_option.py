@@ -36,7 +36,7 @@ def test_cli_rejects_invalid_format(tmp_path):
     ]
     result = subprocess.run(
         cmd,
-        cwd=Path(__file__).resolve().parent.parent,
+        check=False, cwd=Path(__file__).resolve().parent.parent,
         capture_output=True,
         text=True,
     )
@@ -47,7 +47,7 @@ def test_cli_rejects_invalid_format(tmp_path):
 def test_cli_version_outputs_package_version():
     result = subprocess.run(
         [sys.executable, "extract.py", "--version"],
-        cwd=Path(__file__).resolve().parent.parent,
+        check=False, cwd=Path(__file__).resolve().parent.parent,
         capture_output=True,
         text=True,
     )

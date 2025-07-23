@@ -7,8 +7,9 @@ def test_web_app_defines_main():
     assert hasattr(module, "main")
 
 def test_save_uploaded_file_unique(tmp_path, monkeypatch):
-    from types import SimpleNamespace
     import tempfile
+    from types import SimpleNamespace
+
     import web_app
 
     created = []
@@ -27,7 +28,8 @@ def test_save_uploaded_file_unique(tmp_path, monkeypatch):
     path2 = web_app.save_upload(upload)
 
     assert path1 != path2
-    assert path1.exists() and path2.exists()
+    assert path1.exists()
+    assert path2.exists()
 
     for p in created:
         p.unlink()

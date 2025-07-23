@@ -14,7 +14,7 @@ def test_extract_cli_missing_input(tmp_path):
         "--file",
         str(tmp_path / "missing.pdf"),
     ]
-    result = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True)
+    result = subprocess.run(cmd, check=False, cwd=REPO_ROOT, capture_output=True, text=True)
     assert result.returncode != 0
     assert "Security validation failed" in result.stderr
 
@@ -31,7 +31,7 @@ def test_extract_cli_output_dir_missing(tmp_path):
         "--output",
         str(missing_dir),
     ]
-    result = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True)
+    result = subprocess.run(cmd, check=False, cwd=REPO_ROOT, capture_output=True, text=True)
     assert result.returncode != 0
     assert "Output validation failed" in result.stderr
 
@@ -46,6 +46,6 @@ def test_batch_extract_cli_missing_input_dir(tmp_path):
         "--output-dir",
         str(output_dir),
     ]
-    result = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True)
+    result = subprocess.run(cmd, check=False, cwd=REPO_ROOT, capture_output=True, text=True)
     assert result.returncode != 0
     assert "Input directory not found" in result.stderr

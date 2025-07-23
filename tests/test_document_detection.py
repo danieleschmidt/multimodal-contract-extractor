@@ -1,9 +1,15 @@
 from pathlib import Path
-from PIL import Image
-import pytest
 
-from multimodal_contract_extractor.document import load_document, stream_document, Document, DocumentPage
+import pytest
+from PIL import Image
+
 from multimodal_contract_extractor import clause_detection
+from multimodal_contract_extractor.document import (
+    Document,
+    DocumentPage,
+    load_document,
+    stream_document,
+)
 
 
 def create_image(path: Path, color=(255, 255, 255)) -> None:
@@ -52,4 +58,5 @@ def test_detect_clauses(monkeypatch):
     doc = Document(path=Path("dummy"), pages=[DocumentPage(image=img, number=1)])
     monkeypatch.setattr(clause_detection, "_ocr_image", lambda _: "Termination is possible")
     clauses = clause_detection.detect_clauses(doc)
-    assert clauses and clauses[0].type == "termination"
+    assert clauses
+    assert clauses[0].type == "termination"

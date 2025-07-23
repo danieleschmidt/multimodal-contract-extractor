@@ -14,6 +14,17 @@ if SRC_DIR.exists() and str(SRC_DIR) not in sys.path:
 
 logger = logging.getLogger(__name__)
 
+from multimodal_contract_extractor import (  # noqa: E402
+    DocumentInfo,
+    ExtractionResult,
+    SecurityError,
+    __version__,
+    serialize_to_csv,
+    serialize_to_json,
+    serialize_to_xml,
+    validate_file_input,
+    validate_output_path,
+)
 from multimodal_contract_extractor.cli_utils import (  # noqa: E402
     SUPPORTED_FORMATS,
     add_common_arguments,
@@ -25,19 +36,6 @@ from multimodal_contract_extractor.metrics import (  # noqa: E402
     save_metrics,
 )
 
-
-
-from multimodal_contract_extractor import (  # noqa: E402
-    __version__,
-    DocumentInfo,
-    ExtractionResult,
-    serialize_to_json,
-    serialize_to_xml,
-    serialize_to_csv,
-    SecurityError,
-    validate_file_input,
-    validate_output_path,
-)
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Extract contract clauses")
@@ -71,23 +69,23 @@ def main(argv: list[str] | None = None) -> int:
         input_path = validate_file_input(Path(args.file))
         logger.info("Processing file %s", input_path)
     except SecurityError as exc:
-        logger.error("Security validation failed: %s", exc)
+        logger.exception("Security validation failed: %s", exc)
         return 1
 
     # Validate output path with security checks
     try:
         output_path = validate_output_path(args.output, args.output_format)
     except SecurityError as exc:
-        logger.error("Output validation failed: %s", exc)
+        logger.exception("Output validation failed: %s", exc)
         return 1
 
     with PROCESSING_TIME.time():
         from multimodal_contract_extractor import extract_from_document
         extraction_result = extract_from_document(input_path)
-        
+
     processing_time = extraction_result["document_info"]["processing_time"]
     logger.info("Processing completed in %.2fs", processing_time)
-    
+
     # Convert to legacy format for serialization compatibility
     info = DocumentInfo(
         filename=extraction_result["document_info"]["filename"],
@@ -95,7 +93,7 @@ def main(argv: list[str] | None = None) -> int:
         processing_time=extraction_result["document_info"]["processing_time"],
         confidence=extraction_result["document_info"]["overall_confidence"],
     )
-    
+
     # Convert clauses to Clause objects
     from multimodal_contract_extractor.clause_detection import Clause
     clauses = [
@@ -103,11 +101,11 @@ def main(argv: list[str] | None = None) -> int:
             type=clause_data["type"],
             text=clause_data["text"],
             page=clause_data["page"],
-            coordinates=clause_data["coordinates"]
+            coordinates=clause_data["coordinates"],
         )
         for clause_data in extraction_result["clauses"]
     ]
-    
+
     result = ExtractionResult(document_info=info, clauses=clauses)
 
     if args.output_format == "json":

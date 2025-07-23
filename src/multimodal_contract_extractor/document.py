@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, List
-import logging
+from typing import Iterable
 
-from PIL import Image
 from pdf2image import convert_from_path
+from PIL import Image
+
 from .config import get_config
 
 
@@ -23,7 +24,7 @@ class Document:
     """Container for a loaded document."""
 
     path: Path
-    pages: List[DocumentPage]
+    pages: list[DocumentPage]
 
 
 SUPPORTED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".tiff", ".bmp"}
@@ -50,10 +51,12 @@ def load_document(path: str | Path) -> Document:
     file_path = Path(path)
     logger.debug("Loading document from %s", file_path)
     if not file_path.exists():
-        raise FileNotFoundError(f"Document not found: {file_path}")
+        msg = f"Document not found: {file_path}"
+        raise FileNotFoundError(msg)
 
     if file_path.suffix.lower() not in SUPPORTED_EXTENSIONS:
-        raise ValueError(f"Unsupported file type: {file_path.suffix}")
+        msg = f"Unsupported file type: {file_path.suffix}"
+        raise ValueError(msg)
 
     if file_path.suffix.lower() == ".pdf":
         images = convert_from_path(str(file_path))
@@ -65,7 +68,7 @@ def load_document(path: str | Path) -> Document:
     return Document(path=file_path, pages=pages)
 
 
-def stream_document(path: str | Path, *, chunk_size: int = None) -> Iterable[DocumentPage]:
+def stream_document(path: str | Path, *, chunk_size: int | None = None) -> Iterable[DocumentPage]:
     """Yield :class:`DocumentPage` objects from ``path`` lazily.
 
     This helper loads PDF pages in chunks to limit memory usage. Image files are
