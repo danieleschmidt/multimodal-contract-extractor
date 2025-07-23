@@ -2,49 +2,13 @@
 
 from unittest.mock import Mock, patch
 
-from web_app import save_upload
+from web_app import TempFileManager
 
 
 class TestTempFileCleanup:
     """Test temporary file cleanup functionality."""
 
-    def test_save_upload_creates_temp_file(self):
-        """Test that save_upload creates a temporary file."""
-        # Create mock uploaded file
-        mock_uploaded = Mock()
-        mock_uploaded.name = "test_contract.pdf"
-        mock_uploaded.read.return_value = b"dummy content"
 
-        # Save upload
-        tmp_path = save_upload(mock_uploaded)
-
-        try:
-            # Verify file exists and has content
-            assert tmp_path.exists()
-            assert tmp_path.is_file()
-            assert tmp_path.read_bytes() == b"dummy content"
-            assert tmp_path.suffix == ".pdf"
-        finally:
-            # Clean up for this test
-            if tmp_path.exists():
-                tmp_path.unlink()
-
-    def test_save_upload_sanitizes_filename(self):
-        """Test that save_upload properly sanitizes file extensions."""
-        # Create mock uploaded file with potentially dangerous filename
-        mock_uploaded = Mock()
-        mock_uploaded.name = "test_file.pdf;rm -rf /"
-        mock_uploaded.read.return_value = b"content"
-
-        tmp_path = save_upload(mock_uploaded)
-
-        try:
-            # Verify filename is sanitized (spaces become underscores)
-            assert tmp_path.suffix == ".pdf_rm_-rf_"
-            assert tmp_path.exists()
-        finally:
-            if tmp_path.exists():
-                tmp_path.unlink()
 
     @patch("multimodal_contract_extractor.extract_from_document")
     def test_temp_file_cleanup_in_context_manager(self, mock_extract):
@@ -167,24 +131,19 @@ class TestTempFileCleanup:
 class TestSecurityValidation:
     """Test security aspects of file handling."""
 
-    def test_save_upload_prevents_path_traversal(self):
-        """Test that save_upload prevents path traversal attacks."""
+    def test_temp_file_manager_prevents_path_traversal(self):
+        """Test that TempFileManager prevents path traversal attacks."""
         mock_uploaded = Mock()
         mock_uploaded.name = "../../../etc/passwd"
         mock_uploaded.read.return_value = b"content"
 
-        tmp_path = save_upload(mock_uploaded)
-
-        try:
+        with TempFileManager(mock_uploaded) as tmp_path:
             # Verify the file is created in temp directory, not at the traversal location
             assert "/etc/passwd" not in str(tmp_path)
             assert tmp_path.parent.name.startswith("tmp") or "temp" in str(
                 tmp_path.parent
             )
             assert tmp_path.exists()
-        finally:
-            if tmp_path.exists():
-                tmp_path.unlink()
 
     def test_temp_file_permissions(self):
         """Test that temporary files have appropriate permissions."""
@@ -192,9 +151,7 @@ class TestSecurityValidation:
         mock_uploaded.name = "test.pdf"
         mock_uploaded.read.return_value = b"content"
 
-        tmp_path = save_upload(mock_uploaded)
-
-        try:
+        with TempFileManager(mock_uploaded) as tmp_path:
             # Check file permissions (should be readable/writable by owner only)
             stat_info = tmp_path.stat()
             # On Unix systems, check that file is not world-readable
@@ -202,9 +159,6 @@ class TestSecurityValidation:
                 mode = stat_info.st_mode
                 # File should not be world-readable (no 0o004 bit)
                 assert not (mode & 0o004), "Temporary file should not be world-readable"
-        finally:
-            if tmp_path.exists():
-                tmp_path.unlink()
 
 
 class TestResourceManagement:

@@ -382,18 +382,6 @@ class TempFileManager:
                 pass
 
 
-def save_upload(uploaded) -> Path:
-    """Save an uploaded file to a temporary location and return the path.
-
-    DEPRECATED: Use TempFileManager context manager instead for proper cleanup.
-    This function is kept for backward compatibility but does not clean up files.
-    """
-    suffix = re.sub(r"[^A-Za-z0-9._-]", "_", Path(uploaded.name).suffix)
-    tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
-    tmp_file.write(uploaded.read())
-    tmp_file.close()
-    return Path(tmp_file.name)
-
 
 def process_upload_with_cleanup(uploaded_file) -> dict:
     """Process an uploaded file with proper temporary file cleanup.

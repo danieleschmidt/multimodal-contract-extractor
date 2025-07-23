@@ -1,5 +1,4 @@
 import importlib
-from pathlib import Path
 
 
 def test_web_app_defines_main():
@@ -7,30 +6,25 @@ def test_web_app_defines_main():
     assert hasattr(module, "main")
 
 
-def test_save_uploaded_file_unique(tmp_path, monkeypatch):
-    import tempfile
+def test_temp_file_manager_creates_unique_files():
+    """Test that TempFileManager creates unique temporary files."""
     from types import SimpleNamespace
-
-    import web_app
-
-    created = []
-
-    real_tempfile = tempfile.NamedTemporaryFile
-
-    def fake_named_tempfile(*args, **kwargs):
-        tmp = real_tempfile(delete=False, dir=tmp_path, suffix=kwargs.get("suffix", ""))
-        created.append(Path(tmp.name))
-        return tmp
-
-    monkeypatch.setattr(tempfile, "NamedTemporaryFile", fake_named_tempfile)
+    from web_app import TempFileManager
 
     upload = SimpleNamespace(name="doc.pdf", read=lambda: b"data")
-    path1 = web_app.save_upload(upload)
-    path2 = web_app.save_upload(upload)
-
-    assert path1 != path2
-    assert path1.exists()
-    assert path2.exists()
-
-    for p in created:
-        p.unlink()
+    
+    paths = []
+    
+    # Create multiple temp files and collect their paths
+    for _ in range(2):
+        with TempFileManager(upload) as tmp_path:
+            paths.append(tmp_path)
+            assert tmp_path.exists()
+            assert tmp_path.read_bytes() == b"data"
+    
+    # Verify that different paths were created
+    assert paths[0] != paths[1]
+    
+    # Both files should be cleaned up automatically
+    for tmp_path in paths:
+        assert not tmp_path.exists()
