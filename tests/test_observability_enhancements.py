@@ -17,7 +17,9 @@ class TestStructuredLogging:
 
         # Mock the CLI to include request ID in logging setup
         with patch("multimodal_contract_extractor.cli_utils.setup_logging"):
-            with patch("multimodal_contract_extractor.clause_detection._ocr_image") as mock_ocr:
+            with patch(
+                "multimodal_contract_extractor.clause_detection._ocr_image"
+            ) as mock_ocr:
                 mock_ocr.return_value = "Test content with confidential information"
 
                 # Process document
@@ -34,9 +36,12 @@ class TestStructuredLogging:
 
         # Set logging level to capture logs
         import logging
+
         caplog.set_level(logging.INFO)
 
-        with patch("multimodal_contract_extractor.clause_detection._ocr_image") as mock_ocr:
+        with patch(
+            "multimodal_contract_extractor.clause_detection._ocr_image"
+        ) as mock_ocr:
             mock_ocr.return_value = "Test content"
 
             # Process document
@@ -60,7 +65,9 @@ class TestMetricsEnhancement:
         input_file = tmp_path / "metrics_test.pdf"
         create_test_pdf(input_file, "Metrics test content")
 
-        with patch("multimodal_contract_extractor.clause_detection._ocr_image") as mock_ocr:
+        with patch(
+            "multimodal_contract_extractor.clause_detection._ocr_image"
+        ) as mock_ocr:
             mock_ocr.return_value = "Metrics test content"
 
             # Process document
@@ -78,7 +85,9 @@ class TestMetricsEnhancement:
         input_file = tmp_path / "accuracy_test.pdf"
         create_test_pdf(input_file, "Accuracy test with confidential terms")
 
-        with patch("multimodal_contract_extractor.clause_detection._ocr_image") as mock_ocr:
+        with patch(
+            "multimodal_contract_extractor.clause_detection._ocr_image"
+        ) as mock_ocr:
             mock_ocr.return_value = "Accuracy test with confidential terms"
 
             # Process document
@@ -101,7 +110,9 @@ class TestMetricsEnhancement:
         input_file = tmp_path / "classification_test.pdf"
         create_test_pdf(input_file, "This is a confidentiality agreement")
 
-        with patch("multimodal_contract_extractor.clause_detection._ocr_image") as mock_ocr:
+        with patch(
+            "multimodal_contract_extractor.clause_detection._ocr_image"
+        ) as mock_ocr:
             mock_ocr.return_value = "This is a confidentiality agreement"
 
             # Process document
@@ -111,7 +122,13 @@ class TestMetricsEnhancement:
             assert "document_type" in result["document_info"]
             doc_type = result["document_info"]["document_type"]
             assert isinstance(doc_type, str)
-            assert doc_type in ["nda", "employment_agreement", "service_agreement", "general_contract", "unknown"]
+            assert doc_type in [
+                "nda",
+                "employment_agreement",
+                "service_agreement",
+                "general_contract",
+                "unknown",
+            ]
 
 
 class TestHealthCheckEndpoints:
@@ -183,8 +200,13 @@ class TestMonitoringIntegration:
         assert len(metrics) > 0
 
         # Check for expected metric names
-        assert "multimodal_contract_processing_time" in metrics or "processing_time" in metrics
-        assert "multimodal_contract_memory_usage" in metrics or "memory_usage" in metrics
+        assert (
+            "multimodal_contract_processing_time" in metrics
+            or "processing_time" in metrics
+        )
+        assert (
+            "multimodal_contract_memory_usage" in metrics or "memory_usage" in metrics
+        )
 
     def test_metrics_collection_intervals(self):
         """Test that metrics are collected at appropriate intervals."""

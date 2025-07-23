@@ -72,7 +72,9 @@ def extract_from_document(file_path: Path) -> dict[str, Any]:
 
             logger.info(
                 "Extraction completed for %s: %d clauses found in %.2fs",
-                file_path.name, len(clauses), processing_time,
+                file_path.name,
+                len(clauses),
+                processing_time,
             )
 
             return result
@@ -84,7 +86,9 @@ def extract_from_document(file_path: Path) -> dict[str, Any]:
             raise
 
 
-def _build_extraction_result(document: Document, clauses: list, processing_time: float) -> dict[str, Any]:
+def _build_extraction_result(
+    document: Document, clauses: list, processing_time: float
+) -> dict[str, Any]:
     """Build the structured extraction result.
 
     Parameters
@@ -103,9 +107,13 @@ def _build_extraction_result(document: Document, clauses: list, processing_time:
     """
     # Calculate overall confidence (simple average for now)
     if clauses:
-        overall_confidence = sum(_calculate_clause_confidence(clause) for clause in clauses) / len(clauses)
+        overall_confidence = sum(
+            _calculate_clause_confidence(clause) for clause in clauses
+        ) / len(clauses)
     else:
-        overall_confidence = 1.0  # High confidence when no clauses found means OCR worked
+        overall_confidence = (
+            1.0  # High confidence when no clauses found means OCR worked
+        )
 
     # Build result in documented JSON format
     return {
@@ -118,13 +126,20 @@ def _build_extraction_result(document: Document, clauses: list, processing_time:
         },
         "clauses": [
             {
-                "id": clause.id or f"clause_{i:03d}",  # Use clause ID if available, fallback to generated
+                "id": clause.id
+                or f"clause_{i:03d}",  # Use clause ID if available, fallback to generated
                 "type": clause.type,
                 "text": clause.text,
                 "page": clause.page,
-                "coordinates": clause.coordinates if clause.coordinates is not None else [],
-                "confidence": clause.confidence if hasattr(clause, "confidence") else _calculate_clause_confidence(clause),
-                "key_terms": clause.key_terms if hasattr(clause, "key_terms") else _extract_key_terms(clause),
+                "coordinates": clause.coordinates
+                if clause.coordinates is not None
+                else [],
+                "confidence": clause.confidence
+                if hasattr(clause, "confidence")
+                else _calculate_clause_confidence(clause),
+                "key_terms": clause.key_terms
+                if hasattr(clause, "key_terms")
+                else _extract_key_terms(clause),
             }
             for i, clause in enumerate(clauses, 1)
         ],
@@ -134,7 +149,6 @@ def _build_extraction_result(document: Document, clauses: list, processing_time:
             "processing_method": "ocr_keyword_detection",
         },
     }
-
 
 
 def _calculate_clause_confidence(clause) -> float:
@@ -171,6 +185,7 @@ def _extract_key_terms(clause) -> list[str]:
 
     # Look for monetary amounts
     import re
+
     money_pattern = r"\$[\d,]+(?:\.\d{2})?"
     money_matches = re.findall(money_pattern, clause.text)
     key_terms.extend(money_matches)
@@ -196,7 +211,7 @@ def _extract_key_terms(clause) -> list[str]:
                 # Find the actual case from original text
                 start_idx = text_lower.find(keyword)
                 if start_idx >= 0:
-                    actual_term = clause.text[start_idx:start_idx + len(keyword)]
+                    actual_term = clause.text[start_idx : start_idx + len(keyword)]
                     key_terms.append(actual_term)
 
     return list(set(key_terms))  # Remove duplicates
@@ -237,19 +252,30 @@ def _load_document_adaptive(file_path: Path) -> Document:
     """
     # Define size threshold for streaming
     config = get_config()
-    SIZE_THRESHOLD = config.extraction.file_size_threshold_mb * 1024 * 1024  # Convert MB to bytes
+    SIZE_THRESHOLD = (
+        config.extraction.file_size_threshold_mb * 1024 * 1024
+    )  # Convert MB to bytes
 
     try:
         file_size = file_path.stat().st_size
 
         if file_path.suffix.lower() == ".pdf" and file_size > SIZE_THRESHOLD:
-            logger.info("Large PDF detected (%d MB), using streaming approach", file_size // (1024 * 1024))
+            logger.info(
+                "Large PDF detected (%d MB), using streaming approach",
+                file_size // (1024 * 1024),
+            )
             # Use streaming for large PDFs
-            pages = list(stream_document(file_path, chunk_size=config.extraction.streaming_chunk_size))
+            pages = list(
+                stream_document(
+                    file_path, chunk_size=config.extraction.streaming_chunk_size
+                )
+            )
             return Document(path=file_path, pages=pages)
         logger.debug("Using standard loading for file size: %d bytes", file_size)
         return load_document(file_path)
 
     except OSError as e:
-        logger.warning("Could not determine file size, falling back to standard loading: %s", e)
+        logger.warning(
+            "Could not determine file size, falling back to standard loading: %s", e
+        )
         return load_document(file_path)

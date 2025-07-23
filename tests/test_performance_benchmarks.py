@@ -95,7 +95,9 @@ class TestPerformanceBenchmarks:
         clear_ocr_cache()
         clear_pattern_cache()
 
-        with patch("multimodal_contract_extractor.clause_detection._ocr_image") as mock_ocr:
+        with patch(
+            "multimodal_contract_extractor.clause_detection._ocr_image"
+        ) as mock_ocr:
             mock_ocr.return_value = test_text
 
             # Benchmark legacy implementation
@@ -115,7 +117,6 @@ class TestPerformanceBenchmarks:
             assert len(legacy_clauses) > 0
             assert len(optimized_clauses) > 0
 
-
             if legacy_time > 0:
                 ((legacy_time - optimized_time) / legacy_time * 100)
 
@@ -126,10 +127,12 @@ class TestPerformanceBenchmarks:
         """End-to-end performance benchmark with all optimizations."""
         # Create a document with content that triggers multiple clause types
         input_file = tmp_path / "e2e_benchmark.pdf"
-        create_test_pdf(input_file,
+        create_test_pdf(
+            input_file,
             "This confidential agreement includes payment terms, termination clauses, "
             "liability limitations, and dispute resolution procedures. The governing law "
-            "provisions are detailed in the appendix.")
+            "provisions are detailed in the appendix.",
+        )
 
         # Clear all caches for baseline
         clear_ocr_cache()
@@ -150,7 +153,6 @@ class TestPerformanceBenchmarks:
         start_time = time.perf_counter()
         result2 = extract_from_document(input_file)
         cached_time = time.perf_counter() - start_time
-
 
         # Results should be consistent
         assert len(result["clauses"]) == len(result2["clauses"])
@@ -183,7 +185,6 @@ class TestPerformanceBenchmarks:
 
         # Verify processing succeeded
         assert result is not None
-
 
         # Memory usage should be reasonable (less than 100MB for this test)
         assert memory_used < 100, f"Memory usage too high: {memory_used:.1f} MB"

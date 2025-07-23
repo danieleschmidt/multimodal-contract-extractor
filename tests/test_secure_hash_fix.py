@@ -36,7 +36,9 @@ def test_hash_algorithm_is_secure():
     hash_result = _hash_image(image)
 
     # SHA-256 produces 64-character hex strings (32 bytes * 2)
-    assert len(hash_result) == 64, f"Expected SHA-256 hash length 64, got {len(hash_result)}"
+    assert len(hash_result) == 64, (
+        f"Expected SHA-256 hash length 64, got {len(hash_result)}"
+    )
 
     # Verify it's a valid hex string
     int(hash_result, 16)  # Should not raise an exception

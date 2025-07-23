@@ -116,6 +116,7 @@ class TestWebAppIntegration:
 
                 # Process the document
                 from multimodal_contract_extractor import extract_from_document
+
                 result = extract_from_document(temp_path)
 
                 # Verify processing succeeded
@@ -154,7 +155,7 @@ class TestWebAppIntegration:
 
         for i, text in enumerate(contract_texts):
             mock_uploaded = Mock()
-            mock_uploaded.name = f"contract_{i+1}.pdf"
+            mock_uploaded.name = f"contract_{i + 1}.pdf"
 
             # Create real PDF content
             with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
@@ -178,7 +179,7 @@ class TestWebAppIntegration:
             for i, result in enumerate(results):
                 assert "document_info" in result
                 assert "clauses" in result
-                assert result["document_info"]["filename"] == f"contract_{i+1}.pdf"
+                assert result["document_info"]["filename"] == f"contract_{i + 1}.pdf"
 
         finally:
             # Clean up test PDFs
@@ -203,8 +204,7 @@ class TestWebAppIntegration:
             "Section 4: Liability\n"
             "Liability is limited to the contract value.\n\n"
             "Section 5: Intellectual Property\n"
-            "All IP created remains property of the company.\n\n" +
-            # Repeat content to make it larger
+            "All IP created remains property of the company.\n\n" + # Repeat content to make it larger
             ("Additional terms and conditions follow. " * 100)
         )
 
@@ -238,8 +238,9 @@ class TestWebAppIntegration:
     @patch("streamlit.json")
     @patch("streamlit.success")
     @patch("streamlit.error")
-    def test_main_function_complete_workflow(self, mock_error, mock_success,
-                                           mock_json, mock_info, mock_uploader, mock_title):
+    def test_main_function_complete_workflow(
+        self, mock_error, mock_success, mock_json, mock_info, mock_uploader, mock_title
+    ):
         """Test main function with complete Streamlit integration."""
         from web_app import main
 
@@ -249,7 +250,9 @@ class TestWebAppIntegration:
 
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
             tmp_path = Path(tmp.name)
-            create_test_pdf(tmp_path, "Contract with confidentiality and payment terms.")
+            create_test_pdf(
+                tmp_path, "Contract with confidentiality and payment terms."
+            )
             pdf_content = tmp_path.read_bytes()
             mock_uploaded.read.return_value = pdf_content
 
@@ -274,8 +277,9 @@ class TestWebAppIntegration:
     @patch("streamlit.file_uploader")
     @patch("streamlit.info")
     @patch("streamlit.error")
-    def test_main_function_error_handling(self, mock_error, mock_info,
-                                        mock_uploader, mock_title):
+    def test_main_function_error_handling(
+        self, mock_error, mock_info, mock_uploader, mock_title
+    ):
         """Test main function handles processing errors gracefully."""
         from web_app import main
 

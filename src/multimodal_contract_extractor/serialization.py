@@ -82,7 +82,9 @@ def serialize_to_xml(result: ExtractionResult, *, pretty: bool = False) -> str:
 
 
 def serialize_to_csv(
-    result: ExtractionResult, *, include_coordinates: bool = False,
+    result: ExtractionResult,
+    *,
+    include_coordinates: bool = False,
 ) -> str:
     """Serialize an :class:`ExtractionResult` to a CSV string."""
 

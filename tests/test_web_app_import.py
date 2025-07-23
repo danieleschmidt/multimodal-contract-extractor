@@ -6,6 +6,7 @@ def test_web_app_defines_main():
     module = importlib.import_module("web_app")
     assert hasattr(module, "main")
 
+
 def test_save_uploaded_file_unique(tmp_path, monkeypatch):
     import tempfile
     from types import SimpleNamespace

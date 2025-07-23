@@ -52,7 +52,9 @@ class TestPipelineIntegration:
             # Should detect different clause types
             clause_types = {clause["type"] for clause in clauses}
             expected_types = {"confidentiality", "payment", "termination", "liability"}
-            assert len(clause_types.intersection(expected_types)) > 0, f"Expected some clause types from {expected_types}, got {clause_types}"
+            assert len(clause_types.intersection(expected_types)) > 0, (
+                f"Expected some clause types from {expected_types}, got {clause_types}"
+            )
 
             # Verify each clause has proper structure
             for clause in clauses:
@@ -76,7 +78,10 @@ class TestPipelineIntegration:
             assert "extraction_timestamp" in metadata
             assert "model_version" in metadata
             assert "processing_method" in metadata
-            assert metadata["processing_method"] in ["ocr_keyword_detection", "multimodal_vlm"]  # Current implementation is OCR-based
+            assert metadata["processing_method"] in [
+                "ocr_keyword_detection",
+                "multimodal_vlm",
+            ]  # Current implementation is OCR-based
 
         finally:
             tmp_path.unlink()
@@ -103,11 +108,14 @@ class TestPipelineIntegration:
             },
         }
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as config_tmp:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yml", delete=False
+        ) as config_tmp:
             config_path = Path(config_tmp.name)
 
             # Write YAML config
             import yaml
+
             yaml.dump(config_data, config_tmp)
             config_tmp.flush()
 
@@ -142,14 +150,13 @@ class TestPipelineIntegration:
     def test_pipeline_streaming_vs_standard_loading(self):
         """Test pipeline with both streaming and standard document loading."""
         # Create a larger PDF to trigger streaming behavior
-        large_content = (
-            "COMPREHENSIVE CONTRACT AGREEMENT\n\n" +
-            "\n\n".join([
+        large_content = "COMPREHENSIVE CONTRACT AGREEMENT\n\n" + "\n\n".join(
+            [
                 f"Section {i}: This section contains confidentiality terms, "
                 f"payment obligations, and termination procedures. "
                 f"All parties must comply with section {i} requirements."
                 for i in range(1, 20)  # Create 20 sections
-            ])
+            ]
         )
 
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
@@ -242,6 +249,7 @@ class TestPipelineIntegration:
 
         try:
             import time
+
             start_time = time.time()
 
             result = extract_from_document(tmp_path)
@@ -279,6 +287,7 @@ class TestPipelineIntegration:
         try:
             # First extraction (cold cache)
             import time
+
             start1 = time.time()
             result1 = extract_from_document(tmp_path)
             duration1 = time.time() - start1
@@ -306,16 +315,18 @@ class TestPipelineIntegration:
     def test_pipeline_multi_page_document(self):
         """Test pipeline correctly handles multi-page documents."""
         # Create content that will span multiple pages
-        multi_page_content = "\n\n".join([
-            "PAGE 1 CONTENT:",
-            "This contract contains confidentiality obligations.",
-            "\n" * 30,  # Force page break
-            "PAGE 2 CONTENT:",
-            "Payment terms require net 30 day settlement.",
-            "\n" * 30,
-            "PAGE 3 CONTENT:",
-            "Termination requires 90 days written notice.",
-        ])
+        multi_page_content = "\n\n".join(
+            [
+                "PAGE 1 CONTENT:",
+                "This contract contains confidentiality obligations.",
+                "\n" * 30,  # Force page break
+                "PAGE 2 CONTENT:",
+                "Payment terms require net 30 day settlement.",
+                "\n" * 30,
+                "PAGE 3 CONTENT:",
+                "Termination requires 90 days written notice.",
+            ]
+        )
 
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
             tmp_path = Path(tmp.name)

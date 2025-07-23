@@ -63,7 +63,9 @@ class TestFileValidation:
         large_content = b"x" * (200 * 1024 * 1024)
         upload = SimpleNamespace(
             name="huge.pdf",
-            read=lambda size=None: large_content if size is None else large_content[:size],
+            read=lambda size=None: large_content
+            if size is None
+            else large_content[:size],
             seek=lambda pos: None,
         )
 
@@ -173,7 +175,9 @@ class TestErrorHandling:
 
         assert isinstance(message, str)
         assert len(message) > 0
-        assert "tesseract" not in message.lower() or "OCR" in message  # Should be user-friendly
+        assert (
+            "tesseract" not in message.lower() or "OCR" in message
+        )  # Should be user-friendly
 
     def test_provides_error_recovery_suggestions(self):
         """Test that error messages include recovery suggestions."""
@@ -182,7 +186,9 @@ class TestErrorHandling:
         assert isinstance(suggestion, str)
         assert len(suggestion) > 0
         # Should provide actionable advice
-        assert any(word in suggestion.lower() for word in ["install", "check", "try", "ensure"])
+        assert any(
+            word in suggestion.lower() for word in ["install", "check", "try", "ensure"]
+        )
 
 
 class TestResultVisualization:
@@ -193,7 +199,13 @@ class TestResultVisualization:
         # Mock result data
         mock_result = {
             "document_info": {"filename": "test.pdf", "pages": 2},
-            "clauses": [{"type": "termination", "confidence": 0.95, "text": "Termination clause"}],
+            "clauses": [
+                {
+                    "type": "termination",
+                    "confidence": 0.95,
+                    "text": "Termination clause",
+                }
+            ],
         }
 
         formatted = web_app.format_results_display(mock_result)
@@ -221,9 +233,21 @@ class TestResultVisualization:
 
     def test_highlights_high_confidence_clauses(self):
         """Test that high-confidence clauses are visually highlighted."""
-        high_confidence_clause = {"type": "payment", "confidence": 0.97, "text": "Payment terms"}
-        medium_confidence_clause = {"type": "payment", "confidence": 0.85, "text": "Payment info"}
-        low_confidence_clause = {"type": "payment", "confidence": 0.65, "text": "Other payment info"}
+        high_confidence_clause = {
+            "type": "payment",
+            "confidence": 0.97,
+            "text": "Payment terms",
+        }
+        medium_confidence_clause = {
+            "type": "payment",
+            "confidence": 0.85,
+            "text": "Payment info",
+        }
+        low_confidence_clause = {
+            "type": "payment",
+            "confidence": 0.65,
+            "text": "Other payment info",
+        }
 
         high_formatted = web_app.format_clause_display(high_confidence_clause)
         medium_formatted = web_app.format_clause_display(medium_confidence_clause)
@@ -245,7 +269,9 @@ class TestCurrentFunctionality:
         real_tempfile = tempfile.NamedTemporaryFile
 
         def fake_named_tempfile(*args, **kwargs):
-            tmp = real_tempfile(delete=False, dir=tmp_path, suffix=kwargs.get("suffix", ""))
+            tmp = real_tempfile(
+                delete=False, dir=tmp_path, suffix=kwargs.get("suffix", "")
+            )
             created.append(Path(tmp.name))
             return tmp
 

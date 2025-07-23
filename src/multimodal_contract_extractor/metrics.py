@@ -20,13 +20,39 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 registry = CollectorRegistry()
-PROCESSING_TIME = Histogram("multimodal_contract_processing_time_seconds", "Time spent processing a document", registry=registry)
-PAGES_PROCESSED = Counter("multimodal_contract_pages_processed_total", "Total number of document pages processed", registry=registry)
-MEMORY_USAGE = Gauge("multimodal_contract_memory_usage_bytes", "Maximum resident set size in bytes", registry=registry)
-CLAUSES_DETECTED = Counter("multimodal_contract_clauses_detected_total", "Total number of clauses detected", ["clause_type"], registry=registry)
-DOCUMENTS_PROCESSED = Counter("multimodal_contract_documents_processed_total", "Total number of documents processed", ["status"], registry=registry)
-OCR_CACHE_HITS = Counter("multimodal_contract_ocr_cache_hits_total", "OCR cache hits", registry=registry)
-OCR_CACHE_MISSES = Counter("multimodal_contract_ocr_cache_misses_total", "OCR cache misses", registry=registry)
+PROCESSING_TIME = Histogram(
+    "multimodal_contract_processing_time_seconds",
+    "Time spent processing a document",
+    registry=registry,
+)
+PAGES_PROCESSED = Counter(
+    "multimodal_contract_pages_processed_total",
+    "Total number of document pages processed",
+    registry=registry,
+)
+MEMORY_USAGE = Gauge(
+    "multimodal_contract_memory_usage_bytes",
+    "Maximum resident set size in bytes",
+    registry=registry,
+)
+CLAUSES_DETECTED = Counter(
+    "multimodal_contract_clauses_detected_total",
+    "Total number of clauses detected",
+    ["clause_type"],
+    registry=registry,
+)
+DOCUMENTS_PROCESSED = Counter(
+    "multimodal_contract_documents_processed_total",
+    "Total number of documents processed",
+    ["status"],
+    registry=registry,
+)
+OCR_CACHE_HITS = Counter(
+    "multimodal_contract_ocr_cache_hits_total", "OCR cache hits", registry=registry
+)
+OCR_CACHE_MISSES = Counter(
+    "multimodal_contract_ocr_cache_misses_total", "OCR cache misses", registry=registry
+)
 
 
 def record_memory_usage() -> None:
@@ -48,6 +74,7 @@ def save_metrics(path: str | Path, format: str = "prometheus") -> None:
     """
     if format == "json":
         import json
+
         metrics_data = get_simple_metrics()
         with open(path, "w") as f:
             json.dump(metrics_data, f, indent=2)
@@ -75,7 +102,9 @@ def get_simple_metrics() -> dict[str, Any]:
         Simple metrics structure with processing_time, document_size, clauses_found
     """
     # Get current metric values
-    memory_usage = MEMORY_USAGE._value._value if hasattr(MEMORY_USAGE._value, "_value") else 0
+    memory_usage = (
+        MEMORY_USAGE._value._value if hasattr(MEMORY_USAGE._value, "_value") else 0
+    )
 
     # For processing time, try multiple approaches to get a meaningful value
     processing_time = _get_histogram_sum(PROCESSING_TIME)
@@ -113,7 +142,9 @@ def get_dashboard_metrics() -> dict[str, Any]:
     from .health import get_health_status
 
     # Get current metric values
-    memory_usage = MEMORY_USAGE._value._value if hasattr(MEMORY_USAGE._value, "_value") else 0
+    memory_usage = (
+        MEMORY_USAGE._value._value if hasattr(MEMORY_USAGE._value, "_value") else 0
+    )
 
     # Calculate processing statistics
     processing_stats = {
@@ -132,7 +163,7 @@ def get_dashboard_metrics() -> dict[str, Any]:
     recent_activity = {
         "last_updated": datetime.now(timezone.utc).isoformat(),
         "active_processes": 0,  # Would track active extraction processes
-        "queue_length": 0,       # Would track processing queue
+        "queue_length": 0,  # Would track processing queue
     }
 
     return {
@@ -222,8 +253,16 @@ def _get_average_processing_time() -> float:
     try:
         # Get histogram data
         if hasattr(PROCESSING_TIME, "_sum") and hasattr(PROCESSING_TIME, "_count"):
-            total_time = PROCESSING_TIME._sum._value if hasattr(PROCESSING_TIME._sum, "_value") else 0
-            total_count = PROCESSING_TIME._count._value if hasattr(PROCESSING_TIME._count, "_value") else 0
+            total_time = (
+                PROCESSING_TIME._sum._value
+                if hasattr(PROCESSING_TIME._sum, "_value")
+                else 0
+            )
+            total_count = (
+                PROCESSING_TIME._count._value
+                if hasattr(PROCESSING_TIME._count, "_value")
+                else 0
+            )
 
             if total_count > 0:
                 return round(total_time / total_count, 3)
@@ -242,10 +281,38 @@ def reset_metrics() -> None:
     global PROCESSING_TIME, PAGES_PROCESSED, MEMORY_USAGE, CLAUSES_DETECTED
     global DOCUMENTS_PROCESSED, OCR_CACHE_HITS, OCR_CACHE_MISSES
 
-    PROCESSING_TIME = Histogram("multimodal_contract_processing_time_seconds", "Time spent processing a document", registry=registry)
-    PAGES_PROCESSED = Counter("multimodal_contract_pages_processed_total", "Total number of document pages processed", registry=registry)
-    MEMORY_USAGE = Gauge("multimodal_contract_memory_usage_bytes", "Maximum resident set size in bytes", registry=registry)
-    CLAUSES_DETECTED = Counter("multimodal_contract_clauses_detected_total", "Total number of clauses detected", ["clause_type"], registry=registry)
-    DOCUMENTS_PROCESSED = Counter("multimodal_contract_documents_processed_total", "Total number of documents processed", ["status"], registry=registry)
-    OCR_CACHE_HITS = Counter("multimodal_contract_ocr_cache_hits_total", "OCR cache hits", registry=registry)
-    OCR_CACHE_MISSES = Counter("multimodal_contract_ocr_cache_misses_total", "OCR cache misses", registry=registry)
+    PROCESSING_TIME = Histogram(
+        "multimodal_contract_processing_time_seconds",
+        "Time spent processing a document",
+        registry=registry,
+    )
+    PAGES_PROCESSED = Counter(
+        "multimodal_contract_pages_processed_total",
+        "Total number of document pages processed",
+        registry=registry,
+    )
+    MEMORY_USAGE = Gauge(
+        "multimodal_contract_memory_usage_bytes",
+        "Maximum resident set size in bytes",
+        registry=registry,
+    )
+    CLAUSES_DETECTED = Counter(
+        "multimodal_contract_clauses_detected_total",
+        "Total number of clauses detected",
+        ["clause_type"],
+        registry=registry,
+    )
+    DOCUMENTS_PROCESSED = Counter(
+        "multimodal_contract_documents_processed_total",
+        "Total number of documents processed",
+        ["status"],
+        registry=registry,
+    )
+    OCR_CACHE_HITS = Counter(
+        "multimodal_contract_ocr_cache_hits_total", "OCR cache hits", registry=registry
+    )
+    OCR_CACHE_MISSES = Counter(
+        "multimodal_contract_ocr_cache_misses_total",
+        "OCR cache misses",
+        registry=registry,
+    )

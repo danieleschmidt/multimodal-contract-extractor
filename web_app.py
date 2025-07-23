@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class FileValidationResult:
     """Result of file validation."""
+
     is_valid: bool
     error_message: str | None = None
     file_size_mb: float | None = None
@@ -23,6 +24,7 @@ class FileValidationResult:
 @dataclass
 class FilePreview:
     """File preview information."""
+
     filename: str
     file_size_mb: float
     file_type: str
@@ -196,7 +198,9 @@ def format_error_message(error: Exception) -> str:
     if "memory" in error_message or "memoryerror" in error_type:
         return "The document is too large to process. Please try a smaller file."
     if "timeout" in error_message:
-        return "Document processing took too long. Please try again or use a smaller file."
+        return (
+            "Document processing took too long. Please try again or use a smaller file."
+        )
     if "permission" in error_message or "access" in error_message:
         return "Unable to access the file. Please check file permissions."
     if "corrupt" in error_message or "invalid" in error_message:
@@ -216,8 +220,10 @@ def get_error_suggestion(error_code: str) -> str:
         "valueerror": "Verify the document format is supported (PDF, JPEG, PNG, TIFF, BMP).",
     }
 
-    return suggestions.get(error_code,
-        "Check the document format and size, then try again. If the problem persists, contact support.")
+    return suggestions.get(
+        error_code,
+        "Check the document format and size, then try again. If the problem persists, contact support.",
+    )
 
 
 def format_results_display(result: dict[str, Any]) -> dict[str, Any]:
@@ -230,8 +236,12 @@ def format_results_display(result: dict[str, Any]) -> dict[str, Any]:
 
     # Calculate statistics
     total_clauses = len(clauses)
-    avg_confidence = sum(clause.get("confidence", 0.0) for clause in clauses) / max(1, total_clauses)
-    high_confidence_count = sum(1 for clause in clauses if clause.get("confidence", 0.0) > 0.9)
+    avg_confidence = sum(clause.get("confidence", 0.0) for clause in clauses) / max(
+        1, total_clauses
+    )
+    high_confidence_count = sum(
+        1 for clause in clauses if clause.get("confidence", 0.0) > 0.9
+    )
 
     # Document summary
     document_summary = {
@@ -458,7 +468,9 @@ def main() -> None:
         # Display processing summary
         st.success(f"✅ Processed {info.pages} pages in {info.processing_time:.2f}s")
         if clauses:
-            st.info(f"📋 Found {len(clauses)} clauses with {info.confidence:.1%} average confidence")
+            st.info(
+                f"📋 Found {len(clauses)} clauses with {info.confidence:.1%} average confidence"
+            )
 
     except Exception as e:
         st.error(f"❌ Error processing document: {e!s}")

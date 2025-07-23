@@ -16,10 +16,15 @@ class TestClauseDetectionOptimization:
     def test_optimized_detection_finds_same_clauses(self, tmp_path):
         """Optimized detection should find the same clauses as original."""
         input_file = tmp_path / "test_doc.pdf"
-        create_test_pdf(input_file, "This document contains confidential information and termination clauses.")
+        create_test_pdf(
+            input_file,
+            "This document contains confidential information and termination clauses.",
+        )
 
         # Mock OCR to return predictable text
-        with patch("multimodal_contract_extractor.clause_detection._ocr_image") as mock_ocr:
+        with patch(
+            "multimodal_contract_extractor.clause_detection._ocr_image"
+        ) as mock_ocr:
             mock_ocr.return_value = "This document contains confidential information and termination clauses."
 
             # Create a mock document
@@ -57,12 +62,16 @@ class TestClauseDetectionOptimization:
 
         # Create a mock document with the test text
         mock_doc = MagicMock()
-        mock_doc.pages = [MagicMock() for _ in range(3)]  # Multiple pages for more processing
+        mock_doc.pages = [
+            MagicMock() for _ in range(3)
+        ]  # Multiple pages for more processing
         for i, page in enumerate(mock_doc.pages):
             page.number = i + 1
             page.image = MagicMock()
 
-        with patch("multimodal_contract_extractor.clause_detection._ocr_image") as mock_ocr:
+        with patch(
+            "multimodal_contract_extractor.clause_detection._ocr_image"
+        ) as mock_ocr:
             mock_ocr.return_value = test_text
 
             # Time original implementation
@@ -96,7 +105,9 @@ class TestClauseDetectionOptimization:
             _build_combined_pattern,
         )
 
-        test_text = "This confidential agreement includes payment terms and liability clauses."
+        test_text = (
+            "This confidential agreement includes payment terms and liability clauses."
+        )
 
         # Build combined pattern
         combined_pattern = _build_combined_pattern(DEFAULT_KEYWORDS)
@@ -132,7 +143,9 @@ class TestClauseDetectionOptimization:
         assert pattern1 is pattern2
 
         # Second call should be faster (cached)
-        assert second_call_time <= first_call_time + 0.001  # Allow small margin for measurement variance
+        assert (
+            second_call_time <= first_call_time + 0.001
+        )  # Allow small margin for measurement variance
 
     def test_empty_keywords_handling(self):
         """Test that empty keywords are handled gracefully."""

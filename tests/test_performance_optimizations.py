@@ -19,9 +19,11 @@ class TestAdaptiveDocumentLoading:
         create_test_pdf(input_file, "Test content for small document")
 
         # Mock the load_document to track calls and OCR to avoid errors
-        with patch("multimodal_contract_extractor.extraction.load_document") as mock_load, \
-             patch("multimodal_contract_extractor.clause_detection._ocr_image") as mock_ocr:
-
+        with patch(
+            "multimodal_contract_extractor.extraction.load_document"
+        ) as mock_load, patch(
+            "multimodal_contract_extractor.clause_detection._ocr_image"
+        ) as mock_ocr:
             # Set up mocks to return valid structures
             mock_load.return_value = MagicMock()
             mock_load.return_value.pages = [MagicMock()]
@@ -43,9 +45,11 @@ class TestAdaptiveDocumentLoading:
         with patch.object(Path, "stat") as mock_stat:
             mock_stat.return_value.st_size = 15_000_000  # 15MB
 
-            with patch("multimodal_contract_extractor.extraction.stream_document") as mock_stream, \
-                 patch("multimodal_contract_extractor.clause_detection._ocr_image") as mock_ocr:
-
+            with patch(
+                "multimodal_contract_extractor.extraction.stream_document"
+            ) as mock_stream, patch(
+                "multimodal_contract_extractor.clause_detection._ocr_image"
+            ) as mock_ocr:
                 # Set up mock to return valid document pages
                 mock_stream.return_value = [MagicMock()]
                 mock_stream.return_value[0].number = 1
@@ -76,7 +80,7 @@ class TestAdaptiveDocumentLoading:
         # (Time may vary, but we're mainly testing it doesn't crash and works)
         assert len(pages_streamed) == len(doc_standard.pages)
         assert streaming_time >= 0  # Basic sanity check
-        assert standard_time >= 0   # Basic sanity check
+        assert standard_time >= 0  # Basic sanity check
 
 
 class TestOCRCaching:
@@ -88,7 +92,9 @@ class TestOCRCaching:
         create_test_pdf(input_file, "Cache test content")
 
         # Mock the OCR function to track how many times it's called
-        with patch("multimodal_contract_extractor.clause_detection._ocr_image") as mock_ocr:
+        with patch(
+            "multimodal_contract_extractor.clause_detection._ocr_image"
+        ) as mock_ocr:
             mock_ocr.return_value = "Cached test content"
 
             # Process the same document twice

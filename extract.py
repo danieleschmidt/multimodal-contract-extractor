@@ -81,6 +81,7 @@ def main(argv: list[str] | None = None) -> int:
 
     with PROCESSING_TIME.time():
         from multimodal_contract_extractor import extract_from_document
+
         extraction_result = extract_from_document(input_path)
 
     processing_time = extraction_result["document_info"]["processing_time"]
@@ -96,6 +97,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # Convert clauses to Clause objects
     from multimodal_contract_extractor.clause_detection import Clause
+
     clauses = [
         Clause(
             type=clause_data["type"],

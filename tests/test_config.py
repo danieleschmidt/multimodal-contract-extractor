@@ -18,6 +18,7 @@ from multimodal_contract_extractor.config import (
 def reset_config_singleton():
     """Reset the configuration singleton for test isolation."""
     import multimodal_contract_extractor.config as config_module
+
     config_module._config_instance = None
 
 
@@ -63,11 +64,14 @@ class TestConfigLoading:
 
     def test_load_config_from_environment(self):
         """Test loading configuration from environment variables."""
-        with patch.dict(os.environ, {
-            "MCE_OCR_CACHE_SIZE_LIMIT": "200",
-            "MCE_EXTRACTION_BASE_CONFIDENCE_SCORE": "0.8",
-            "MCE_SECURITY_MAX_FILE_SIZE_MB": "150",
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "MCE_OCR_CACHE_SIZE_LIMIT": "200",
+                "MCE_EXTRACTION_BASE_CONFIDENCE_SCORE": "0.8",
+                "MCE_SECURITY_MAX_FILE_SIZE_MB": "150",
+            },
+        ):
             config = load_config()
             assert config.ocr.cache_size_limit == 200
             assert config.extraction.base_confidence_score == 0.8
@@ -115,9 +119,12 @@ extraction:
             config_path = f.name
 
         try:
-            with patch.dict(os.environ, {
-                "MCE_OCR_CACHE_SIZE_LIMIT": "300",  # Override file value
-            }):
+            with patch.dict(
+                os.environ,
+                {
+                    "MCE_OCR_CACHE_SIZE_LIMIT": "300",  # Override file value
+                },
+            ):
                 config = load_config(config_path=config_path)
                 assert config.ocr.cache_size_limit == 300  # From env
                 assert config.extraction.base_confidence_score == 0.85  # From file
@@ -141,7 +148,9 @@ class TestConfigValidation:
 
         with pytest.raises(ConfigValidationError) as exc_info:
             validate_config(config)
-        assert "base_confidence_score must be between 0.0 and 1.0" in str(exc_info.value)
+        assert "base_confidence_score must be between 0.0 and 1.0" in str(
+            exc_info.value
+        )
 
     def test_negative_cache_size_raises_error(self):
         """Test that negative cache sizes raise validation errors."""
@@ -184,9 +193,12 @@ class TestConfigSingleton:
         get_config()  # Initialize singleton
 
         # Reload with environment override
-        with patch.dict(os.environ, {
-            "MCE_OCR_CACHE_SIZE_LIMIT": "999",
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "MCE_OCR_CACHE_SIZE_LIMIT": "999",
+            },
+        ):
             new_config = load_config(reload=True)
             assert new_config.ocr.cache_size_limit == 999
 
