@@ -1,7 +1,5 @@
 """Test suite for web app user interface enhancements."""
 
-import tempfile
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -263,30 +261,19 @@ class TestResultVisualization:
 class TestCurrentFunctionality:
     """Test current web app functionality to ensure no regressions."""
 
-    def test_save_upload_functionality(self, tmp_path, monkeypatch):
-        """Test existing save_upload function works correctly."""
-        created = []
-        real_tempfile = tempfile.NamedTemporaryFile
-
-        def fake_named_tempfile(*args, **kwargs):
-            tmp = real_tempfile(
-                delete=False, dir=tmp_path, suffix=kwargs.get("suffix", "")
-            )
-            created.append(Path(tmp.name))
-            return tmp
-
-        monkeypatch.setattr(tempfile, "NamedTemporaryFile", fake_named_tempfile)
-
+    def test_temp_file_manager_functionality(self):
+        """Test TempFileManager works correctly."""
+        from web_app import TempFileManager
+        
         upload = SimpleNamespace(name="test.pdf", read=lambda: b"test data")
-        path = web_app.save_upload(upload)
-
-        assert path.exists()
-        assert path.read_bytes() == b"test data"
-        assert path.suffix == ".pdf"
-
-        # Cleanup
-        for p in created:
-            p.unlink()
+        
+        with TempFileManager(upload) as path:
+            assert path.exists()
+            assert path.read_bytes() == b"test data"
+            assert path.suffix == ".pdf"
+        
+        # File should be automatically cleaned up
+        assert not path.exists()
 
     def test_main_function_exists(self):
         """Test that main function exists and is callable."""

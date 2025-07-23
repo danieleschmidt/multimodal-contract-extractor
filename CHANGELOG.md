@@ -1,3 +1,26 @@
+# Release v0.11+
+
+## 📚 Documentation Enhancement: Comprehensive Developer Resources
+- **NEW: Complete Documentation Suite**: Created comprehensive documentation for all aspects of the system
+  - **API.md**: Detailed API documentation with examples for all core functions, data models, CLI commands, and web interface
+  - **DEPLOYMENT.md**: Complete deployment guides for Docker, Kubernetes, AWS ECS, Google Cloud Run, Azure Container Instances
+  - **TROUBLESHOOTING.md**: Extensive troubleshooting guide with common issues, error codes, and debugging tools
+  - **CONFIGURATION.md**: Comprehensive configuration documentation with performance tuning and environment-specific guidance
+- **Enhanced Developer Experience**:
+  - Step-by-step deployment instructions for all major platforms
+  - Performance optimization guides and best practices
+  - Security configuration recommendations
+  - Advanced troubleshooting with diagnostic tools
+  - Complete configuration reference with examples
+- **Production Ready**: Documentation covers monitoring, backup/recovery, high availability, and maintenance procedures
+
+## 🧹 Code Cleanup: Removed Deprecated Functions
+- **BREAKING CHANGE**: Removed deprecated `save_upload()` function from `web_app.py`
+  - All functionality replaced with secure `TempFileManager` context manager  
+  - Updated all tests to use `TempFileManager` for automatic cleanup
+  - Enhanced security by eliminating manual cleanup patterns
+  - Maintained all security validations (path traversal prevention, file permissions)
+
 # Release v0.8.0
 
 ## 🔐 Security Enhancement: Temporary File Cleanup
