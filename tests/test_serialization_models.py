@@ -18,7 +18,9 @@ def test_extraction_result_fields():
 
 def test_extraction_result_contains_clause_list():
     clause = Clause(type="test", text="text", page=1)
-    info = DocumentInfo(filename="file.pdf", pages=1, processing_time=0.0, confidence=1.0)
+    info = DocumentInfo(
+        filename="file.pdf", pages=1, processing_time=0.0, confidence=1.0
+    )
     result = ExtractionResult(document_info=info, clauses=[clause])
     assert result.document_info == info
     assert result.clauses == [clause]

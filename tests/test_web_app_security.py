@@ -127,7 +127,9 @@ class TestTempFileCleanup:
     @patch("streamlit.json")
     @patch("streamlit.title")
     @patch("streamlit.success")
-    def test_main_function_cleanup_integration(self, mock_success, mock_title, mock_json, mock_info, mock_uploader):
+    def test_main_function_cleanup_integration(
+        self, mock_success, mock_title, mock_json, mock_info, mock_uploader
+    ):
         """Test that the main function properly handles temp file cleanup."""
         from web_app import main
 
@@ -176,7 +178,9 @@ class TestSecurityValidation:
         try:
             # Verify the file is created in temp directory, not at the traversal location
             assert "/etc/passwd" not in str(tmp_path)
-            assert tmp_path.parent.name.startswith("tmp") or "temp" in str(tmp_path.parent)
+            assert tmp_path.parent.name.startswith("tmp") or "temp" in str(
+                tmp_path.parent
+            )
             assert tmp_path.exists()
         finally:
             if tmp_path.exists():

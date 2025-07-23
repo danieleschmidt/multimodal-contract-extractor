@@ -26,11 +26,19 @@ class TestExtractCLIEndToEnd:
         )
 
         # Run extract.py CLI
-        result = subprocess.run([
-            sys.executable, "extract.py",
-            "--file", str(input_pdf),
-            "--output", str(output_json),
-        ], check=False, capture_output=True, text=True)
+        result = subprocess.run(
+            [
+                sys.executable,
+                "extract.py",
+                "--file",
+                str(input_pdf),
+                "--output",
+                str(output_json),
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
 
         # Verify CLI execution succeeded
         assert result.returncode == 0, f"CLI failed with: {result.stderr}"
@@ -67,21 +75,34 @@ class TestExtractCLIEndToEnd:
         """Test CLI can generate different output formats from same input."""
         input_pdf = tmp_path / "contract.pdf"
 
-        create_test_pdf(input_pdf, "Confidentiality clause: All information is confidential.")
+        create_test_pdf(
+            input_pdf, "Confidentiality clause: All information is confidential."
+        )
 
         formats_to_test = ["json", "xml", "csv"]
 
         for fmt in formats_to_test:
             output_file = tmp_path / f"result.{fmt}"
 
-            result = subprocess.run([
-                sys.executable, "extract.py",
-                "--file", str(input_pdf),
-                "--output", str(output_file),
-                "--format", fmt,
-            ], check=False, capture_output=True, text=True)
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "extract.py",
+                    "--file",
+                    str(input_pdf),
+                    "--output",
+                    str(output_file),
+                    "--format",
+                    fmt,
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
 
-            assert result.returncode == 0, f"CLI failed for format {fmt}: {result.stderr}"
+            assert result.returncode == 0, (
+                f"CLI failed for format {fmt}: {result.stderr}"
+            )
             assert output_file.exists(), f"Output file not created for format {fmt}"
             assert output_file.stat().st_size > 0, f"Empty output file for format {fmt}"
 
@@ -92,12 +113,21 @@ class TestExtractCLIEndToEnd:
 
         create_test_pdf(input_pdf, "Sample contract with termination clause.")
 
-        result = subprocess.run([
-            sys.executable, "extract.py",
-            "--file", str(input_pdf),
-            "--output", str(output_json),
-            "--log-level", "debug",
-        ], check=False, capture_output=True, text=True)
+        result = subprocess.run(
+            [
+                sys.executable,
+                "extract.py",
+                "--file",
+                str(input_pdf),
+                "--output",
+                str(output_json),
+                "--log-level",
+                "debug",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
 
         assert result.returncode == 0
 
@@ -110,11 +140,19 @@ class TestExtractCLIEndToEnd:
         nonexistent_file = tmp_path / "does_not_exist.pdf"
         output_json = tmp_path / "result.json"
 
-        result = subprocess.run([
-            sys.executable, "extract.py",
-            "--file", str(nonexistent_file),
-            "--output", str(output_json),
-        ], check=False, capture_output=True, text=True)
+        result = subprocess.run(
+            [
+                sys.executable,
+                "extract.py",
+                "--file",
+                str(nonexistent_file),
+                "--output",
+                str(output_json),
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
 
         # Should exit with error code
         assert result.returncode != 0
@@ -128,13 +166,23 @@ class TestExtractCLIEndToEnd:
 
         create_test_pdf(input_pdf, "Contract with payment terms: Net 30 days.")
 
-        result = subprocess.run([
-            sys.executable, "extract.py",
-            "--file", str(input_pdf),
-            "--output", str(output_json),
-            "--metrics-file", str(metrics_file),
-            "--metrics-format", "json",
-        ], check=False, capture_output=True, text=True)
+        result = subprocess.run(
+            [
+                sys.executable,
+                "extract.py",
+                "--file",
+                str(input_pdf),
+                "--output",
+                str(output_json),
+                "--metrics-file",
+                str(metrics_file),
+                "--metrics-format",
+                "json",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
 
         assert result.returncode == 0
         assert output_json.exists()
@@ -168,21 +216,31 @@ class TestBatchExtractCLIEndToEnd:
         ]
 
         for i, text in enumerate(contract_texts):
-            pdf_file = input_dir / f"contract_{i+1}.pdf"
+            pdf_file = input_dir / f"contract_{i + 1}.pdf"
             create_test_pdf(pdf_file, text)
 
         # Run batch extraction
-        result = subprocess.run([
-            sys.executable, "batch_extract.py",
-            "--input-dir", str(input_dir),
-            "--output-dir", str(output_dir),
-        ], check=False, capture_output=True, text=True)
+        result = subprocess.run(
+            [
+                sys.executable,
+                "batch_extract.py",
+                "--input-dir",
+                str(input_dir),
+                "--output-dir",
+                str(output_dir),
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
 
         assert result.returncode == 0, f"Batch extraction failed: {result.stderr}"
 
         # Verify output files were created
         output_files = list(output_dir.glob("*.json"))
-        assert len(output_files) == 3, f"Expected 3 output files, got {len(output_files)}"
+        assert len(output_files) == 3, (
+            f"Expected 3 output files, got {len(output_files)}"
+        )
 
         # Verify each output file has valid content
         for output_file in output_files:
@@ -215,11 +273,19 @@ class TestBatchExtractCLIEndToEnd:
         png_file.write_bytes(png_data)
 
         # Run batch processing
-        result = subprocess.run([
-            sys.executable, "batch_extract.py",
-            "--input-dir", str(input_dir),
-            "--output-dir", str(output_dir),
-        ], check=False, capture_output=True, text=True)
+        result = subprocess.run(
+            [
+                sys.executable,
+                "batch_extract.py",
+                "--input-dir",
+                str(input_dir),
+                "--output-dir",
+                str(output_dir),
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
 
         # Should process PDF successfully, may skip PNG if OCR can't handle it
         assert result.returncode == 0
@@ -248,11 +314,19 @@ class TestBatchExtractCLIEndToEnd:
         create_test_pdf(valid_pdf2, "Another valid contract with termination terms.")
 
         # Run batch processing
-        subprocess.run([
-            sys.executable, "batch_extract.py",
-            "--input-dir", str(input_dir),
-            "--output-dir", str(output_dir),
-        ], check=False, capture_output=True, text=True)
+        subprocess.run(
+            [
+                sys.executable,
+                "batch_extract.py",
+                "--input-dir",
+                str(input_dir),
+                "--output-dir",
+                str(output_dir),
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
 
         # Should have some success despite failures
         # (may not be returncode 0 if there were errors, but should have processed valid files)
@@ -275,11 +349,19 @@ class TestBatchExtractCLIEndToEnd:
         input_dir.mkdir()
         output_dir.mkdir()
 
-        subprocess.run([
-            sys.executable, "batch_extract.py",
-            "--input-dir", str(input_dir),
-            "--output-dir", str(output_dir),
-        ], check=False, capture_output=True, text=True)
+        subprocess.run(
+            [
+                sys.executable,
+                "batch_extract.py",
+                "--input-dir",
+                str(input_dir),
+                "--output-dir",
+                str(output_dir),
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
 
         # Should complete without error (though may have specific exit code)
         # Check that no output files were created
@@ -315,11 +397,19 @@ security:
 
         # Run with custom config
         with patch.dict("os.environ", {"MCE_CONFIG_PATH": str(config_file)}):
-            result = subprocess.run([
-                sys.executable, "extract.py",
-                "--file", str(input_pdf),
-                "--output", str(output_json),
-            ], check=False, capture_output=True, text=True)
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "extract.py",
+                    "--file",
+                    str(input_pdf),
+                    "--output",
+                    str(output_json),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
 
         assert result.returncode == 0
         assert output_json.exists()
@@ -336,7 +426,9 @@ security:
         input_pdf = tmp_path / "contract.pdf"
         output_json = tmp_path / "result.json"
 
-        create_test_pdf(input_pdf, "Contract with confidentiality and termination clauses.")
+        create_test_pdf(
+            input_pdf, "Contract with confidentiality and termination clauses."
+        )
 
         # Set environment variables
         env_vars = {
@@ -346,11 +438,19 @@ security:
         }
 
         with patch.dict("os.environ", env_vars):
-            result = subprocess.run([
-                sys.executable, "extract.py",
-                "--file", str(input_pdf),
-                "--output", str(output_json),
-            ], check=False, capture_output=True, text=True)
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "extract.py",
+                    "--file",
+                    str(input_pdf),
+                    "--output",
+                    str(output_json),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
 
         assert result.returncode == 0
         assert output_json.exists()

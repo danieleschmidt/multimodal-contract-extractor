@@ -1,4 +1,5 @@
 """Security validation and input sanitization for file processing."""
+
 from __future__ import annotations
 
 import re
@@ -34,6 +35,7 @@ SUPPORTED_EXTENSIONS = {
     ".tiff": "image",
     ".tif": "image",
 }
+
 
 # Maximum file size in MB - now configurable
 def _get_max_file_size_mb() -> int:
@@ -229,7 +231,7 @@ def sanitize_request_id(request_id: str) -> str:
 
     # Limit length to prevent DoS
     config = get_config()
-    sanitized = sanitized[:config.security.request_id_length_limit]
+    sanitized = sanitized[: config.security.request_id_length_limit]
 
     # Ensure non-empty result
     if not sanitized:

@@ -68,7 +68,9 @@ def load_document(path: str | Path) -> Document:
     return Document(path=file_path, pages=pages)
 
 
-def stream_document(path: str | Path, *, chunk_size: int | None = None) -> Iterable[DocumentPage]:
+def stream_document(
+    path: str | Path, *, chunk_size: int | None = None
+) -> Iterable[DocumentPage]:
     """Yield :class:`DocumentPage` objects from ``path`` lazily.
 
     This helper loads PDF pages in chunks to limit memory usage. Image files are

@@ -15,7 +15,10 @@ class TestExtractionIntegration:
         """Test that we can extract clauses from a PDF and get structured output."""
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
             tmp_path = Path(tmp.name)
-            create_test_pdf(tmp_path, "This contract contains confidentiality clauses and termination terms.")
+            create_test_pdf(
+                tmp_path,
+                "This contract contains confidentiality clauses and termination terms.",
+            )
 
         try:
             # Load document and detect clauses
@@ -39,7 +42,10 @@ class TestExtractionIntegration:
         """Test that extraction output matches the documented JSON format."""
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
             tmp_path = Path(tmp.name)
-            create_test_pdf(tmp_path, "Confidential information must be protected. Payment terms are net 30.")
+            create_test_pdf(
+                tmp_path,
+                "Confidential information must be protected. Payment terms are net 30.",
+            )
 
         try:
             # This will test our new extraction function

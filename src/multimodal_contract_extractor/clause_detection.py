@@ -70,6 +70,7 @@ def _record_cache_hit():
     """Record OCR cache hit metric."""
     try:
         from .metrics import record_ocr_cache_hit
+
         record_ocr_cache_hit()
     except ImportError:
         # Metrics module not available, ignore
@@ -80,6 +81,7 @@ def _record_cache_miss():
     """Record OCR cache miss metric."""
     try:
         from .metrics import record_ocr_cache_miss
+
         record_ocr_cache_miss()
     except ImportError:
         # Metrics module not available, ignore
@@ -122,7 +124,9 @@ _pattern_cache: dict[str, re.Pattern] = {}
 
 
 def detect_clauses(
-    document, *, keywords: dict[str, Iterable[str]] | None = None,
+    document,
+    *,
+    keywords: dict[str, Iterable[str]] | None = None,
 ) -> list[Clause]:
     """Detect clauses within a loaded :class:`Document` or document stream.
 
@@ -150,7 +154,9 @@ def detect_clauses(
 
 
 def _detect_clauses_legacy(
-    document: Document, *, keywords: dict[str, Iterable[str]] | None = None,
+    document: Document,
+    *,
+    keywords: dict[str, Iterable[str]] | None = None,
 ) -> list[Clause]:
     """Legacy clause detection implementation (for reference/fallback).
 
@@ -185,7 +191,8 @@ def _detect_clauses_legacy(
                 if word.lower() in lower_text:
                     # capture surrounding text for context
                     pattern = re.compile(
-                        rf"(.{{0,{get_config().ocr.context_window_size}}}{re.escape(word)}.{{0,{get_config().ocr.context_window_size}}})", re.IGNORECASE,
+                        rf"(.{{0,{get_config().ocr.context_window_size}}}{re.escape(word)}.{{0,{get_config().ocr.context_window_size}}})",
+                        re.IGNORECASE,
                     )
                     match = pattern.search(text)
                     snippet = match.group(1).strip() if match else word
@@ -195,13 +202,20 @@ def _detect_clauses_legacy(
 
                     # Calculate confidence score
                     config = get_config()
-                    confidence = _calculate_clause_confidence_score(snippet, word, config)
+                    confidence = _calculate_clause_confidence_score(
+                        snippet, word, config
+                    )
 
                     # Extract key terms (the matched keyword and surrounding relevant terms)
                     key_terms = _extract_key_terms(snippet, word)
 
                     # For now, use placeholder coordinates (would need OCR layout analysis for real coords)
-                    placeholder_coords = [50, 100 + len(clauses) * 50, 550, 150 + len(clauses) * 50]
+                    placeholder_coords = [
+                        50,
+                        100 + len(clauses) * 50,
+                        550,
+                        150 + len(clauses) * 50,
+                    ]
 
                     clause = Clause(
                         type=clause_type,
@@ -214,14 +228,18 @@ def _detect_clauses_legacy(
                     )
                     clauses.append(clause)
                     logger.info(
-                        "Detected %s clause on page %d (legacy)", clause_type, page.number,
+                        "Detected %s clause on page %d (legacy)",
+                        clause_type,
+                        page.number,
                     )
                     break
     return clauses
 
 
 def _detect_clauses_optimized(
-    document: Document, *, keywords: dict[str, Iterable[str]] | None = None,
+    document: Document,
+    *,
+    keywords: dict[str, Iterable[str]] | None = None,
 ) -> list[Clause]:
     """Optimized clause detection using combined regex patterns.
 
@@ -273,13 +291,20 @@ def _detect_clauses_optimized(
 
                 # Calculate confidence score
                 config = get_config()
-                confidence = _calculate_clause_confidence_score(snippet, matched_text, config)
+                confidence = _calculate_clause_confidence_score(
+                    snippet, matched_text, config
+                )
 
                 # Extract key terms (the matched keyword and surrounding relevant terms)
                 key_terms = _extract_key_terms(snippet, matched_text)
 
                 # For now, use placeholder coordinates (would need OCR layout analysis for real coords)
-                placeholder_coords = [50, 100 + len(clauses) * 50, 550, 150 + len(clauses) * 50]
+                placeholder_coords = [
+                    50,
+                    100 + len(clauses) * 50,
+                    550,
+                    150 + len(clauses) * 50,
+                ]
 
                 clause = Clause(
                     type=clause_type,
@@ -292,7 +317,9 @@ def _detect_clauses_optimized(
                 )
                 clauses.append(clause)
                 logger.info(
-                    "Detected %s clause on page %d (optimized)", clause_type, page.number,
+                    "Detected %s clause on page %d (optimized)",
+                    clause_type,
+                    page.number,
                 )
 
     return clauses
@@ -305,7 +332,9 @@ def _get_cached_pattern(keywords: dict[str, Iterable[str]]) -> re.Pattern:
 
     if cache_key not in _pattern_cache:
         _pattern_cache[cache_key] = _build_combined_pattern(keywords)
-        logger.debug("Compiled and cached regex pattern for %d clause types", len(keywords))
+        logger.debug(
+            "Compiled and cached regex pattern for %d clause types", len(keywords)
+        )
     else:
         logger.debug("Using cached regex pattern")
 
@@ -362,7 +391,9 @@ def clear_pattern_cache() -> None:
     logger.debug("Regex pattern cache cleared")
 
 
-def _calculate_clause_confidence_score(text: str, matched_keyword: str, config) -> float:
+def _calculate_clause_confidence_score(
+    text: str, matched_keyword: str, config
+) -> float:
     """Calculate confidence score for a detected clause based on text length and keyword match quality.
 
     Args:
@@ -410,10 +441,10 @@ def _extract_key_terms(text: str, matched_keyword: str) -> list[str]:
     # Look for words that might be important in legal contexts
     important_patterns = [
         r"\b\d+\s*(?:days?|months?|years?)\b",  # Time periods
-        r"\$\d+(?:,\d{3})*(?:\.\d{2})?",       # Dollar amounts
-        r"\b\d+%\b",                           # Percentages
-        r"\b(?:annual|monthly|daily|weekly)\b", # Frequency terms
-        r"\b(?:shall|must|will|may|cannot)\b", # Legal modal verbs
+        r"\$\d+(?:,\d{3})*(?:\.\d{2})?",  # Dollar amounts
+        r"\b\d+%\b",  # Percentages
+        r"\b(?:annual|monthly|daily|weekly)\b",  # Frequency terms
+        r"\b(?:shall|must|will|may|cannot)\b",  # Legal modal verbs
     ]
 
     for pattern in important_patterns:
@@ -432,7 +463,9 @@ def _extract_key_terms(text: str, matched_keyword: str) -> list[str]:
 
 
 def _detect_clauses_streaming(
-    document_stream, *, keywords: dict[str, Iterable[str]] | None = None,
+    document_stream,
+    *,
+    keywords: dict[str, Iterable[str]] | None = None,
 ) -> list[Clause]:
     """Detect clauses from a streaming document (generator of DocumentPage objects).
 
@@ -485,7 +518,9 @@ def _detect_clauses_streaming(
 
                 # Calculate confidence score
                 confidence = _calculate_clause_confidence_score(
-                    clause_text, matched_text, config,
+                    clause_text,
+                    matched_text,
+                    config,
                 )
 
                 # Extract key terms from the clause text
@@ -504,7 +539,9 @@ def _detect_clauses_streaming(
 
                 clauses.append(clause)
                 logger.info(
-                    "Detected %s clause on page %d (streaming)", clause_type, page.number,
+                    "Detected %s clause on page %d (streaming)",
+                    clause_type,
+                    page.number,
                 )
 
     return clauses

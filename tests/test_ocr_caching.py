@@ -25,7 +25,9 @@ class TestOCRCaching:
 
         # Mock the actual OCR call to track invocations
         with patch("pytesseract.image_to_string") as mock_tesseract:
-            mock_tesseract.return_value = "Test document content with confidential information"
+            mock_tesseract.return_value = (
+                "Test document content with confidential information"
+            )
 
             # Process the same document twice
             result1 = extract_from_document(input_file)
@@ -70,7 +72,9 @@ class TestOCRCaching:
 
         # Check cache stats - should have 2 entries
         cache_stats = get_ocr_cache_stats()
-        assert cache_stats["cache_size"] >= 2  # At least 2 cache entries for 2 different images
+        assert (
+            cache_stats["cache_size"] >= 2
+        )  # At least 2 cache entries for 2 different images
 
     def test_image_hash_consistency(self, tmp_path):
         """Test that the same image produces the same hash."""
@@ -115,7 +119,13 @@ class TestOCRCaching:
 
         # Second run should be faster (though this may vary in CI environments)
         # We're mainly testing that it doesn't break and produces consistent results
-        assert abs(result1["document_info"]["processing_time"] - result2["document_info"]["processing_time"]) >= 0
+        assert (
+            abs(
+                result1["document_info"]["processing_time"]
+                - result2["document_info"]["processing_time"]
+            )
+            >= 0
+        )
 
         # Verify cache was used
         cache_stats = get_ocr_cache_stats()

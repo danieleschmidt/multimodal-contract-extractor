@@ -13,7 +13,9 @@ def create_test_pdf(path: Path, content: str = "dummy content") -> Path:
 
     # Try to use a default font, fall back to PIL default if not available
     try:
-        font = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 20)
+        font = ImageFont.truetype(
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 20
+        )
     except OSError:
         font = ImageFont.load_default()
 

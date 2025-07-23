@@ -90,6 +90,7 @@ def main(argv: list[str] | None = None) -> int:
 
         with PROCESSING_TIME.time():
             from multimodal_contract_extractor import extract_from_document
+
             extraction_result = extract_from_document(file_path)
 
             # Convert to legacy format for serialization compatibility
@@ -102,6 +103,7 @@ def main(argv: list[str] | None = None) -> int:
 
             # Convert clauses to Clause objects
             from multimodal_contract_extractor.clause_detection import Clause
+
             clauses = [
                 Clause(
                     type=clause_data["type"],
@@ -119,7 +121,9 @@ def main(argv: list[str] | None = None) -> int:
             elif args.output_format == "xml":
                 data = serialize_to_xml(result, pretty=True)
             else:  # csv
-                data = serialize_to_csv(result, include_coordinates=args.include_coordinates)
+                data = serialize_to_csv(
+                    result, include_coordinates=args.include_coordinates
+                )
 
             logger.info("Processed %s in %.2fs", file_path.name, info.processing_time)
             name = sanitize_filename(f"{file_path.stem}.{args.output_format}")
@@ -129,8 +133,11 @@ def main(argv: list[str] | None = None) -> int:
             PAGES_PROCESSED.inc(info.pages)
             processed_files += 1
 
-    logger.info("Batch processing complete: %d files processed, %d files skipped",
-                processed_files, skipped_files)
+    logger.info(
+        "Batch processing complete: %d files processed, %d files skipped",
+        processed_files,
+        skipped_files,
+    )
     record_memory_usage()
     if args.metrics_file:
         save_metrics(args.metrics_file)

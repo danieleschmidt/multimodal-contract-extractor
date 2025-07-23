@@ -1,4 +1,5 @@
 """Health check and system monitoring functionality."""
+
 from __future__ import annotations
 
 import logging
@@ -28,8 +29,9 @@ def get_health_status() -> dict[str, Any]:
     dependencies = check_dependencies()
 
     # Determine overall health
-    unhealthy_deps = [name for name, info in dependencies.items()
-                     if info["status"] != "available"]
+    unhealthy_deps = [
+        name for name, info in dependencies.items() if info["status"] != "available"
+    ]
 
     if not unhealthy_deps:
         overall_status = "healthy"
@@ -75,11 +77,21 @@ def check_dependencies() -> dict[str, dict[str, Any]]:
 def _check_tesseract() -> dict[str, Any]:
     """Check if Tesseract OCR is available and working."""
     try:
-        # Try to run tesseract --version
+        # Find tesseract executable path for security
+        tesseract_path = shutil.which("tesseract")
+        if not tesseract_path:
+            return {
+                "status": "missing",
+                "version": None,
+                "message": "Tesseract OCR not found in PATH",
+            }
+        
+        # Try to run tesseract --version with absolute path
         config = get_config()
         result = subprocess.run(
-            ["tesseract", "--version"],
-            check=False, capture_output=True,
+            [tesseract_path, "--version"],
+            check=False,
+            capture_output=True,
             text=True,
             timeout=config.health.check_timeout_seconds,
         )
@@ -118,28 +130,37 @@ def _check_tesseract() -> dict[str, Any]:
 def _check_poppler() -> dict[str, Any]:
     """Check if Poppler utilities are available."""
     try:
-        # Check for pdfinfo (part of poppler-utils)
-        if shutil.which("pdfinfo"):
-            # Try to get version
-            config = get_config()
-            result = subprocess.run(
-                ["pdfinfo", "-v"],
-                check=False, capture_output=True,
-                text=True,
-                timeout=config.health.check_timeout_seconds,
-            )
+        # Find pdfinfo executable path for security
+        pdfinfo_path = shutil.which("pdfinfo")
+        if not pdfinfo_path:
+            return {
+                "status": "missing",
+                "version": None,
+                "message": "Poppler utilities (pdfinfo) not found in PATH",
+            }
+        
+        # Try to get version with absolute path
+        config = get_config()
+        result = subprocess.run(
+            [pdfinfo_path, "-v"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=config.health.check_timeout_seconds,
+        )
 
+        if result.returncode == 0:
             # pdfinfo -v writes to stderr
             version_info = result.stderr.strip() if result.stderr else "Unknown version"
-
             return {
                 "status": "available",
                 "version": version_info,
                 "message": "Poppler utilities are working",
             }
         return {
-            "status": "unavailable",
-            "message": "pdfinfo not found in PATH",
+            "status": "error",
+            "version": None,
+            "message": f"pdfinfo returned error code {result.returncode}",
         }
 
     except subprocess.TimeoutExpired:
@@ -180,7 +201,9 @@ def _check_python_packages() -> dict[str, Any]:
             "message": f"All {len(available_packages)} required packages available",
         }
     return {
-        "status": "error" if len(missing_packages) == len(required_packages) else "degraded",
+        "status": "error"
+        if len(missing_packages) == len(required_packages)
+        else "degraded",
         "available": available_packages,
         "missing": missing_packages,
         "message": f"Missing packages: {', '.join(missing_packages)}",

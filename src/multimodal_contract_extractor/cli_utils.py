@@ -16,7 +16,8 @@ SUPPORTED_FORMATS = {"json", "xml", "csv"}
 def add_common_arguments(parser: argparse.ArgumentParser) -> None:
     """Add shared CLI options to ``parser``."""
     parser.add_argument(
-        "--output-format", "--format",
+        "--output-format",
+        "--format",
         default="json",
         help="Output format: json, xml, or csv",
     )
@@ -59,7 +60,9 @@ class _RequestIdFilter(logging.Filter):
         return True
 
 
-def setup_logging(level: str = "info", *, json_logs: bool = False, request_id: str | None = None) -> logging.Logger:
+def setup_logging(
+    level: str = "info", *, json_logs: bool = False, request_id: str | None = None
+) -> logging.Logger:
     """Configure and return a module-level logger."""
     numeric = getattr(logging, level.upper(), logging.INFO)
     logger = logging.getLogger()

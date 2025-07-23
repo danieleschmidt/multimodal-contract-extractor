@@ -45,7 +45,9 @@ def test_stream_document_pdf(monkeypatch, tmp_path):
         return images[start - 1 : end]
 
     monkeypatch.setattr("pdf2image.pdfinfo_from_path", fake_info)
-    monkeypatch.setattr("multimodal_contract_extractor.document.convert_from_path", fake_convert)
+    monkeypatch.setattr(
+        "multimodal_contract_extractor.document.convert_from_path", fake_convert
+    )
 
     pages = list(stream_document(pdf_path, chunk_size=1))
     assert len(pages) == 3
@@ -56,7 +58,9 @@ def test_stream_document_pdf(monkeypatch, tmp_path):
 def test_detect_clauses(monkeypatch):
     img = Image.new("RGB", (10, 10))
     doc = Document(path=Path("dummy"), pages=[DocumentPage(image=img, number=1)])
-    monkeypatch.setattr(clause_detection, "_ocr_image", lambda _: "Termination is possible")
+    monkeypatch.setattr(
+        clause_detection, "_ocr_image", lambda _: "Termination is possible"
+    )
     clauses = clause_detection.detect_clauses(doc)
     assert clauses
     assert clauses[0].type == "termination"

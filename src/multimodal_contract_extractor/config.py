@@ -33,6 +33,7 @@ document:
   default_streaming_chunk_size: 10
 ```
 """
+
 from __future__ import annotations
 
 import logging
@@ -53,6 +54,7 @@ class ConfigValidationError(Exception):
 @dataclass
 class OCRConfig:
     """OCR-related configuration."""
+
     cache_size_limit: int = 100
     context_window_size: int = 100
 
@@ -60,6 +62,7 @@ class OCRConfig:
 @dataclass
 class ExtractionConfig:
     """Document extraction configuration."""
+
     base_confidence_score: float = 0.75
     length_bonus_divisor: int = 1000
     max_confidence_cap: float = 0.95
@@ -70,6 +73,7 @@ class ExtractionConfig:
 @dataclass
 class SecurityConfig:
     """Security-related configuration."""
+
     max_file_size_mb: int = 100
     request_id_length_limit: int = 64
 
@@ -77,18 +81,21 @@ class SecurityConfig:
 @dataclass
 class HealthConfig:
     """Health check configuration."""
+
     check_timeout_seconds: int = 5
 
 
 @dataclass
 class DocumentConfig:
     """Document processing configuration."""
+
     default_streaming_chunk_size: int = 10
 
 
 @dataclass
 class Config:
     """Main configuration class containing all configuration sections."""
+
     ocr: OCRConfig = field(default_factory=OCRConfig)
     extraction: ExtractionConfig = field(default_factory=ExtractionConfig)
     security: SecurityConfig = field(default_factory=SecurityConfig)
@@ -280,7 +287,10 @@ def validate_config(config: Config) -> None:
         errors.append("document.default_streaming_chunk_size must be positive")
 
     if errors:
-        raise ConfigValidationError("Configuration validation failed:\n" + "\n".join(f"- {error}" for error in errors))
+        raise ConfigValidationError(
+            "Configuration validation failed:\n"
+            + "\n".join(f"- {error}" for error in errors)
+        )
 
 
 def load_config(config_path: str | None = None, reload: bool = False) -> Config:
@@ -319,7 +329,9 @@ def load_config(config_path: str | None = None, reload: bool = False) -> Config:
             configs_to_merge.append(file_config)
             logger.info(f"Loaded configuration from file: {config_path}")
         except FileNotFoundError:
-            logger.warning(f"Configuration file not found: {config_path}, using defaults")
+            logger.warning(
+                f"Configuration file not found: {config_path}, using defaults"
+            )
         except yaml.YAMLError as e:
             logger.exception(f"Failed to parse configuration file {config_path}: {e}")
             raise

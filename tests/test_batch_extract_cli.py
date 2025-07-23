@@ -43,7 +43,8 @@ def test_batch_extract_rejects_invalid_format(tmp_path):
     ]
     result = subprocess.run(
         cmd,
-        check=False, cwd=Path(__file__).resolve().parent.parent,
+        check=False,
+        cwd=Path(__file__).resolve().parent.parent,
         capture_output=True,
         text=True,
     )
@@ -86,7 +87,9 @@ def test_batch_extract_performs_real_extraction(tmp_path):
     # 2. Processing time > 0
     # 3. Document info with actual values, not placeholder zeros
     assert data["document_info"]["pages"] > 0, "Should have detected pages from PDF"
-    assert data["document_info"]["processing_time"] > 0, "Should have actual processing time"
+    assert data["document_info"]["processing_time"] > 0, (
+        "Should have actual processing time"
+    )
     assert "clauses" in data, "Should have clauses array"
 
     # Verify that extraction actually found meaningful content
@@ -95,14 +98,16 @@ def test_batch_extract_performs_real_extraction(tmp_path):
         # If clauses were found, verify they contain expected content
         clause_texts = [clause["text"] for clause in data["clauses"]]
         combined_text = " ".join(clause_texts)
-        assert "terminate" in combined_text or "payment" in combined_text, \
+        assert "terminate" in combined_text or "payment" in combined_text, (
             "Should detect clauses containing expected keywords"
+        )
 
 
 def test_batch_extract_version_outputs_package_version():
     result = subprocess.run(
         [sys.executable, "batch_extract.py", "--version"],
-        check=False, cwd=Path(__file__).resolve().parent.parent,
+        check=False,
+        cwd=Path(__file__).resolve().parent.parent,
         capture_output=True,
         text=True,
     )
