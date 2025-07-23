@@ -1,5 +1,6 @@
-from multimodal_contract_extractor import cli_utils
 import argparse
+
+from multimodal_contract_extractor import cli_utils
 
 
 def test_add_common_arguments_defaults():

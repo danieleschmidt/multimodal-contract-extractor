@@ -1,9 +1,14 @@
-import argparse
+from __future__ import annotations
+
 import logging
 import re
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from .security import sanitize_request_id
+
+if TYPE_CHECKING:
+    import argparse
 
 SUPPORTED_FORMATS = {"json", "xml", "csv"}
 
@@ -84,7 +89,8 @@ def build_output_path(base: str | None, fmt: str) -> Path:
         if path.suffix == "":
             path = path.with_suffix(f".{fmt}")
         if not path.parent.exists():
-            raise FileNotFoundError(f"Output directory not found: {path.parent}")
+            msg = f"Output directory not found: {path.parent}"
+            raise FileNotFoundError(msg)
     else:
         path = Path(f"result.{fmt}")
 

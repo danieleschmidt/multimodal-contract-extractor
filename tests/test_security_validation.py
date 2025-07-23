@@ -1,14 +1,15 @@
 """Tests for security validation and input sanitization."""
 
-import pytest
 from pathlib import Path
 
+import pytest
+
 from multimodal_contract_extractor.security import (
-    validate_file_input,
-    sanitize_file_path,
-    check_file_size_limit,
-    validate_file_type,
     SecurityError,
+    check_file_size_limit,
+    sanitize_file_path,
+    validate_file_input,
+    validate_file_type,
 )
 
 
@@ -19,7 +20,7 @@ class TestFileValidation:
         """Test validation of valid PDF file."""
         pdf_file = tmp_path / "test.pdf"
         pdf_file.write_bytes(b"%PDF-1.4\n")
-        
+
         result = validate_file_input(pdf_file)
         assert result == pdf_file
 
@@ -28,7 +29,7 @@ class TestFileValidation:
         img_file = tmp_path / "test.png"
         # Simple PNG header
         img_file.write_bytes(b"\x89PNG\r\n\x1a\n")
-        
+
         result = validate_file_input(img_file)
         assert result == img_file
 
@@ -46,7 +47,7 @@ class TestFileValidation:
         """Test validation fails for empty file."""
         empty_file = tmp_path / "empty.pdf"
         empty_file.touch()
-        
+
         with pytest.raises(SecurityError, match="File is empty"):
             validate_file_input(empty_file)
 
@@ -54,7 +55,7 @@ class TestFileValidation:
         """Test validation fails for unsupported file type."""
         exe_file = tmp_path / "malware.exe"
         exe_file.write_bytes(b"MZ\x90\x00")  # PE header
-        
+
         with pytest.raises(SecurityError, match="Unsupported file type"):
             validate_file_input(exe_file)
 
@@ -95,7 +96,7 @@ class TestFileSizeLimit:
         """Test file size check passes for files within limit."""
         small_file = tmp_path / "small.pdf"
         small_file.write_bytes(b"small content")
-        
+
         # Should not raise
         check_file_size_limit(small_file, max_size_mb=100)
 
@@ -103,7 +104,7 @@ class TestFileSizeLimit:
         """Test file size check fails for files exceeding limit."""
         large_file = tmp_path / "large.pdf"
         large_file.write_bytes(b"x" * (2 * 1024 * 1024))  # 2MB
-        
+
         with pytest.raises(SecurityError, match="File size.*exceeds limit"):
             check_file_size_limit(large_file, max_size_mb=1)
 
@@ -111,7 +112,7 @@ class TestFileSizeLimit:
         """Test file size check uses default limit."""
         normal_file = tmp_path / "normal.pdf"
         normal_file.write_bytes(b"normal content")
-        
+
         # Should not raise with default 100MB limit
         check_file_size_limit(normal_file)
 
@@ -123,28 +124,28 @@ class TestFileTypeValidation:
         """Test PDF file type validation."""
         pdf_file = tmp_path / "test.pdf"
         pdf_file.write_bytes(b"%PDF-1.4\ntest content")
-        
+
         assert validate_file_type(pdf_file) == "pdf"
 
     def test_validate_file_type_png(self, tmp_path):
         """Test PNG file type validation."""
         png_file = tmp_path / "test.png"
         png_file.write_bytes(b"\x89PNG\r\n\x1a\ntest")
-        
+
         assert validate_file_type(png_file) == "image"
 
     def test_validate_file_type_jpeg(self, tmp_path):
         """Test JPEG file type validation."""
         jpg_file = tmp_path / "test.jpg"
         jpg_file.write_bytes(b"\xff\xd8\xff\xe0test")
-        
+
         assert validate_file_type(jpg_file) == "image"
 
     def test_validate_file_type_unsupported(self, tmp_path):
         """Test unsupported file type detection."""
         txt_file = tmp_path / "test.txt"
         txt_file.write_text("plain text")
-        
+
         with pytest.raises(SecurityError, match="Unsupported file type"):
             validate_file_type(txt_file)
 
@@ -152,7 +153,7 @@ class TestFileTypeValidation:
         """Test file type validation falls back to extension."""
         pdf_file = tmp_path / "test.pdf"
         pdf_file.write_text("not a real pdf")  # Wrong content but .pdf extension
-        
+
         # Should still validate based on extension as fallback
         assert validate_file_type(pdf_file) == "pdf"
 
@@ -166,7 +167,7 @@ class TestSecurityIntegration:
         pdf_file = tmp_path / "contract.pdf"
         pdf_content = b"%PDF-1.4\n" + b"dummy content" * 100
         pdf_file.write_bytes(pdf_content)
-        
+
         # Should pass all validations
         result = validate_file_input(pdf_file)
         assert result == pdf_file
@@ -177,12 +178,12 @@ class TestSecurityIntegration:
         normal_file = tmp_path / "normal.pdf"
         pdf_content = b"%PDF-1.4\ndummy content"
         normal_file.write_bytes(pdf_content)
-        
+
         # Test that sanitization works on the filename
         suspicious_name = "../../../etc/passwd.pdf"
         sanitized_name = sanitize_file_path(suspicious_name)
         assert "___" in sanitized_name  # Path components are sanitized
-        
+
         # Validation should work on actual file
         result = validate_file_input(normal_file)
         assert result == normal_file.resolve()

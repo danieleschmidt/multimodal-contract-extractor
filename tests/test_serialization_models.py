@@ -1,4 +1,4 @@
-from dataclasses import is_dataclass, fields
+from dataclasses import fields, is_dataclass
 
 from multimodal_contract_extractor.clause_detection import Clause
 from multimodal_contract_extractor.serialization import DocumentInfo, ExtractionResult

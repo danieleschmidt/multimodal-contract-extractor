@@ -14,29 +14,28 @@ if SRC_DIR.exists() and str(SRC_DIR) not in sys.path:
 
 logger = logging.getLogger(__name__)
 
+from multimodal_contract_extractor import (  # noqa: E402
+    DocumentInfo,
+    ExtractionResult,
+    SecurityError,
+    __version__,
+    serialize_to_csv,
+    serialize_to_json,
+    serialize_to_xml,
+    validate_file_input,
+)
 from multimodal_contract_extractor.cli_utils import (  # noqa: E402
     SUPPORTED_FORMATS,
     add_common_arguments,
-    setup_logging,
     sanitize_filename,
+    setup_logging,
 )
 from multimodal_contract_extractor.metrics import (  # noqa: E402
-    PROCESSING_TIME,
     PAGES_PROCESSED,
+    PROCESSING_TIME,
     record_memory_usage,
     save_metrics,
 )
-from multimodal_contract_extractor import (  # noqa: E402
-    __version__,
-    DocumentInfo,
-    ExtractionResult,
-    serialize_to_json,
-    serialize_to_xml,
-    serialize_to_csv,
-    SecurityError,
-    validate_file_input,
-)
-
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -76,11 +75,11 @@ def main(argv: list[str] | None = None) -> int:
 
     processed_files = 0
     skipped_files = 0
-    
+
     for file_path in input_dir.iterdir():
         if not file_path.is_file():
             continue
-            
+
         # Validate file with security checks
         try:
             validate_file_input(file_path)
@@ -92,7 +91,7 @@ def main(argv: list[str] | None = None) -> int:
         with PROCESSING_TIME.time():
             from multimodal_contract_extractor import extract_from_document
             extraction_result = extract_from_document(file_path)
-            
+
             # Convert to legacy format for serialization compatibility
             info = DocumentInfo(
                 filename=extraction_result["document_info"]["filename"],
@@ -100,7 +99,7 @@ def main(argv: list[str] | None = None) -> int:
                 processing_time=extraction_result["document_info"]["processing_time"],
                 confidence=extraction_result["document_info"]["overall_confidence"],
             )
-            
+
             # Convert clauses to Clause objects
             from multimodal_contract_extractor.clause_detection import Clause
             clauses = [
@@ -108,11 +107,11 @@ def main(argv: list[str] | None = None) -> int:
                     type=clause_data["type"],
                     text=clause_data["text"],
                     page=clause_data["page"],
-                    coordinates=clause_data["coordinates"]
+                    coordinates=clause_data["coordinates"],
                 )
                 for clause_data in extraction_result["clauses"]
             ]
-            
+
             result = ExtractionResult(document_info=info, clauses=clauses)
 
             if args.output_format == "json":
@@ -130,7 +129,7 @@ def main(argv: list[str] | None = None) -> int:
             PAGES_PROCESSED.inc(info.pages)
             processed_files += 1
 
-    logger.info("Batch processing complete: %d files processed, %d files skipped", 
+    logger.info("Batch processing complete: %d files processed, %d files skipped",
                 processed_files, skipped_files)
     record_memory_usage()
     if args.metrics_file:

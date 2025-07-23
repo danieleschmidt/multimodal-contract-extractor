@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
-from typing import List
 import csv
 import io
+import json
+from dataclasses import asdict, dataclass
+from typing import TYPE_CHECKING
 from xml.etree.ElementTree import Element, SubElement, tostring  # nosec B405
+
 from defusedxml.minidom import parseString
 
-
-import json
-
-from .clause_detection import Clause
+if TYPE_CHECKING:
+    from .clause_detection import Clause
 
 
 @dataclass
@@ -30,7 +30,7 @@ class ExtractionResult:
     """Structured result of clause extraction."""
 
     document_info: DocumentInfo
-    clauses: List[Clause]
+    clauses: list[Clause]
 
 
 def serialize_to_json(result: ExtractionResult, *, pretty: bool = False) -> str:
@@ -82,7 +82,7 @@ def serialize_to_xml(result: ExtractionResult, *, pretty: bool = False) -> str:
 
 
 def serialize_to_csv(
-    result: ExtractionResult, *, include_coordinates: bool = False
+    result: ExtractionResult, *, include_coordinates: bool = False,
 ) -> str:
     """Serialize an :class:`ExtractionResult` to a CSV string."""
 

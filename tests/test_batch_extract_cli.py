@@ -1,6 +1,6 @@
+import json
 import subprocess
 import sys
-import json
 from pathlib import Path
 
 from .test_helpers import create_test_pdf
@@ -43,7 +43,7 @@ def test_batch_extract_rejects_invalid_format(tmp_path):
     ]
     result = subprocess.run(
         cmd,
-        cwd=Path(__file__).resolve().parent.parent,
+        check=False, cwd=Path(__file__).resolve().parent.parent,
         capture_output=True,
         text=True,
     )
@@ -55,11 +55,11 @@ def test_batch_extract_performs_real_extraction(tmp_path):
     """Test that batch extraction actually processes documents with real extraction logic."""
     input_dir = tmp_path / "input"
     input_dir.mkdir()
-    
+
     # Create test PDF with content that should trigger clause detection
     test_content = "This agreement shall terminate upon 30 days notice. The employee shall receive payment in accordance with company policy."
     create_test_pdf(input_dir / "contract.pdf", test_content)
-    
+
     output_dir = tmp_path / "out"
     cmd = [
         sys.executable,
@@ -72,15 +72,15 @@ def test_batch_extract_performs_real_extraction(tmp_path):
         "json",
     ]
     subprocess.run(cmd, check=True, cwd=Path(__file__).resolve().parent.parent)
-    
+
     # Verify output file exists and contains real extraction results
     output_file = output_dir / "contract.json"
     assert output_file.is_file()
-    
+
     # Parse the JSON output and verify it has real extraction structure
-    with open(output_file, 'r') as f:
+    with open(output_file) as f:
         data = json.load(f)
-    
+
     # Verify it's not dummy data - real extraction should have:
     # 1. More than 0 pages (OCR should detect text)
     # 2. Processing time > 0
@@ -88,7 +88,7 @@ def test_batch_extract_performs_real_extraction(tmp_path):
     assert data["document_info"]["pages"] > 0, "Should have detected pages from PDF"
     assert data["document_info"]["processing_time"] > 0, "Should have actual processing time"
     assert "clauses" in data, "Should have clauses array"
-    
+
     # Verify that extraction actually found meaningful content
     # Real extraction should detect clauses from the test content
     if len(data["clauses"]) > 0:
@@ -102,7 +102,7 @@ def test_batch_extract_performs_real_extraction(tmp_path):
 def test_batch_extract_version_outputs_package_version():
     result = subprocess.run(
         [sys.executable, "batch_extract.py", "--version"],
-        cwd=Path(__file__).resolve().parent.parent,
+        check=False, cwd=Path(__file__).resolve().parent.parent,
         capture_output=True,
         text=True,
     )
