@@ -7,7 +7,7 @@ import logging
 import re
 import uuid
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Iterable
+from typing import TYPE_CHECKING, Iterable, Optional
 
 from .config import get_config
 
@@ -33,6 +33,54 @@ class Clause:
     id: str = ""
     confidence: float = 0.0
     key_terms: list[str] = field(default_factory=list)
+
+
+def _extract_text_coordinates(text_to_find: str, ocr_data: dict) -> Optional[list[int]]:
+    """Extract coordinates for specific text from OCR data.
+    
+    Args:
+        text_to_find: Text to locate in OCR results
+        ocr_data: OCR data with text, left, top, width, height arrays
+        
+    Returns:
+        [left, top, right, bottom] coordinates or None if not found
+    """
+    if not ocr_data.get('text'):
+        return None
+        
+    words_to_find = text_to_find.lower().split()
+    if not words_to_find:
+        return None
+        
+    # Find consecutive word matches
+    for i in range(len(ocr_data['text']) - len(words_to_find) + 1):
+        # Check if we have a match starting at position i
+        match = True
+        for j, word in enumerate(words_to_find):
+            ocr_word = ocr_data['text'][i + j].lower().strip()
+            if not ocr_word or word not in ocr_word:
+                match = False
+                break
+                
+        if match:
+            # Calculate bounding box for the matched text span
+            left = ocr_data['left'][i]
+            top = ocr_data['top'][i]
+            
+            # Find rightmost and bottommost coordinates
+            right = left
+            bottom = top
+            
+            for j in range(len(words_to_find)):
+                word_idx = i + j
+                word_right = ocr_data['left'][word_idx] + ocr_data['width'][word_idx]
+                word_bottom = ocr_data['top'][word_idx] + ocr_data['height'][word_idx]
+                right = max(right, word_right)
+                bottom = max(bottom, word_bottom)
+                
+            return [left, top, right, bottom]
+            
+    return None
 
 
 def _ocr_image(image: Image.Image) -> str:
@@ -209,19 +257,30 @@ def _detect_clauses_legacy(
                     # Extract key terms (the matched keyword and surrounding relevant terms)
                     key_terms = _extract_key_terms(snippet, word)
 
-                    # For now, use placeholder coordinates (would need OCR layout analysis for real coords)
-                    placeholder_coords = [
-                        50,
-                        100 + len(clauses) * 50,
-                        550,
-                        150 + len(clauses) * 50,
-                    ]
+                    # Extract coordinates from OCR data
+                    try:
+                        import pytesseract
+                        ocr_data = pytesseract.image_to_data(
+                            page.image, output_type=pytesseract.Output.DICT, config='--psm 6'
+                        )
+                        coordinates = _extract_text_coordinates(snippet[:50], ocr_data)
+                    except ImportError:
+                        coordinates = None
+                    
+                    # Fallback to page-relative coordinates if OCR coordinates not found
+                    if coordinates is None:
+                        coordinates = [
+                            50,
+                            100 + len(clauses) * 50,
+                            550,
+                            150 + len(clauses) * 50,
+                        ]
 
                     clause = Clause(
                         type=clause_type,
                         text=snippet,
                         page=page.number,
-                        coordinates=placeholder_coords,
+                        coordinates=coordinates,
                         id=clause_id,
                         confidence=confidence,
                         key_terms=key_terms,
@@ -298,19 +357,30 @@ def _detect_clauses_optimized(
                 # Extract key terms (the matched keyword and surrounding relevant terms)
                 key_terms = _extract_key_terms(snippet, matched_text)
 
-                # For now, use placeholder coordinates (would need OCR layout analysis for real coords)
-                placeholder_coords = [
-                    50,
-                    100 + len(clauses) * 50,
-                    550,
-                    150 + len(clauses) * 50,
-                ]
+                # Extract coordinates from OCR data
+                try:
+                    import pytesseract
+                    ocr_data = pytesseract.image_to_data(
+                        page.image, output_type=pytesseract.Output.DICT, config='--psm 6'
+                    )
+                    coordinates = _extract_text_coordinates(snippet[:50], ocr_data)
+                except ImportError:
+                    coordinates = None
+                
+                # Fallback to page-relative coordinates if OCR coordinates not found
+                if coordinates is None:
+                    coordinates = [
+                        50,
+                        100 + len(clauses) * 50,
+                        550,
+                        150 + len(clauses) * 50,
+                    ]
 
                 clause = Clause(
                     type=clause_type,
                     text=snippet,
                     page=page.number,
-                    coordinates=placeholder_coords,
+                    coordinates=coordinates,
                     id=clause_id,
                     confidence=confidence,
                     key_terms=key_terms,
