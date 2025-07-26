@@ -31,7 +31,30 @@ Automated tool that implements the complete 10-step repository hygiene checklist
    ./run_hygiene.sh --dry-run
    ```
 
-3. **Review and Merge PRs**
+3. **Optional: Set Up Automated Workflow**
+   To run automatically on schedule, create `.github/workflows/repo-hygiene.yml`:
+   ```yaml
+   name: Repository Hygiene Bot
+   on:
+     schedule:
+       - cron: '0 6 * * 0'  # Weekly on Sundays at 6 AM UTC
+     workflow_dispatch:
+   jobs:
+     hygiene-check:
+       runs-on: ubuntu-latest
+       steps:
+         - uses: actions/checkout@v4
+         - uses: actions/setup-python@v4
+           with:
+             python-version: '3.11'
+         - run: |
+             pip install -r requirements-hygiene.txt
+             python repo_hygiene_bot.py
+           env:
+             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+   ```
+
+4. **Review and Merge PRs**
    - Bot creates PR titled "✨ repo-hygiene-bot update"
    - Review changes and merge when satisfied
    - PRs are labeled `automated-maintenance` and assigned to `@danieleschmidt`
