@@ -1,7 +1,5 @@
 """Tests for coordinate extraction from OCR data."""
 
-import pytest
-from unittest.mock import patch, Mock
 from src.multimodal_contract_extractor.clause_detection import _extract_text_coordinates
 
 
