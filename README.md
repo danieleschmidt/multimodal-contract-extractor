@@ -363,6 +363,19 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
 - **Audit Logging**: Complete processing audit trails
 - **Compliance Standards**: SOC 2, GDPR, HIPAA ready
 
+## Repository Hygiene
+
+This repository includes an automated hygiene bot that ensures it meets GitHub community standards and security best practices. See [HYGIENE_BOT.md](HYGIENE_BOT.md) for details.
+
+The bot runs weekly via GitHub Actions and can also be run manually:
+```bash
+# Set your GitHub token
+export GITHUB_TOKEN=your_token_here
+
+# Run hygiene check
+./run_hygiene.sh
+```
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) file for details.
