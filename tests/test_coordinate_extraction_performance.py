@@ -1,6 +1,5 @@
 """Performance tests for coordinate extraction optimization."""
 
-import pytest
 from src.multimodal_contract_extractor.clause_detection import _extract_text_coordinates
 
 

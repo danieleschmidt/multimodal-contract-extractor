@@ -1,0 +1,7 @@
+# Automated merge conflict resolution strategies
+package-lock.json merge=theirs
+poetry.lock      merge=theirs
+*.snap           merge=theirs
+*.md             merge=union
+CHANGELOG.md     merge=union
+*.svg *.png *.jpg *.zip merge=lock
