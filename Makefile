@@ -1,10 +1,87 @@
-# Multimodal Contract Extractor - Build System
-.PHONY: help install install-dev test lint format security clean build docker-build docker-run setup-dev
+# Multimodal Contract Extractor - Comprehensive Build System
+# =============================================================================
 
-# Default target
-help: ## Show this help message
-	@echo "Available commands:"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+# Variables
+PYTHON := python
+PIP := pip
+DOCKER := docker
+DOCKER_COMPOSE := docker-compose
+PROJECT_NAME := multimodal-contract-extractor
+VERSION := $(shell $(PYTHON) -c "import toml; print(toml.load('pyproject.toml')['project']['version'])")
+DOCKER_REGISTRY := ghcr.io/your-org
+DOCKER_IMAGE := $(DOCKER_REGISTRY)/$(PROJECT_NAME)
+
+# Environment detection
+OS := $(shell uname -s)
+ARCH := $(shell uname -m)
+
+# Colors for terminal output
+RED := \033[31m
+GREEN := \033[32m
+YELLOW := \033[33m
+BLUE := \033[34m
+MAGENTA := \033[35m
+CYAN := \033[36m
+WHITE := \033[37m
+RESET := \033[0m
+
+# =============================================================================
+# PHONY TARGETS
+# =============================================================================
+
+.PHONY: help install install-dev install-gpu install-docs test lint format security \
+        clean build docker-build docker-run setup-dev ci-setup ci-test docs-serve \
+        env-create metrics quality-gate dev-run dev-extract dev-batch release-patch \
+        release-minor migrate health-check performance-test benchmark load-test \
+        security-scan vulnerability-scan deps-update deps-audit pre-commit-install \
+        pre-commit-run docker-build-dev docker-build-prod docker-push docker-pull \
+        docker-clean monitoring-up monitoring-down logs backup restore deployment-test \
+        smoke-test integration-test unit-test e2e-test mutation-test coverage-report \
+        profile performance-profile memory-profile cpu-profile analyze-code \
+        dependencies-graph security-baseline compliance-check audit-logs \
+        container-scan image-scan sbom-generate secrets-scan license-check \
+        performance-baseline stress-test chaos-test
+
+# =============================================================================
+# HELP AND INFORMATION
+# =============================================================================
+
+help: ## Show comprehensive help message
+	@echo "$(CYAN)Multimodal Contract Extractor - Build System$(RESET)"
+	@echo "$(CYAN)===============================================$(RESET)"
+	@echo ""
+	@echo "$(YELLOW)📦 SETUP & INSTALLATION:$(RESET)"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*Setup|.*Install' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(CYAN)%-25s$(RESET) %s\n", $$1, $$2}'
+	@echo ""
+	@echo "$(YELLOW)🔍 CODE QUALITY:$(RESET)"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*Lint|.*Format|.*Security|.*Quality' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(CYAN)%-25s$(RESET) %s\n", $$1, $$2}'
+	@echo ""
+	@echo "$(YELLOW)🧪 TESTING:$(RESET)"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*Test|.*Coverage|.*Benchmark' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(CYAN)%-25s$(RESET) %s\n", $$1, $$2}'
+	@echo ""
+	@echo "$(YELLOW)🐳 DOCKER & DEPLOYMENT:$(RESET)"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*Docker|.*Deploy|.*Build|.*Container' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(CYAN)%-25s$(RESET) %s\n", $$1, $$2}'
+	@echo ""
+	@echo "$(YELLOW)🚀 DEVELOPMENT:$(RESET)"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*Dev|.*Run|.*Start' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(CYAN)%-25s$(RESET) %s\n", $$1, $$2}'
+	@echo ""
+	@echo "$(YELLOW)📊 MONITORING & OBSERVABILITY:$(RESET)"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*Monitor|.*Metrics|.*Health|.*Logs' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(CYAN)%-25s$(RESET) %s\n", $$1, $$2}'
+	@echo ""
+	@echo "$(YELLOW)🔒 SECURITY & COMPLIANCE:$(RESET)"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*Scan|.*Vulnerability|.*Compliance|.*Audit' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(CYAN)%-25s$(RESET) %s\n", $$1, $$2}'
+	@echo ""
+	@echo "$(YELLOW)🧹 MAINTENANCE:$(RESET)"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*Clean|.*Update|.*Backup|.*Restore' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(CYAN)%-25s$(RESET) %s\n", $$1, $$2}'
+
+info: ## Show project information
+	@echo "$(CYAN)Project Information:$(RESET)"
+	@echo "  Name: $(PROJECT_NAME)"
+	@echo "  Version: $(VERSION)"
+	@echo "  Python: $(shell $(PYTHON) --version)"
+	@echo "  OS: $(OS)"
+	@echo "  Architecture: $(ARCH)"
+	@echo "  Docker Image: $(DOCKER_IMAGE):$(VERSION)"
 
 # Development setup
 setup-dev: ## Setup complete development environment
