@@ -1,0 +1,25 @@
+# Global ownership
+* @terragon-labs
+
+# Core source code
+/src/ @terragon-labs
+/tests/ @terragon-labs
+
+# Configuration files
+*.yml @terragon-labs
+*.yaml @terragon-labs
+pyproject.toml @terragon-labs
+requirements*.txt @terragon-labs
+
+# CI/CD and GitHub
+/.github/ @terragon-labs
+/Dockerfile @terragon-labs
+/docker-compose.yml @terragon-labs
+
+# Documentation
+/docs/ @terragon-labs
+/*.md @terragon-labs
+
+# Security files
+/SECURITY.md @terragon-labs
+/.pre-commit-config.yaml @terragon-labs

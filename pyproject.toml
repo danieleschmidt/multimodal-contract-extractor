@@ -1,19 +1,175 @@
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=61", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "multimodal_contract_extractor"
 version = "0.1.0"
+description = "Vision-Language-Model pipeline for extracting clauses from contracts"
+readme = "README.md"
+license = {file = "LICENSE"}
+authors = [
+    {name = "Terragon Labs", email = "contact@terragon.ai"}
+]
+maintainers = [
+    {name = "Terragon Labs", email = "contact@terragon.ai"}
+]
+keywords = ["contract", "extraction", "ocr", "nlp", "vision-language-model", "pdf", "legal-tech"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Legal Industry",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Text Processing :: Linguistic",
+    "Topic :: Office/Business :: Financial :: Accounting",
+]
 requires-python = ">=3.8"
 dependencies = [
     "Pillow>=10",
     "pdf2image>=1",
     "pytesseract>=0.3",
     "defusedxml>=0.7",
+    "streamlit>=1.30",
+    "prometheus_client>=0.22",
+    "psutil>=5.9",
     "cryptography>=45.0.0",
 ]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.5",
+    "bandit>=1.8.5",
+    "pytest>=8.1",
+    "pre-commit>=3.7",
+    "pytest-xdist>=3.5",
+    "pytest-cov>=4.0",
+    "mypy>=1.8",
+    "types-Pillow>=10.0",
+    "black>=23.0",
+    "coverage>=7.0",
+    "safety>=3.0",
+    "pip-audit>=2.6",
+]
+gpu = [
+    "torch>=2.0",
+    "transformers>=4.30",
+]
+docs = [
+    "mkdocs>=1.5",
+    "mkdocs-material>=9.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/terragon-labs/multimodal-contract-extractor"
+Documentation = "https://github.com/terragon-labs/multimodal-contract-extractor#readme"
+Repository = "https://github.com/terragon-labs/multimodal-contract-extractor"
+Issues = "https://github.com/terragon-labs/multimodal-contract-extractor/issues"
+Changelog = "https://github.com/terragon-labs/multimodal-contract-extractor/blob/main/CHANGELOG.md"
+
+[project.scripts]
+mce-extract = "multimodal_contract_extractor.cli:extract_main"
+mce-batch = "multimodal_contract_extractor.cli:batch_main"
+mce-web = "multimodal_contract_extractor.cli:web_main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
 packages = ["multimodal_contract_extractor"]
+
+[tool.setuptools.package-data]
+multimodal_contract_extractor = ["py.typed"]
+
+# Tool configurations
+[tool.black]
+line-length = 88
+target-version = ['py38', 'py39', 'py310', 'py311', 'py312']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.ruff]
+target-version = "py38"
+line-length = 88
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+    "S",  # bandit
+]
+ignore = [
+    "E501",  # line too long, handled by black
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+    "S104",  # hardcoded-bind-all-interfaces
+]
+
+[tool.ruff.per-file-ignores]
+"tests/*" = ["S101", "S106", "S113"]  # assert allowed in tests
+
+[tool.mypy]
+python_version = "3.8"
+check_untyped_defs = true
+disallow_any_generics = true
+disallow_incomplete_defs = true
+disallow_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_return_any = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = [
+    "streamlit.*",
+    "pdf2image.*",
+    "pytesseract.*",
+    "prometheus_client.*",
+]
+ignore_missing_imports = true
+
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "tests/*",
+    "src/multimodal_contract_extractor/__init__.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\bProtocol\):",
+    "@(abc\.)?abstractmethod",
+]
+
+[tool.bandit]
+exclude_dirs = ["tests"]
+skips = ["B101", "B601"]
