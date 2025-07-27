@@ -1,57 +1,232 @@
 {
   "name": "Multimodal Contract Extractor",
   "image": "mcr.microsoft.com/devcontainers/python:3.11-bullseye",
+  
+  // Enhanced features for comprehensive development environment
   "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
-    "ghcr.io/devcontainers/features/github-cli:1": {}
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "installZsh": true,
+      "configureZshAsDefaultShell": true,
+      "installOhMyZsh": true,
+      "upgradePackages": true,
+      "username": "vscode"
+    },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "latest",
+      "enableNonRootDocker": "true",
+      "moby": "true"
+    },
+    "ghcr.io/devcontainers/features/github-cli:1": {
+      "installDirectlyFromGitHubRelease": true,
+      "version": "latest"
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "18",
+      "nodeGypDependencies": true,
+      "nvmVersion": "latest"
+    }
   },
+
   "customizations": {
     "vscode": {
       "extensions": [
+        // Python development
         "ms-python.python",
         "ms-python.vscode-pylance",
         "ms-python.black-formatter",
+        "ms-python.isort",
         "charliermarsh.ruff",
         "ms-python.mypy-type-checker",
-        "redhat.vscode-yaml",
-        "GitHub.copilot",
-        "GitHub.vscode-pull-request-github",
+        "ms-python.flake8",
+        
+        // Testing
         "ms-vscode.test-adapter-converter",
-        "littlefoxteam.vscode-python-test-adapter"
+        "hbenl.vscode-test-explorer",
+        "littlefoxteam.vscode-python-test-adapter",
+        
+        // Git and GitHub
+        "GitHub.copilot",
+        "GitHub.copilot-chat",
+        "GitHub.vscode-pull-request-github",
+        "GitHub.vscode-github-actions",
+        "eamodio.gitlens",
+        
+        // File formats
+        "redhat.vscode-yaml",
+        "ms-vscode.vscode-json",
+        "DavidAnson.vscode-markdownlint",
+        "yzhang.markdown-all-in-one",
+        "bierner.markdown-mermaid",
+        
+        // Docker and containers
+        "ms-azuretools.vscode-docker",
+        "ms-vscode-remote.remote-containers",
+        
+        // Build tools
+        "ms-vscode.makefile-tools",
+        
+        // Code quality
+        "streetsidesoftware.code-spell-checker",
+        "ms-vscode.hexeditor",
+        
+        // API development
+        "humao.rest-client",
+        "rangav.vscode-thunder-client"
       ],
+      
       "settings": {
+        // Python configuration
         "python.defaultInterpreterPath": "/usr/local/bin/python",
         "python.formatting.provider": "black",
+        "python.formatting.blackArgs": ["--line-length=88"],
+        "python.sortImports.args": ["--profile", "black"],
         "python.linting.enabled": true,
+        "python.linting.pylintEnabled": false,
+        "python.linting.flake8Enabled": false,
         "python.linting.ruffEnabled": true,
         "python.linting.banditEnabled": true,
         "python.linting.mypyEnabled": true,
         "python.testing.pytestEnabled": true,
         "python.testing.unittestEnabled": false,
-        "python.testing.pytestArgs": [
-          "tests"
-        ],
-        "files.associations": {
-          "*.yml": "yaml",
-          "*.yaml": "yaml"
-        },
+        "python.testing.pytestArgs": ["tests"],
+        "python.analysis.typeCheckingMode": "strict",
+        "python.analysis.autoImportCompletions": true,
+        
+        // Editor configuration
         "editor.formatOnSave": true,
         "editor.codeActionsOnSave": {
-          "source.organizeImports": true
-        }
+          "source.organizeImports": true,
+          "source.fixAll.ruff": true
+        },
+        "editor.rulers": [88],
+        "editor.tabSize": 4,
+        "editor.insertSpaces": true,
+        "files.trimTrailingWhitespace": true,
+        "files.insertFinalNewline": true,
+        
+        // File associations
+        "files.associations": {
+          "*.yml": "yaml",
+          "*.yaml": "yaml",
+          "Dockerfile*": "dockerfile",
+          ".env*": "dotenv"
+        },
+        
+        // File exclusions for better performance
+        "files.exclude": {
+          "**/__pycache__": true,
+          "**/*.pyc": true,
+          "**/.mypy_cache": true,
+          "**/.pytest_cache": true,
+          "**/node_modules": true,
+          "**/.coverage": true,
+          "**/htmlcov": true,
+          "**/.ruff_cache": true
+        },
+        
+        "search.exclude": {
+          "**/node_modules": true,
+          "**/bower_components": true,
+          "**/*.code-search": true,
+          "**/__pycache__": true,
+          "**/.mypy_cache": true,
+          "**/.pytest_cache": true,
+          "**/.ruff_cache": true
+        },
+        
+        // Terminal configuration
+        "terminal.integrated.defaultProfile.linux": "zsh",
+        "terminal.integrated.profiles.linux": {
+          "zsh": {
+            "path": "/bin/zsh"
+          }
+        },
+        
+        // Git configuration
+        "git.enableSmartCommit": true,
+        "git.confirmSync": false,
+        "git.autofetch": true,
+        
+        // Docker configuration
+        "docker.showStartPage": false
       }
     }
   },
-  "postCreateCommand": "apt-get update && apt-get install -y tesseract-ocr poppler-utils && pip install -r requirements.txt && pip install -r requirements-dev.txt && pip install -e . && pre-commit install",
+
+  // Environment variables for development
+  "containerEnv": {
+    "PYTHONPATH": "/workspaces/multimodal-contract-extractor/src",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PYTHONUNBUFFERED": "1",
+    "PIP_NO_CACHE_DIR": "1",
+    "PIP_DISABLE_PIP_VERSION_CHECK": "1",
+    "STREAMLIT_SERVER_HEADLESS": "true",
+    "STREAMLIT_SERVER_ENABLE_CORS": "false",
+    "STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION": "false"
+  },
+
+  // Enhanced post-create setup
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  
+  // User configuration
   "remoteUser": "vscode",
+  "updateRemoteUserUID": true,
+
+  // Volume mounts for development
   "mounts": [
-    "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
+    "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",
+    "source=mce-vscode-extensions,target=/home/vscode/.vscode-server/extensions,type=volume",
+    "source=mce-bash-history,target=/home/vscode/.bash_history,type=volume",
+    "source=mce-zsh-history,target=/home/vscode/.zsh_history,type=volume"
   ],
-  "forwardPorts": [8501],
+
+  // Port forwarding for development services
+  "forwardPorts": [
+    8501,  // Streamlit app
+    8000,  // Future API server
+    9090,  // Prometheus
+    3000,  // Grafana
+    5555   // Debug port
+  ],
+  
   "portsAttributes": {
     "8501": {
       "label": "Streamlit App",
       "onAutoForward": "openPreview"
+    },
+    "8000": {
+      "label": "API Server",
+      "onAutoForward": "notify"
+    },
+    "9090": {
+      "label": "Prometheus",
+      "onAutoForward": "ignore"
+    },
+    "3000": {
+      "label": "Grafana",
+      "onAutoForward": "ignore"
+    },
+    "5555": {
+      "label": "Debug Port",
+      "onAutoForward": "ignore"
     }
-  }
+  },
+
+  // Container configuration
+  "runArgs": [
+    "--name", "mce-devcontainer",
+    "--hostname", "mce-dev"
+  ],
+
+  // Resource requirements
+  "hostRequirements": {
+    "cpus": 2,
+    "memory": "4gb",
+    "storage": "32gb"
+  },
+
+  // Lifecycle commands
+  "initializeCommand": "echo 'Initializing development container for Multimodal Contract Extractor...'",
+  "onCreateCommand": "echo 'Development container created successfully!'",
+  "shutdownAction": "stopContainer"
 }
