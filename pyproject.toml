@@ -65,6 +65,11 @@ gpu = [
 docs = [
     "mkdocs>=1.5",
     "mkdocs-material>=9.0",
+    "mkdocstrings[python]>=0.24",
+    "mkdocs-swagger-ui-tag>=0.6",
+    "mkdocs-openapi>=0.5",
+    "pydantic>=2.0",
+    "fastapi>=0.100",  # For API documentation
 ]
 
 [project.urls]
@@ -157,6 +162,12 @@ omit = [
 ]
 
 [tool.coverage.report]
+# Increase minimum coverage to 90% for enhanced quality assurance
+fail_under = 90
+show_missing = true
+skip_covered = false
+skip_empty = false
+sort = "cover"
 exclude_lines = [
     "pragma: no cover",
     "def __repr__",
@@ -169,6 +180,13 @@ exclude_lines = [
     "class .*\\bProtocol\\):",
     "@(abc\\.)?abstractmethod",
 ]
+
+[tool.coverage.html]
+directory = "htmlcov"
+show_contexts = true
+
+[tool.coverage.xml]
+output = "coverage.xml"
 
 [tool.bandit]
 exclude_dirs = ["tests"]
