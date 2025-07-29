@@ -1,0 +1,9 @@
+# Trivy ignore file for known false positives or accepted vulnerabilities
+# Format: CVE-YYYY-NNNN or vulnerability ID
+
+# Example entries (uncomment and customize as needed):
+# CVE-2023-12345
+# GHSA-xxxx-xxxx-xxxx
+
+# Ignore low severity issues in development dependencies
+# (Review and customize based on your security policies)

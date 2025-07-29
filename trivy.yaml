@@ -1,0 +1,65 @@
+# Trivy configuration for container security scanning
+# Documentation: https://aquasecurity.github.io/trivy/latest/docs/
+
+# Global settings
+timeout: 10m
+cache-dir: .trivycache/
+quiet: false
+debug: false
+
+# Vulnerability scanning settings
+vulnerability:
+  type:
+    - os
+    - library
+  
+# Security scanners to enable
+scanners:
+  - vuln      # Vulnerabilities
+  - secret    # Secrets
+  - config    # Misconfigurations
+  - license   # License issues
+
+# Severity levels to report
+severity:
+  - UNKNOWN
+  - LOW
+  - MEDIUM
+  - HIGH
+  - CRITICAL
+
+# Output formats
+format: table
+output: ""
+
+# Exit codes
+exit-code: 1  # Non-zero exit code on vulnerabilities found
+
+# Ignore unfixed vulnerabilities
+ignore-unfixed: false
+
+# Skip certain checks
+skip-dirs:
+  - .git/
+  - .trivycache/
+  - htmlcov/
+  - __pycache__/
+  - .pytest_cache/
+  - .mypy_cache/
+
+# License configuration
+license:
+  forbidden:
+    - GPL-2.0
+    - GPL-3.0
+    - AGPL-1.0
+    - AGPL-3.0
+  
+# Secret scanning configuration  
+secret:
+  config: trivy-secret.yaml
+
+# Misconfiguration scanning
+misconfiguration:
+  include-non-failures: false
+  trace: false

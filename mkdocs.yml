@@ -1,0 +1,203 @@
+# MkDocs configuration for advanced API documentation
+# Enhanced SDLC documentation automation
+
+site_name: Multimodal Contract Extractor
+site_description: Vision-Language-Model pipeline for extracting clauses from contracts
+site_author: Terragon Labs
+site_url: https://github.com/terragon-labs/multimodal-contract-extractor
+
+# Repository
+repo_name: terragon-labs/multimodal-contract-extractor
+repo_url: https://github.com/terragon-labs/multimodal-contract-extractor
+edit_uri: edit/main/docs/
+
+# Copyright
+copyright: Copyright &copy; 2024 Terragon Labs
+
+# Configuration
+theme:
+  name: material
+  language: en
+  features:
+    - announce.dismiss
+    - content.action.edit
+    - content.action.view
+    - content.code.annotate
+    - content.code.copy
+    - content.tabs.link
+    - content.tooltips
+    - header.autohide
+    - navigation.expand
+    - navigation.footer
+    - navigation.indexes
+    - navigation.instant
+    - navigation.prune
+    - navigation.sections
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.top
+    - navigation.tracking
+    - search.highlight
+    - search.share
+    - search.suggest
+    - toc.follow
+    - toc.integrate
+  palette:
+    - scheme: default
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  font:
+    text: Roboto
+    code: Roboto Mono
+  favicon: assets/favicon.ico
+  logo: assets/logo.png
+  icon:
+    logo: material/library
+
+# Plugins
+plugins:
+  - search:
+      separator: '[\s\-,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
+  - minify:
+      minify_html: true
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            docstring_options:
+              ignore_init_summary: true
+            merge_init_into_class: true
+            show_submodules: true
+            show_source: true
+            show_root_heading: true
+            show_root_full_path: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            signature_crossrefs: true
+          paths: [src]
+  - swagger-ui-tag:
+      background: White
+      docExpansion: none
+      filter: false
+      syntaxHightTheme: agate
+      tryItOutEnabled: true
+  - tags:
+      tags_file: tags.md
+
+# Customization
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/terragon-labs
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/multimodal-contract-extractor/
+  version:
+    provider: mike
+    default: latest
+  tags:
+    API: api
+    Performance: performance
+    Security: security
+    Architecture: architecture
+
+# Extensions
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - toc:
+      permalink: true
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_generator: !!python/name:materialx.emoji.to_svg
+      emoji_index: !!python/name:materialx.emoji.twemoji
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.magiclink:
+      repo_url_shorthand: true
+      user: terragon-labs
+      repo: multimodal-contract-extractor
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+# Page tree
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: installation.md
+    - Quick Start: quickstart.md
+    - Configuration: configuration.md
+  - User Guide:
+    - Basic Usage: usage/basic.md
+    - Advanced Features: usage/advanced.md
+    - CLI Reference: usage/cli.md
+    - Web Interface: usage/web.md
+  - API Reference:
+    - Overview: api/index.md
+    - Core Modules:
+      - Document Processing: api/document.md
+      - Extraction Engine: api/extraction.md
+      - Configuration: api/config.md
+      - Security: api/security.md
+      - Metrics: api/metrics.md
+    - REST API: api/rest.md
+    - OpenAPI Specification: api/openapi.md
+  - Development:
+    - Contributing: CONTRIBUTING.md
+    - Development Setup: DEVELOPMENT.md
+    - Architecture: docs/ARCHITECTURE.md
+    - Code Review: CODE_REVIEW.md
+  - Operations:
+    - Deployment: DEPLOYMENT.md
+    - Monitoring: monitoring.md
+    - Troubleshooting: TROUBLESHOOTING.md
+    - Security: SECURITY.md
+  - Performance:
+    - Benchmarks: performance/benchmarks.md
+    - Load Testing: performance/load-testing.md
+    - Optimization: performance/optimization.md
+  - Governance:
+    - ADRs: docs/adr/
+    - Compliance: docs/governance/compliance-automation.md
+    - Workflows: docs/workflows/
+  - Changelog: CHANGELOG.md
+
+# Extra CSS
+extra_css:
+  - stylesheets/extra.css
+
+# Extra JavaScript
+extra_javascript:
+  - javascripts/extra.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
