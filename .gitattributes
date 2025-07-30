@@ -1,10 +1,41 @@
+# Set default behavior to automatically normalize line endings
+* text=auto
+
 # Automated merge conflict resolution strategies
 package-lock.json merge=theirs
 poetry.lock      merge=theirs
+requirements*.txt merge=theirs
 *.snap           merge=theirs
 *.md             merge=union
 CHANGELOG.md     merge=union
-*.svg merge=lock
-*.png merge=lock
-*.jpg merge=lock
-*.zip merge=lock
+
+# Binary files - no merge
+*.svg merge=binary
+*.png merge=binary
+*.jpg merge=binary
+*.jpeg merge=binary
+*.gif merge=binary
+*.pdf merge=binary
+*.zip merge=binary
+
+# Python files
+*.py text diff=python eol=lf
+
+# Configuration files
+*.yml text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+*.json text eol=lf
+
+# Shell scripts
+*.sh text eol=lf
+
+# Documentation files
+*.md text diff=markdown eol=lf
+*.rst text eol=lf
+
+# Exclude from export/archive
+.gitattributes export-ignore
+.gitignore export-ignore
+.pre-commit-config.yaml export-ignore
+docs/status/*.json linguist-generated=true

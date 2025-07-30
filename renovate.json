@@ -1,0 +1,58 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    ":automergeDigest",
+    ":automergeBranch",
+    "security:openssf-scorecard",
+    "helpers:pinGitHubActionDigests"
+  ],
+  "timezone": "America/New_York",
+  "schedule": ["before 6am on monday"],
+  "labels": ["dependencies", "automated"],
+  "commitMessagePrefix": "chore(deps):",
+  "prHourlyLimit": 2,
+  "prConcurrentLimit": 3,
+  "rebaseWhen": "conflicted",
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 6am on the first day of the month"]
+  },
+  "packageRules": [
+    {
+      "matchDepTypes": ["devDependencies"],
+      "automerge": true,
+      "schedule": ["before 6am on monday"]
+    },
+    {
+      "matchPackagePatterns": ["^pytest"],
+      "groupName": "pytest packages"
+    },
+    {
+      "matchPackagePatterns": ["^ruff", "^black", "^mypy"],
+      "groupName": "code quality tools"
+    },
+    {
+      "matchPackagePatterns": ["^streamlit"],
+      "addLabels": ["ui-framework"]
+    },
+    {
+      "matchDepTypes": ["action"],
+      "pinDigests": true
+    },
+    {
+      "matchPackagePatterns": ["^cryptography", "^defusedxml"],
+      "addLabels": ["security"],
+      "reviewers": ["@terragon-labs/security-team"]
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "assignees": ["@terragon-labs/security-team"]
+  },
+  "osvVulnerabilityAlerts": true,
+  "dependencyDashboardApproval": false,
+  "platformAutomerge": true
+}

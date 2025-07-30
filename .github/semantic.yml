@@ -1,0 +1,41 @@
+# Configuration for semantic-pull-requests bot
+# https://github.com/zeke/semantic-pull-requests
+
+# Validate that pull request titles match the Conventional Commits spec
+titleOnly: true
+
+# Allow these commit types
+types:
+  - feat
+  - fix
+  - docs
+  - style
+  - refactor
+  - perf
+  - test
+  - build
+  - ci
+  - chore
+  - revert
+
+# Allow these scopes (optional)
+scopes:
+  - core
+  - cli
+  - web
+  - docs
+  - tests
+  - security
+  - performance
+  - monitoring
+  - deployment
+  - deps
+
+# Require a scope to be provided
+requireScope: false
+
+# Allow use of Merge commits (e.g. for merging branches)
+allowMergeCommits: true
+
+# Allow use of Revert commits
+allowRevertCommits: true

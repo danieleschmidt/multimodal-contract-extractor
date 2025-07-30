@@ -1,0 +1,56 @@
+# Enhanced global ownership for elite repository management
+# This file provides fine-grained ownership control for different areas
+
+# Default owners for everything
+* @terragon-labs/core-team
+
+# Core application source code
+/src/multimodal_contract_extractor/ @terragon-labs/python-team @terragon-labs/ai-ml-team
+
+# Test infrastructure
+/tests/ @terragon-labs/python-team @terragon-labs/qa-team
+/performance/ @terragon-labs/performance-team
+/tests/integration/ @terragon-labs/qa-team @terragon-labs/devops-team
+
+# Documentation and guides
+/docs/ @terragon-labs/docs-team @terragon-labs/technical-writers
+README.md @terragon-labs/docs-team
+*.md @terragon-labs/docs-team
+CHANGELOG.md @terragon-labs/release-team
+
+# Security and governance
+/governance/ @terragon-labs/security-team @terragon-labs/compliance-team
+SECURITY.md @terragon-labs/security-team
+/trivy*.yaml @terragon-labs/security-team
+/.trivyignore @terragon-labs/security-team
+
+# Infrastructure and deployment
+/infrastructure/ @terragon-labs/devops-team @terragon-labs/platform-team
+/monitoring/ @terragon-labs/devops-team @terragon-labs/sre-team
+/docker-compose.yml @terragon-labs/devops-team
+/Dockerfile* @terragon-labs/devops-team
+/scripts/ @terragon-labs/devops-team
+
+# CI/CD and automation
+/.github/ @terragon-labs/devops-team @terragon-labs/platform-team
+/.pre-commit-config.yaml @terragon-labs/devops-team
+/renovate.json @terragon-labs/devops-team
+
+# Package management and configuration
+/pyproject.toml @terragon-labs/python-team @terragon-labs/release-team
+/requirements*.txt @terragon-labs/python-team
+/Makefile @terragon-labs/build-team
+
+# Legal and compliance
+/LICENSE @terragon-labs/legal-team
+/CODE_OF_CONDUCT.md @terragon-labs/legal-team @terragon-labs/community-team
+
+# Configuration files
+/*.yml @terragon-labs/devops-team
+/*.yaml @terragon-labs/devops-team
+/config.example.yml @terragon-labs/config-team
+
+# IDE and development environment
+/.vscode/ @terragon-labs/developer-experience-team
+/.devcontainer/ @terragon-labs/developer-experience-team
+/.editorconfig @terragon-labs/developer-experience-team
