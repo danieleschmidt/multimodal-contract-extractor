@@ -1,0 +1,15 @@
+# Funding configuration for Multimodal Contract Extractor
+# This file enables the "Sponsor" button in the GitHub repository
+
+# GitHub sponsors
+github: [terragon-labs]
+
+# Open Collective
+open_collective: terragon-labs
+
+# Custom funding URLs
+custom: ["https://terragon.ai/sponsor", "https://paypal.me/terragonlabs"]
+
+# Additional sponsors
+patreon: terragonlabs
+ko_fi: terragonlabs

@@ -1,0 +1,44 @@
+# Automatically label PRs based on files changed
+
+"area: core":
+  - src/multimodal_contract_extractor/**/*
+
+"area: tests":
+  - tests/**/*
+
+"area: docs":
+  - docs/**/*
+  - "*.md"
+  - mkdocs.yml
+
+"area: ci/cd":
+  - .github/workflows/**/*
+  - .pre-commit-config.yaml
+  - Dockerfile*
+  - docker-compose.yml
+
+"area: security":
+  - SECURITY.md
+  - governance/**/*
+  - trivy*.yaml
+  - .trivyignore
+
+"area: monitoring":
+  - monitoring/**/*
+
+"area: performance":
+  - performance/**/*
+
+"area: infrastructure":
+  - infrastructure/**/*
+
+"dependencies":
+  - requirements*.txt
+  - pyproject.toml
+  - renovate.json
+
+"breaking change":
+  - pyproject.toml
+
+"enhancement":
+  # This will be handled by PR title/body parsing
