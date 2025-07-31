@@ -1,39 +1,120 @@
 {
-    "python.defaultInterpreterPath": "./.venv/bin/python",
-    "python.terminal.activateEnvironment": true,
-    "python.testing.pytestEnabled": true,
-    "python.testing.unittestEnabled": false,
-    "python.testing.pytestArgs": [
-        "tests"
-    ],
-    "python.linting.enabled": true,
-    "python.linting.ruffEnabled": true,
-    "python.linting.banditEnabled": true,
-    "python.linting.mypyEnabled": true,
-    "python.formatting.provider": "black",
-    "python.analysis.typeCheckingMode": "basic",
-    "python.analysis.autoImportCompletions": true,
-    "editor.formatOnSave": true,
-    "editor.codeActionsOnSave": {
-        "source.organizeImports": true,
-        "source.fixAll.ruff": true
-    },
-    "files.associations": {
-        "*.yml": "yaml",
-        "*.yaml": "yaml",
-        ".pre-commit-config.yaml": "yaml"
-    },
-    "files.exclude": {
-        "**/__pycache__": true,
-        "**/*.pyc": true,
-        "**/.pytest_cache": true,
-        "**/.coverage": true,
-        "**/htmlcov": true,
-        "**/.mypy_cache": true,
-        "**/.ruff_cache": true
-    },
-    "yaml.schemas": {
-        "https://json.schemastore.org/github-workflow.json": ".github/workflows/*.{yml,yaml}",
-        "https://json.schemastore.org/pre-commit-config.json": ".pre-commit-config.{yml,yaml}"
+  "python.defaultInterpreterPath": ".venv/bin/python",
+  "python.envFile": "${workspaceFolder}/.env",
+  "python.terminal.activateEnvironment": true,
+  "python.linting.enabled": true,
+  "python.linting.pylintEnabled": false,
+  "python.linting.ruffEnabled": true,
+  "python.linting.banditEnabled": true,
+  "python.linting.mypyEnabled": true,
+  "python.formatting.provider": "black",
+  "python.sortImports.args": ["--profile", "black"],
+  "python.analysis.typeCheckingMode": "strict",
+  "python.analysis.autoImportCompletions": true,
+  "python.analysis.autoSearchPaths": true,
+  "python.analysis.diagnosticMode": "workspace",
+  "python.analysis.include": ["src", "tests"],
+  "python.analysis.exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    ".venv",
+    ".pytest_cache",
+    "htmlcov",
+    "dist",
+    "build"
+  ],
+  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestArgs": [
+    "tests",
+    "--verbose",
+    "--tb=short",
+    "--cov=src",
+    "--cov-report=html"
+  ],
+  "editor.formatOnSave": true,
+  "editor.formatOnPaste": true,
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": "explicit",
+    "source.fixAll.ruff": "explicit"
+  },
+  "editor.rulers": [88],
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/*.pyc": true,
+    ".pytest_cache": true,
+    ".mypy_cache": true,
+    ".ruff_cache": true,
+    "htmlcov": true,
+    "*.egg-info": true,
+    ".coverage": true,
+    "coverage.xml": true,
+    "dist": true,
+    "build": true
+  },
+  "files.watcherExclude": {
+    "**/.git/**": true,
+    "**/node_modules/**": true,
+    "**/.venv/**": true,
+    "**/__pycache__/**": true,
+    "**/.pytest_cache/**": true,
+    "**/.mypy_cache/**": true,
+    "**/.ruff_cache/**": true
+  },
+  "search.exclude": {
+    "**/.venv": true,
+    "**/htmlcov": true,
+    "**/.pytest_cache": true,
+    "**/.mypy_cache": true,
+    "**/.ruff_cache": true,
+    "**/dist": true,
+    "**/build": true
+  },
+  "git.ignoreLimitWarning": true,
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true,
+    "editor.wordWrap": "off"
+  },
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.tabSize": 2
+  },
+  "[yaml]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.tabSize": 2
+  },
+  "[markdown]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.wordWrap": "on",
+    "editor.quickSuggestions": {
+      "comments": "off",
+      "strings": "off",
+      "other": "off"
     }
+  },
+  "coverage-gutters.coverageFileNames": [
+    "coverage.xml",
+    "htmlcov/index.html"
+  ],
+  "coverage-gutters.showRulerCoverage": true,
+  "coverage-gutters.showLineCoverage": true,
+  "coverage-gutters.showBranchCoverage": true,
+  "emmet.includeLanguages": {
+    "jinja-html": "html"
+  },
+  "files.associations": {
+    "*.yml": "yaml",
+    "*.yaml": "yaml",
+    "Dockerfile*": "dockerfile",
+    ".env*": "properties",
+    ".pre-commit-config.yaml": "yaml"
+  },
+  "yaml.schemas": {
+    "https://json.schemastore.org/github-workflow.json": ".github/workflows/*.{yml,yaml}",
+    "https://json.schemastore.org/pre-commit-config.json": ".pre-commit-config.{yml,yaml}",
+    "https://json.schemastore.org/dependabot-2.0.json": ".github/dependabot.{yml,yaml}",
+    "https://json.schemastore.org/docker-compose.json": "docker-compose*.{yml,yaml}"
+  }
 }
