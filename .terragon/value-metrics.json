@@ -1,0 +1,97 @@
+{
+  "timestamp": "2025-08-01T15:30:36.998016",
+  "repository": "multimodal-contract-extractor",
+  "maturity_level": "advanced",
+  "total_opportunities": 5,
+  "high_priority": 1,
+  "medium_priority": 2,
+  "low_priority": 2,
+  "next_best_item": {
+    "id": "sec-001",
+    "title": "Enhance security scanning automation",
+    "category": "security",
+    "description": "Optimize existing security tools and add advanced scanning",
+    "wsjf_score": 20.0,
+    "ice_score": 200,
+    "composite_score": 20.4,
+    "effort_hours": 4.0,
+    "priority": "high",
+    "source": "security_analysis"
+  },
+  "top_opportunities": [
+    {
+      "id": "sec-001",
+      "title": "Enhance security scanning automation",
+      "category": "security",
+      "description": "Optimize existing security tools and add advanced scanning",
+      "wsjf_score": 20.0,
+      "ice_score": 200,
+      "composite_score": 20.4,
+      "effort_hours": 4.0,
+      "priority": "high",
+      "source": "security_analysis"
+    },
+    {
+      "id": "git-debt-001",
+      "title": "Address technical debt from 11 commits",
+      "category": "technical_debt",
+      "description": "Found 11 commits with technical debt indicators",
+      "wsjf_score": 15.0,
+      "ice_score": 180,
+      "composite_score": 9.98,
+      "effort_hours": 6.0,
+      "priority": "medium",
+      "source": "git_history"
+    },
+    {
+      "id": "refactor-001",
+      "title": "Refactor 17 large files",
+      "category": "refactoring",
+      "description": "Found 17 files with >300 lines that may benefit from refactoring",
+      "wsjf_score": 12.0,
+      "ice_score": 150,
+      "composite_score": 6.15,
+      "effort_hours": 34.0,
+      "priority": "medium",
+      "source": "file_analysis",
+      "files": [
+        "./governance/audit_automation.py",
+        "./governance/policy_as_code.py",
+        "./monitoring/distributed_tracing.py",
+        "./monitoring/error_tracking.py",
+        "./monitoring/sla_monitoring.py"
+      ]
+    },
+    {
+      "id": "deps-001",
+      "title": "Update project dependencies",
+      "category": "dependency_update",
+      "description": "Review and update dependencies in 3 requirement files",
+      "wsjf_score": 8.0,
+      "ice_score": 120,
+      "composite_score": 4.12,
+      "effort_hours": 2.0,
+      "priority": "low",
+      "source": "dependency_analysis"
+    },
+    {
+      "id": "docs-001",
+      "title": "Enhance documentation for 10 Python modules",
+      "category": "documentation",
+      "description": "Review and improve docstrings and comments in 10 Python files",
+      "wsjf_score": 6.0,
+      "ice_score": 90,
+      "composite_score": 3.09,
+      "effort_hours": 5.0,
+      "priority": "low",
+      "source": "documentation_analysis"
+    }
+  ],
+  "categories": {
+    "security": 1,
+    "technical_debt": 1,
+    "refactoring": 1,
+    "dependency_update": 1,
+    "documentation": 1
+  }
+}
