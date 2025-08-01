@@ -1,0 +1,100 @@
+# Terragon Autonomous SDLC Configuration
+# Repository: multimodal-contract-extractor
+# Maturity Level: ADVANCED (75%+ SDLC maturity)
+# Focus: Optimization & Modernization
+
+metadata:
+  repository_name: "multimodal-contract-extractor"
+  maturity_level: "advanced"
+  assessment_date: "2025-08-01"
+  terragon_version: "v2.1.0"
+
+scoring:
+  weights:
+    advanced:
+      wsjf: 0.5      # High focus on business value
+      ice: 0.1       # Lower focus on easy wins  
+      technicalDebt: 0.3  # High focus on debt reduction
+      security: 0.1  # Maintained security focus
+  
+  thresholds:
+    minScore: 15           # Higher bar for advanced repos
+    maxRisk: 0.7          # Lower risk tolerance
+    securityBoost: 2.0    # Security multiplier
+    complianceBoost: 1.8  # Compliance multiplier
+    modernizationBoost: 1.5  # Modernization focus
+
+discovery:
+  sources:
+    - gitHistory
+    - staticAnalysis
+    - dependencyAudit
+    - performanceMetrics
+    - securityScanning
+    - codeQualityMetrics
+    - architecturalDebt
+  
+  advanced_analysis:
+    hot_spot_detection: true
+    architectural_drift: true
+    performance_regression: true
+    dependency_freshness: true
+    license_compliance: true
+    supply_chain_security: true
+
+execution:
+  strategy: "optimization_focused"
+  maxConcurrentTasks: 1
+  requiresApproval: false
+  
+  quality_gates:
+    minTestCoverage: 90
+    maxComplexity: 10
+    performanceRegression: 3
+    securityVulnerabilities: 0
+    licenseViolations: 0
+  
+  rollback_triggers:
+    - testFailure
+    - coverageReduction
+    - performanceRegression
+    - securityViolation
+    - buildFailure
+
+modernization:
+  priorities:
+    - dependency_updates
+    - performance_optimization
+    - architecture_modernization
+    - technical_debt_reduction
+    - automation_enhancement
+  
+  frameworks:
+    python_version_target: "3.12"
+    security_standards: ["SLSA", "SBOM", "SAST"]
+    performance_targets:
+      response_time_p95: "< 2s"
+      memory_usage: "< 512MB"
+      cpu_efficiency: "> 90%"
+
+continuous_discovery:
+  schedule:
+    immediate_scan: "on_pr_merge"
+    security_scan: "*/30 * * * *"  # Every 30 minutes
+    comprehensive_analysis: "0 2 * * *"  # Daily at 2 AM
+    deep_analysis: "0 3 * * 1"     # Weekly Monday 3 AM
+    strategic_review: "0 4 1 * *"  # Monthly 1st at 4 AM
+  
+  learning:
+    track_accuracy: true
+    adjust_weights: true
+    pattern_recognition: true
+    velocity_optimization: true
+
+reporting:
+  metrics_retention_days: 90
+  dashboard_refresh: "*/15 * * * *"
+  alert_thresholds:
+    backlog_growth: 20
+    velocity_drop: 25
+    quality_degradation: 10
