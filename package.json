@@ -1,0 +1,73 @@
+{
+  "name": "multimodal-contract-extractor",
+  "version": "0.1.0",
+  "description": "Vision-Language-Model pipeline for intelligent contract clause extraction",
+  "private": true,
+  "scripts": {
+    "test": "python -m pytest tests/ -v --cov=src",
+    "test:quick": "python -m pytest tests/ -x --ff",
+    "test:integration": "python -m pytest tests/integration/ -v",
+    "lint": "ruff check . && mypy src/",
+    "format": "black . && isort . && prettier --write '**/*.{json,yaml,yml,md}'",
+    "clean": "find . -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true && find . -type f -name '*.pyc' -delete 2>/dev/null || true",
+    "dev:web": "streamlit run web_app.py",
+    "dev:setup": "pip install -r requirements.txt && pip install -r requirements-dev.txt && pip install -e .",
+    "build": "python -m build",
+    "build:docker": "docker build -t multimodal-contract-extractor .",
+    "build:docker:security": "docker build -f Dockerfile.security -t multimodal-contract-extractor:security .",
+    "security:scan": "bandit -r src/ -q && trivy fs .",
+    "docs:build": "mkdocs build",
+    "docs:serve": "mkdocs serve",
+    "docs:deploy": "mkdocs gh-deploy",
+    "release:prepare": "python scripts/release-automation.sh",
+    "typecheck": "mypy src/",
+    "validate": "npm run lint && npm run typecheck && npm run test",
+    "pre-commit": "pre-commit run --all-files",
+    "install-hooks": "pre-commit install && pre-commit install --hook-type commit-msg"
+  },
+  "devDependencies": {
+    "prettier": "^3.0.0",
+    "@prettier/plugin-xml": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "python": ">=3.8.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/danieleschmidt/multimodal-contract-extractor.git"
+  },
+  "keywords": [
+    "contract-extraction",
+    "ocr",
+    "document-processing",
+    "legal-tech",
+    "machine-learning",
+    "vision-language-model",
+    "nlp",
+    "python"
+  ],
+  "author": "Development Team",
+  "license": "MIT",
+  "prettier": {
+    "trailingComma": "es5",
+    "tabWidth": 2,
+    "semi": false,
+    "singleQuote": true,
+    "printWidth": 88,
+    "overrides": [
+      {
+        "files": "*.md",
+        "options": {
+          "proseWrap": "preserve"
+        }
+      },
+      {
+        "files": "*.{yaml,yml}",
+        "options": {
+          "tabWidth": 2
+        }
+      }
+    ]
+  }
+}
