@@ -1,0 +1,250 @@
+groups:
+  # =============================================================================
+  # APPLICATION PERFORMANCE RECORDING RULES
+  # =============================================================================
+  - name: application_performance_rules
+    interval: 30s
+    rules:
+      # Request rate calculations
+      - record: app:http_request_rate_5m
+        expr: rate(http_requests_total{job="multimodal-contract-extractor"}[5m])
+
+      - record: app:http_request_rate_1h
+        expr: rate(http_requests_total{job="multimodal-contract-extractor"}[1h])
+
+      # Error rate calculations
+      - record: app:http_error_rate_5m
+        expr: rate(http_requests_total{job="multimodal-contract-extractor",status=~"5.."}[5m]) / rate(http_requests_total{job="multimodal-contract-extractor"}[5m])
+
+      - record: app:http_error_rate_1h
+        expr: rate(http_requests_total{job="multimodal-contract-extractor",status=~"5.."}[1h]) / rate(http_requests_total{job="multimodal-contract-extractor"}[1h])
+
+      # Response time percentiles
+      - record: app:http_request_duration_p50_5m
+        expr: histogram_quantile(0.50, rate(http_request_duration_seconds_bucket{job="multimodal-contract-extractor"}[5m]))
+
+      - record: app:http_request_duration_p95_5m
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="multimodal-contract-extractor"}[5m]))
+
+      - record: app:http_request_duration_p99_5m
+        expr: histogram_quantile(0.99, rate(http_request_duration_seconds_bucket{job="multimodal-contract-extractor"}[5m]))
+
+      # Document processing metrics
+      - record: app:document_processing_rate_5m
+        expr: rate(documents_processed_total{job="multimodal-contract-extractor"}[5m])
+
+      - record: app:document_processing_duration_p95_5m
+        expr: histogram_quantile(0.95, rate(document_processing_duration_seconds_bucket{job="multimodal-contract-extractor"}[5m]))
+
+      - record: app:document_processing_failure_rate_5m
+        expr: rate(document_processing_failures_total{job="multimodal-contract-extractor"}[5m]) / rate(documents_processed_total{job="multimodal-contract-extractor"}[5m])
+
+  # =============================================================================
+  # BUSINESS METRICS RECORDING RULES
+  # =============================================================================
+  - name: business_metrics_rules
+    interval: 1m
+    rules:
+      # Clause detection accuracy
+      - record: business:clause_detection_accuracy_1h
+        expr: avg_over_time(clause_detection_accuracy{job="multimodal-contract-extractor"}[1h])
+
+      - record: business:clause_detection_accuracy_24h
+        expr: avg_over_time(clause_detection_accuracy{job="multimodal-contract-extractor"}[24h])
+
+      # Contract processing throughput
+      - record: business:contracts_processed_rate_1h
+        expr: rate(contracts_processed_total{job="multimodal-contract-extractor"}[1h])
+
+      - record: business:contracts_processed_rate_24h
+        expr: rate(contracts_processed_total{job="multimodal-contract-extractor"}[24h])
+
+      # Clause types detected
+      - record: business:clause_types_detected_rate_1h
+        expr: rate(clause_types_detected_total{job="multimodal-contract-extractor"}[1h]) by (clause_type)
+
+      # Data quality metrics
+      - record: business:data_quality_score_1h
+        expr: avg_over_time(data_quality_score{job="multimodal-contract-extractor"}[1h])
+
+      # User engagement metrics
+      - record: business:active_users_1h
+        expr: count(increase(user_sessions_total{job="multimodal-contract-extractor"}[1h]) > 0) by (instance)
+
+  # =============================================================================
+  # INFRASTRUCTURE PERFORMANCE RECORDING RULES
+  # =============================================================================
+  - name: infrastructure_performance_rules
+    interval: 30s
+    rules:
+      # CPU utilization
+      - record: node:cpu_utilization_5m
+        expr: 100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)
+
+      - record: node:cpu_utilization_1h
+        expr: 100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[1h])) * 100)
+
+      # Memory utilization
+      - record: node:memory_utilization_5m
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100
+
+      # Disk utilization
+      - record: node:disk_utilization
+        expr: (1 - (node_filesystem_avail_bytes{fstype!="tmpfs"} / node_filesystem_size_bytes{fstype!="tmpfs"})) * 100
+
+      # Network I/O rates
+      - record: node:network_receive_rate_5m
+        expr: rate(node_network_receive_bytes_total[5m])
+
+      - record: node:network_transmit_rate_5m
+        expr: rate(node_network_transmit_bytes_total[5m])
+
+      # Disk I/O rates
+      - record: node:disk_read_rate_5m
+        expr: rate(node_disk_read_bytes_total[5m])
+
+      - record: node:disk_write_rate_5m
+        expr: rate(node_disk_written_bytes_total[5m])
+
+  # =============================================================================
+  # CONTAINER METRICS RECORDING RULES
+  # =============================================================================
+  - name: container_performance_rules
+    interval: 30s
+    rules:
+      # Container CPU usage
+      - record: container:cpu_usage_rate_5m
+        expr: rate(container_cpu_usage_seconds_total{name=~".*contract.*"}[5m]) * 100
+
+      # Container memory usage percentage
+      - record: container:memory_usage_percentage
+        expr: (container_memory_usage_bytes{name=~".*contract.*"} / container_spec_memory_limit_bytes{name=~".*contract.*"}) * 100
+
+      # Container network I/O
+      - record: container:network_receive_rate_5m
+        expr: rate(container_network_receive_bytes_total{name=~".*contract.*"}[5m])
+
+      - record: container:network_transmit_rate_5m
+        expr: rate(container_network_transmit_bytes_total{name=~".*contract.*"}[5m])
+
+      # Container restart rate
+      - record: container:restart_rate_1h
+        expr: rate(container_restarts_total{name=~".*contract.*"}[1h])
+
+  # =============================================================================
+  # MACHINE LEARNING MODEL PERFORMANCE RULES
+  # =============================================================================
+  - name: ml_model_performance_rules
+    interval: 1m
+    rules:
+      # Model inference rates
+      - record: ml:inference_rate_5m
+        expr: rate(model_inference_total{job="multimodal-contract-extractor"}[5m])
+
+      - record: ml:inference_rate_1h
+        expr: rate(model_inference_total{job="multimodal-contract-extractor"}[1h])
+
+      # Model inference latency
+      - record: ml:inference_duration_p50_5m
+        expr: histogram_quantile(0.50, rate(model_inference_duration_seconds_bucket{job="multimodal-contract-extractor"}[5m]))
+
+      - record: ml:inference_duration_p95_5m
+        expr: histogram_quantile(0.95, rate(model_inference_duration_seconds_bucket{job="multimodal-contract-extractor"}[5m]))
+
+      - record: ml:inference_duration_p99_5m
+        expr: histogram_quantile(0.99, rate(model_inference_duration_seconds_bucket{job="multimodal-contract-extractor"}[5m]))
+
+      # Model accuracy metrics
+      - record: ml:model_accuracy_1h
+        expr: avg_over_time(model_accuracy{job="multimodal-contract-extractor"}[1h]) by (model_name, model_version)
+
+      - record: ml:model_accuracy_24h
+        expr: avg_over_time(model_accuracy{job="multimodal-contract-extractor"}[24h]) by (model_name, model_version)
+
+      # Model error rates
+      - record: ml:inference_error_rate_5m
+        expr: rate(model_inference_failures_total{job="multimodal-contract-extractor"}[5m]) / rate(model_inference_total{job="multimodal-contract-extractor"}[5m])
+
+      - record: ml:inference_error_rate_1h
+        expr: rate(model_inference_failures_total{job="multimodal-contract-extractor"}[1h]) / rate(model_inference_total{job="multimodal-contract-extractor"}[1h])
+
+  # =============================================================================
+  # SLA AND SLI RECORDING RULES
+  # =============================================================================
+  - name: sla_sli_rules
+    interval: 1m
+    rules:
+      # Availability SLI (target: 99.9%)
+      - record: sli:availability_5m
+        expr: avg_over_time(up{job="multimodal-contract-extractor"}[5m])
+
+      - record: sli:availability_1h
+        expr: avg_over_time(up{job="multimodal-contract-extractor"}[1h])
+
+      - record: sli:availability_24h
+        expr: avg_over_time(up{job="multimodal-contract-extractor"}[24h])
+
+      # Latency SLI (target: 95% of requests < 5s)
+      - record: sli:latency_5m
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="multimodal-contract-extractor"}[5m])) < 5
+
+      - record: sli:latency_1h
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="multimodal-contract-extractor"}[1h])) < 5
+
+      # Error budget consumption
+      - record: sli:error_budget_consumption_5m
+        expr: 1 - (1 - app:http_error_rate_5m) / 0.999
+
+      - record: sli:error_budget_consumption_1h
+        expr: 1 - (1 - app:http_error_rate_1h) / 0.999
+
+      # Quality SLI (target: 95% accuracy)
+      - record: sli:quality_5m
+        expr: business:clause_detection_accuracy_1h > 0.95
+
+      - record: sli:quality_24h
+        expr: business:clause_detection_accuracy_24h > 0.95
+
+  # =============================================================================
+  # AGGREGATED HEALTH SCORES
+  # =============================================================================
+  - name: health_score_rules
+    interval: 5m
+    rules:
+      # Overall application health score (0-1)
+      - record: health:application_score
+        expr: |
+          (
+            sli:availability_5m * 0.4 +
+            (sli:latency_5m) * 0.3 +
+            (1 - app:http_error_rate_5m) * 0.2 +
+            sli:quality_5m * 0.1
+          )
+
+      # Infrastructure health score
+      - record: health:infrastructure_score
+        expr: |
+          (
+            ((100 - node:cpu_utilization_5m) / 100) * 0.3 +
+            ((100 - node:memory_utilization_5m) / 100) * 0.3 +
+            ((100 - node:disk_utilization) / 100) * 0.2 +
+            (up{job="node-exporter"}) * 0.2
+          )
+
+      # Business metrics health score
+      - record: health:business_score
+        expr: |
+          (
+            business:clause_detection_accuracy_1h * 0.5 +
+            (business:contracts_processed_rate_1h > 0) * 0.3 +
+            business:data_quality_score_1h * 0.2
+          )
+
+      # Combined health score
+      - record: health:overall_score
+        expr: |
+          (
+            health:application_score * 0.4 +
+            health:infrastructure_score * 0.35 +
+            health:business_score * 0.25
+          )

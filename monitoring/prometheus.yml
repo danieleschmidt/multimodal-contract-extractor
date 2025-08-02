@@ -1,26 +1,115 @@
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
+  external_labels:
+    cluster: 'multimodal-contract-extractor'
+    environment: 'production'
 
+# Alertmanager configuration
 alerting:
   alertmanagers:
     - static_configs:
-        - targets: []
+        - targets: ['alertmanager:9093']
+      scheme: http
+      timeout: 10s
+      api_version: v2
 
-rule_files: []
+# Rule files for alerting
+rule_files:
+  - "alert_rules.yml"
+  - "recording_rules.yml"
 
+# Scrape configurations
 scrape_configs:
+  # Main application metrics
   - job_name: 'multimodal-contract-extractor'
     static_configs:
       - targets: ['app:8501']
     metrics_path: '/metrics'
     scrape_interval: 10s
     scrape_timeout: 5s
+    honor_labels: true
+    params:
+      format: ['prometheus']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: app:8501
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'python_.*'
+        target_label: service
+        replacement: 'multimodal-contract-extractor'
 
+  # Prometheus self-monitoring
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']
+    scrape_interval: 30s
+    metrics_path: '/metrics'
 
+  # System metrics via node-exporter
   - job_name: 'node-exporter'
     static_configs:
       - targets: ['node-exporter:9100']
+    scrape_interval: 15s
+    metrics_path: '/metrics'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        regex: '(.+)'
+        replacement: '${1}'
+
+  # Application health checks
+  - job_name: 'health-checks'
+    static_configs:
+      - targets: ['app:8501']
+    metrics_path: '/health'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    scheme: http
+
+  # Docker container metrics (if using cAdvisor)
+  - job_name: 'docker-containers'
+    static_configs:
+      - targets: ['cadvisor:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+    honor_labels: true
+
+  # Grafana metrics
+  - job_name: 'grafana'
+    static_configs:
+      - targets: ['grafana:3000']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  # Custom business metrics
+  - job_name: 'business-metrics'
+    static_configs:
+      - targets: ['app:8501']
+    metrics_path: '/business-metrics'
+    scrape_interval: 60s
+    scrape_timeout: 10s
+
+# Remote storage configuration (optional)
+remote_write:
+  - url: "http://localhost:9201/api/v1/write"
+    queue_config:
+      max_samples_per_send: 1000
+      max_shards: 200
+      capacity: 2500
+    write_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'high_cardinality_.*'
+        action: drop
+
+# Storage configuration
+storage:
+  tsdb:
+    retention.time: 30d
+    retention.size: 50GB
+    wal-compression: true

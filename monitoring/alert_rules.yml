@@ -1,0 +1,309 @@
+groups:
+  # =============================================================================
+  # APPLICATION HEALTH & AVAILABILITY
+  # =============================================================================
+  - name: application_health
+    rules:
+      - alert: ApplicationDown
+        expr: up{job="multimodal-contract-extractor"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: multimodal-contract-extractor
+          category: availability
+        annotations:
+          summary: "Multimodal Contract Extractor application is down"
+          description: "The application at {{ $labels.instance }} has been down for more than 1 minute."
+          runbook_url: "https://github.com/danieleschmidt/multimodal-contract-extractor/wiki/Runbook-Application-Down"
+
+      - alert: HealthCheckFailing
+        expr: health_check_status{job="multimodal-contract-extractor"} == 0
+        for: 2m
+        labels:
+          severity: warning
+          service: multimodal-contract-extractor
+          category: health
+        annotations:
+          summary: "Application health check failing"
+          description: "Health check for {{ $labels.check_name }} on {{ $labels.instance }} has been failing for more than 2 minutes."
+
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="multimodal-contract-extractor"}[5m])) > 10
+        for: 5m
+        labels:
+          severity: warning
+          service: multimodal-contract-extractor
+          category: performance
+        annotations:
+          summary: "High response time detected"
+          description: "95th percentile response time is {{ $value }}s, which exceeds the 10s threshold."
+
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{job="multimodal-contract-extractor",status=~"5.."}[5m]) / rate(http_requests_total{job="multimodal-contract-extractor"}[5m]) > 0.1
+        for: 3m
+        labels:
+          severity: critical
+          service: multimodal-contract-extractor
+          category: errors
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }}, which exceeds the 10% threshold."
+
+  # =============================================================================
+  # PERFORMANCE & RESOURCE UTILIZATION
+  # =============================================================================
+  - name: performance_monitoring
+    rules:
+      - alert: HighCPUUsage
+        expr: (100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)) > 80
+        for: 5m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage on {{ $labels.instance }} is {{ $value }}%, which exceeds the 80% threshold."
+
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage on {{ $labels.instance }} is {{ $value }}%, which exceeds the 85% threshold."
+
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes{fstype!="tmpfs"} / node_filesystem_size_bytes{fstype!="tmpfs"}) * 100 < 10
+        for: 10m
+        labels:
+          severity: critical
+          category: storage
+        annotations:
+          summary: "Low disk space"
+          description: "Disk space on {{ $labels.device }} ({{ $labels.instance }}) is {{ $value }}%, which is below the 10% threshold."
+
+      - alert: DocumentProcessingBacklog
+        expr: document_processing_queue_size > 50
+        for: 5m
+        labels:
+          severity: warning
+          service: multimodal-contract-extractor
+          category: performance
+        annotations:
+          summary: "Document processing backlog detected"
+          description: "Processing queue has {{ $value }} documents waiting, which exceeds the 50 document threshold."
+
+      - alert: SlowDocumentProcessing
+        expr: histogram_quantile(0.95, rate(document_processing_duration_seconds_bucket[5m])) > 300
+        for: 10m
+        labels:
+          severity: warning
+          service: multimodal-contract-extractor
+          category: performance
+        annotations:
+          summary: "Slow document processing detected"
+          description: "95th percentile document processing time is {{ $value }}s, which exceeds the 5-minute threshold."
+
+  # =============================================================================
+  # BUSINESS METRICS & SLA MONITORING
+  # =============================================================================
+  - name: business_metrics
+    rules:
+      - alert: LowClauseDetectionAccuracy
+        expr: avg_over_time(clause_detection_accuracy[1h]) < 0.85
+        for: 15m
+        labels:
+          severity: warning
+          service: multimodal-contract-extractor
+          category: quality
+        annotations:
+          summary: "Low clause detection accuracy"
+          description: "Average clause detection accuracy over the last hour is {{ $value | humanizePercentage }}, which is below the 85% threshold."
+
+      - alert: HighDocumentProcessingFailureRate
+        expr: rate(document_processing_failures_total[5m]) / rate(document_processing_total[5m]) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+          service: multimodal-contract-extractor
+          category: quality
+        annotations:
+          summary: "High document processing failure rate"
+          description: "Document processing failure rate is {{ $value | humanizePercentage }}, which exceeds the 5% threshold."
+
+      - alert: OCRServiceUnavailable
+        expr: up{job="ocr-service"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: multimodal-contract-extractor
+          category: dependency
+        annotations:
+          summary: "OCR service unavailable"
+          description: "External OCR service has been unavailable for more than 2 minutes."
+
+      - alert: VisionModelResponseTime
+        expr: histogram_quantile(0.90, rate(vision_model_inference_duration_seconds_bucket[5m])) > 30
+        for: 5m
+        labels:
+          severity: warning
+          service: multimodal-contract-extractor
+          category: performance
+        annotations:
+          summary: "Vision model inference time high"
+          description: "90th percentile vision model inference time is {{ $value }}s, which exceeds the 30s threshold."
+
+  # =============================================================================
+  # SECURITY & COMPLIANCE
+  # =============================================================================
+  - name: security_monitoring
+    rules:
+      - alert: UnauthorizedAccessAttempt
+        expr: increase(http_requests_total{status="401"}[5m]) > 10
+        for: 1m
+        labels:
+          severity: warning
+          category: security
+        annotations:
+          summary: "Multiple unauthorized access attempts"
+          description: "{{ $value }} unauthorized access attempts detected in the last 5 minutes from {{ $labels.instance }}."
+
+      - alert: SuspiciousFileUpload
+        expr: increase(file_upload_security_violations_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          category: security
+        annotations:
+          summary: "Suspicious file upload detected"
+          description: "{{ $value }} security violations detected in file uploads in the last 5 minutes."
+
+      - alert: DataProcessingComplianceViolation
+        expr: increase(gdpr_compliance_violations_total[1h]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          category: compliance
+        annotations:
+          summary: "GDPR compliance violation detected"
+          description: "{{ $value }} GDPR compliance violations detected in the last hour."
+
+  # =============================================================================
+  # INFRASTRUCTURE & DEPENDENCIES
+  # =============================================================================
+  - name: infrastructure_monitoring
+    rules:
+      - alert: PrometheusDown
+        expr: up{job="prometheus"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: monitoring
+        annotations:
+          summary: "Prometheus server is down"
+          description: "Prometheus monitoring server has been down for more than 1 minute."
+
+      - alert: GrafanaDown
+        expr: up{job="grafana"} == 0
+        for: 2m
+        labels:
+          severity: warning
+          category: monitoring
+        annotations:
+          summary: "Grafana dashboard server is down"
+          description: "Grafana dashboard server has been down for more than 2 minutes."
+
+      - alert: ContainerRestartLoop
+        expr: increase(container_restarts_total[10m]) > 3
+        for: 5m
+        labels:
+          severity: warning
+          category: infrastructure
+        annotations:
+          summary: "Container restart loop detected"
+          description: "Container {{ $labels.container_name }} has restarted {{ $value }} times in the last 10 minutes."
+
+      - alert: HighDockerCPUUsage
+        expr: rate(container_cpu_usage_seconds_total{name=~".*contract.*"}[5m]) * 100 > 80
+        for: 10m
+        labels:
+          severity: warning
+          category: infrastructure
+        annotations:
+          summary: "High Docker container CPU usage"
+          description: "Container {{ $labels.name }} CPU usage is {{ $value }}%, which exceeds the 80% threshold."
+
+  # =============================================================================
+  # DATA PIPELINE & QUALITY
+  # =============================================================================
+  - name: data_pipeline_monitoring
+    rules:
+      - alert: DataPipelineStalled
+        expr: increase(documents_processed_total[5m]) == 0 and document_processing_queue_size > 0
+        for: 10m
+        labels:
+          severity: critical
+          service: multimodal-contract-extractor
+          category: pipeline
+        annotations:
+          summary: "Data pipeline appears stalled"
+          description: "No documents have been processed in the last 5 minutes despite having {{ $value }} documents in queue."
+
+      - alert: HighDataCorruption
+        expr: rate(data_validation_failures_total[5m]) / rate(documents_processed_total[5m]) > 0.02
+        for: 5m
+        labels:
+          severity: warning
+          service: multimodal-contract-extractor
+          category: quality
+        annotations:
+          summary: "High data corruption rate detected"
+          description: "Data validation failure rate is {{ $value | humanizePercentage }}, which exceeds the 2% threshold."
+
+      - alert: ModelInferenceFailures
+        expr: rate(model_inference_failures_total[5m]) > 0.1
+        for: 3m
+        labels:
+          severity: warning
+          service: multimodal-contract-extractor
+          category: ml
+        annotations:
+          summary: "High model inference failure rate"
+          description: "Model inference failure rate is {{ $value }}/sec, which indicates potential model or infrastructure issues."
+
+  # =============================================================================
+  # EXTERNAL DEPENDENCIES
+  # =============================================================================
+  - name: external_dependencies
+    rules:
+      - alert: ExternalAPIDown
+        expr: probe_success{job="blackbox"} == 0
+        for: 2m
+        labels:
+          severity: warning
+          category: dependency
+        annotations:
+          summary: "External API endpoint down"
+          description: "External API {{ $labels.instance }} has been unreachable for more than 2 minutes."
+
+      - alert: ExternalAPIHighLatency
+        expr: probe_duration_seconds{job="blackbox"} > 5
+        for: 5m
+        labels:
+          severity: warning
+          category: dependency
+        annotations:
+          summary: "External API high latency"
+          description: "External API {{ $labels.instance }} response time is {{ $value }}s, which exceeds the 5s threshold."
+
+      - alert: DatabaseConnectionPoolExhausted
+        expr: database_connections_active / database_connections_max > 0.9
+        for: 5m
+        labels:
+          severity: critical
+          category: database
+        annotations:
+          summary: "Database connection pool nearly exhausted"
+          description: "Database connection pool utilization is {{ $value | humanizePercentage }}, which exceeds the 90% threshold."
