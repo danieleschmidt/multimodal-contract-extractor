@@ -149,20 +149,64 @@ build: ## Build package
 	python -m build
 
 # Docker
-docker-build: ## Build Docker image
-	docker build -t multimodal-contract-extractor:latest .
+docker-build: ## Build production Docker image
+	$(DOCKER) build --target production -t $(PROJECT_NAME):$(VERSION) -t $(PROJECT_NAME):latest .
+	@echo "$(GREEN)✅ Production image built: $(PROJECT_NAME):$(VERSION)$(RESET)"
 
-docker-build-dev: ## Build Docker image for development
-	docker build --target builder -t multimodal-contract-extractor:dev .
+docker-build-dev: ## Build development Docker image
+	$(DOCKER) build --target development -t $(PROJECT_NAME):dev .
+	@echo "$(GREEN)✅ Development image built: $(PROJECT_NAME):dev$(RESET)"
+
+docker-build-security: ## Build security-hardened Docker image
+	$(DOCKER) build --target security -t $(PROJECT_NAME):security .
+	@echo "$(GREEN)✅ Security-hardened image built: $(PROJECT_NAME):security$(RESET)"
+
+docker-build-ci: ## Build CI Docker image
+	$(DOCKER) build --target ci -t $(PROJECT_NAME):ci .
+	@echo "$(GREEN)✅ CI image built: $(PROJECT_NAME):ci$(RESET)"
+
+docker-build-all: ## Build all Docker images
+	@echo "$(BLUE)🔨 Building all Docker images...$(RESET)"
+	$(MAKE) docker-build-dev
+	$(MAKE) docker-build
+	$(MAKE) docker-build-security
+	$(MAKE) docker-build-ci
+	@echo "$(GREEN)✅ All Docker images built successfully$(RESET)"
 
 docker-run: ## Run application in Docker
-	docker-compose up -d
+	$(DOCKER_COMPOSE) up -d
+	@echo "$(GREEN)✅ Application started at http://localhost:8501$(RESET)"
+
+docker-run-dev: ## Run development environment
+	$(DOCKER_COMPOSE) -f docker-compose.dev.yml up -d
+	@echo "$(GREEN)✅ Development environment started$(RESET)"
 
 docker-down: ## Stop Docker containers
-	docker-compose down
+	$(DOCKER_COMPOSE) down
+	$(DOCKER_COMPOSE) -f docker-compose.dev.yml down 2>/dev/null || true
 
 docker-logs: ## View Docker logs
-	docker-compose logs -f
+	$(DOCKER_COMPOSE) logs -f
+
+docker-push: ## Push Docker images to registry
+	$(DOCKER) tag $(PROJECT_NAME):$(VERSION) $(DOCKER_IMAGE):$(VERSION)
+	$(DOCKER) tag $(PROJECT_NAME):latest $(DOCKER_IMAGE):latest
+	$(DOCKER) push $(DOCKER_IMAGE):$(VERSION)
+	$(DOCKER) push $(DOCKER_IMAGE):latest
+	@echo "$(GREEN)✅ Images pushed to $(DOCKER_REGISTRY)$(RESET)"
+
+docker-pull: ## Pull Docker images from registry
+	$(DOCKER) pull $(DOCKER_IMAGE):$(VERSION)
+	$(DOCKER) pull $(DOCKER_IMAGE):latest
+
+docker-clean: ## Clean Docker artifacts
+	$(DOCKER) system prune -f
+	$(DOCKER) image prune -f
+	@echo "$(GREEN)✅ Docker artifacts cleaned$(RESET)"
+
+docker-scan: ## Scan Docker images for vulnerabilities
+	$(DOCKER) scout cves $(PROJECT_NAME):latest
+	@echo "$(GREEN)✅ Docker image vulnerability scan completed$(RESET)"
 
 # CI/CD helpers
 ci-setup: ## Setup CI environment

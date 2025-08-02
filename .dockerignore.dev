@@ -1,0 +1,72 @@
+# Development-specific Docker ignore
+# Use this for development builds: docker build -f Dockerfile.dev
+
+# Git (keep minimal git for development)
+.git/hooks
+.git/logs
+.git/refs/remotes
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+.coverage
+.coverage.*
+htmlcov
+.mypy_cache
+.ruff_cache
+
+# Virtual environments (don't copy, create fresh in container)
+.venv
+.env
+venv/
+ENV/
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+result.json
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# IDE configurations (keep for development)
+# .vscode/ - Keep for DevContainer
+# .idea/ - Keep if using IntelliJ
+
+# Documentation (keep for development)
+# docs/ - Keep for reference
+
+# Large datasets (exclude from container)
+data/large_datasets/
+*.zip
+*.tar.gz
+*.7z
+
+# Model files (download separately)
+models/*.bin
+models/*.safetensors
+models/*.onnx
+
+# Logs
+*.log
+logs/
+
+# Test outputs
+test_output/
+coverage_report/
