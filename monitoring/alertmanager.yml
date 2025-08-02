@@ -1,0 +1,406 @@
+global:
+  # SMTP configuration for email alerts
+  smtp_smarthost: 'localhost:587'
+  smtp_from: 'alerts@terragon.ai'
+  smtp_auth_username: 'alerts@terragon.ai'
+  smtp_auth_password: 'your-smtp-password'
+  smtp_require_tls: true
+
+  # Slack API URL (if using global slack config)
+  slack_api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+
+  # HTTP configuration
+  http_config:
+    follow_redirects: true
+
+# Templates for alert formatting
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+# Route tree for alert routing
+route:
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1h
+  receiver: 'web.hook'
+  
+  routes:
+    # Critical alerts - immediate notification
+    - match:
+        severity: critical
+      receiver: critical-alerts
+      group_wait: 0s
+      group_interval: 5s
+      repeat_interval: 5m
+      continue: true
+    
+    # Application-specific alerts
+    - match:
+        service: multimodal-contract-extractor
+      receiver: application-team
+      group_by: ['alertname', 'instance']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 30m
+      routes:
+        # High priority application alerts
+        - match:
+            category: availability
+          receiver: application-critical
+          group_wait: 10s
+          repeat_interval: 10m
+        
+        # Performance alerts
+        - match:
+            category: performance
+          receiver: performance-team
+          group_wait: 5m
+          repeat_interval: 1h
+        
+        # Security alerts
+        - match:
+            category: security
+          receiver: security-team
+          group_wait: 0s
+          repeat_interval: 15m
+        
+        # Compliance alerts
+        - match:
+            category: compliance
+          receiver: compliance-team
+          group_wait: 0s
+          repeat_interval: 30m
+    
+    # Infrastructure alerts
+    - match_re:
+        alertname: ^(HighCPUUsage|HighMemoryUsage|DiskSpaceLow)$
+      receiver: infrastructure-team
+      group_by: ['alertname', 'instance']
+      group_wait: 2m
+      repeat_interval: 30m
+    
+    # Monitoring system alerts
+    - match_re:
+        alertname: ^(PrometheusDown|GrafanaDown)$
+      receiver: monitoring-team
+      group_wait: 1m
+      repeat_interval: 15m
+    
+    # Default route for unmatched alerts
+    - receiver: default-notifications
+
+# Inhibition rules to suppress redundant alerts
+inhibit_rules:
+  # Suppress non-critical alerts when critical ones are firing
+  - source_match:
+      severity: critical
+    target_match:
+      severity: warning
+    equal: ['alertname', 'instance']
+  
+  # Suppress individual component alerts when application is down
+  - source_match:
+      alertname: ApplicationDown
+    target_match_re:
+      alertname: ^(HighResponseTime|HighErrorRate|DocumentProcessingBacklog)$
+    equal: ['instance']
+  
+  # Suppress high-level alerts when infrastructure is down
+  - source_match_re:
+      alertname: ^(HighCPUUsage|HighMemoryUsage)$
+    target_match:
+      alertname: ApplicationDown
+    equal: ['instance']
+
+# Receiver configurations
+receivers:
+  # Default webhook receiver
+  - name: 'web.hook'
+    webhook_configs:
+      - url: 'http://localhost:5001/alerts'
+        send_resolved: true
+        http_config:
+          basic_auth:
+            username: 'alert-user'
+            password: 'alert-password'
+        title: 'Multimodal Contract Extractor Alert'
+        text: 'Alert: {{ .GroupLabels.alertname }} - {{ .CommonAnnotations.summary }}'
+
+  # Critical alerts - multiple channels
+  - name: 'critical-alerts'
+    email_configs:
+      - to: 'oncall@terragon.ai'
+        subject: '🚨 CRITICAL: {{ .GroupLabels.alertname }}'
+        body: |
+          CRITICAL ALERT
+          
+          Alert: {{ .GroupLabels.alertname }}
+          Severity: {{ .CommonLabels.severity }}
+          Instance: {{ .CommonLabels.instance }}
+          
+          Summary: {{ .CommonAnnotations.summary }}
+          Description: {{ .CommonAnnotations.description }}
+          
+          Runbook: {{ .CommonAnnotations.runbook_url }}
+          
+          Time: {{ .CommonAnnotations.timestamp }}
+        html: |
+          <h2 style="color: red;">🚨 CRITICAL ALERT</h2>
+          <p><strong>Alert:</strong> {{ .GroupLabels.alertname }}</p>
+          <p><strong>Severity:</strong> {{ .CommonLabels.severity }}</p>
+          <p><strong>Instance:</strong> {{ .CommonLabels.instance }}</p>
+          <p><strong>Summary:</strong> {{ .CommonAnnotations.summary }}</p>
+          <p><strong>Description:</strong> {{ .CommonAnnotations.description }}</p>
+          <p><strong>Runbook:</strong> <a href="{{ .CommonAnnotations.runbook_url }}">{{ .CommonAnnotations.runbook_url }}</a></p>
+          <p><strong>Time:</strong> {{ .CommonAnnotations.timestamp }}</p>
+    
+    slack_configs:
+      - api_url: 'https://hooks.slack.com/services/YOUR/CRITICAL/WEBHOOK'
+        channel: '#alerts-critical'
+        title: '🚨 CRITICAL: {{ .GroupLabels.alertname }}'
+        text: |
+          *CRITICAL ALERT*
+          
+          *Alert:* {{ .GroupLabels.alertname }}
+          *Severity:* {{ .CommonLabels.severity }}
+          *Instance:* {{ .CommonLabels.instance }}
+          
+          *Summary:* {{ .CommonAnnotations.summary }}
+          *Description:* {{ .CommonAnnotations.description }}
+          
+          *Runbook:* {{ .CommonAnnotations.runbook_url }}
+        color: 'danger'
+        send_resolved: true
+    
+    webhook_configs:
+      - url: 'http://localhost:5001/critical-alerts'
+        send_resolved: true
+
+  # Application team notifications
+  - name: 'application-team'
+    email_configs:
+      - to: 'app-team@terragon.ai'
+        subject: 'MCE Alert: {{ .GroupLabels.alertname }}'
+        body: |
+          Multimodal Contract Extractor Alert
+          
+          Alert: {{ .GroupLabels.alertname }}
+          Severity: {{ .CommonLabels.severity }}
+          Service: {{ .CommonLabels.service }}
+          Instance: {{ .CommonLabels.instance }}
+          
+          Summary: {{ .CommonAnnotations.summary }}
+          Description: {{ .CommonAnnotations.description }}
+          
+          {{ if .CommonAnnotations.runbook_url }}
+          Runbook: {{ .CommonAnnotations.runbook_url }}
+          {{ end }}
+          
+          Dashboard: http://grafana.example.com/d/multimodal-contract-extractor
+    
+    slack_configs:
+      - api_url: 'https://hooks.slack.com/services/YOUR/APP/WEBHOOK'
+        channel: '#mce-alerts'
+        title: 'MCE: {{ .GroupLabels.alertname }}'
+        text: |
+          *Alert:* {{ .GroupLabels.alertname }}
+          *Severity:* {{ .CommonLabels.severity }}
+          *Instance:* {{ .CommonLabels.instance }}
+          
+          {{ .CommonAnnotations.summary }}
+        color: '{{ if eq .CommonLabels.severity "critical" }}danger{{ else if eq .CommonLabels.severity "warning" }}warning{{ else }}good{{ end }}'
+
+  # Application critical alerts
+  - name: 'application-critical'
+    email_configs:
+      - to: 'app-oncall@terragon.ai'
+        subject: '🚨 MCE CRITICAL: {{ .GroupLabels.alertname }}'
+        body: |
+          CRITICAL APPLICATION ALERT
+          
+          The Multimodal Contract Extractor application is experiencing a critical issue.
+          
+          Alert: {{ .GroupLabels.alertname }}
+          Instance: {{ .CommonLabels.instance }}
+          
+          Summary: {{ .CommonAnnotations.summary }}
+          Description: {{ .CommonAnnotations.description }}
+          
+          IMMEDIATE ACTION REQUIRED
+          
+          Runbook: {{ .CommonAnnotations.runbook_url }}
+          Dashboard: http://grafana.example.com/d/multimodal-contract-extractor
+    
+    slack_configs:
+      - api_url: 'https://hooks.slack.com/services/YOUR/APP/WEBHOOK'
+        channel: '#mce-critical'
+        title: '🚨 MCE CRITICAL: {{ .GroupLabels.alertname }}'
+        text: |
+          *CRITICAL APPLICATION ALERT*
+          
+          The Multimodal Contract Extractor is experiencing a critical issue.
+          
+          *Alert:* {{ .GroupLabels.alertname }}
+          *Instance:* {{ .CommonLabels.instance }}
+          *Summary:* {{ .CommonAnnotations.summary }}
+          
+          *IMMEDIATE ACTION REQUIRED*
+        color: 'danger'
+
+  # Performance team notifications
+  - name: 'performance-team'
+    email_configs:
+      - to: 'performance@terragon.ai'
+        subject: 'MCE Performance Alert: {{ .GroupLabels.alertname }}'
+        body: |
+          Performance Alert for Multimodal Contract Extractor
+          
+          Alert: {{ .GroupLabels.alertname }}
+          Instance: {{ .CommonLabels.instance }}
+          
+          Summary: {{ .CommonAnnotations.summary }}
+          Description: {{ .CommonAnnotations.description }}
+          
+          Performance Dashboard: http://grafana.example.com/d/mce-performance
+    
+    slack_configs:
+      - api_url: 'https://hooks.slack.com/services/YOUR/PERF/WEBHOOK'
+        channel: '#performance-alerts'
+        title: 'MCE Performance: {{ .GroupLabels.alertname }}'
+        text: '{{ .CommonAnnotations.summary }}'
+        color: 'warning'
+
+  # Security team notifications
+  - name: 'security-team'
+    email_configs:
+      - to: 'security@terragon.ai'
+        subject: '🔒 MCE Security Alert: {{ .GroupLabels.alertname }}'
+        body: |
+          SECURITY ALERT
+          
+          A security-related alert has been triggered for the Multimodal Contract Extractor.
+          
+          Alert: {{ .GroupLabels.alertname }}
+          Severity: {{ .CommonLabels.severity }}
+          Instance: {{ .CommonLabels.instance }}
+          
+          Summary: {{ .CommonAnnotations.summary }}
+          Description: {{ .CommonAnnotations.description }}
+          
+          Security Dashboard: http://grafana.example.com/d/mce-security
+        headers:
+          X-Priority: High
+    
+    slack_configs:
+      - api_url: 'https://hooks.slack.com/services/YOUR/SEC/WEBHOOK'
+        channel: '#security-alerts'
+        title: '🔒 MCE Security: {{ .GroupLabels.alertname }}'
+        text: |
+          *SECURITY ALERT*
+          
+          *Alert:* {{ .GroupLabels.alertname }}
+          *Severity:* {{ .CommonLabels.severity }}
+          *Instance:* {{ .CommonLabels.instance }}
+          
+          {{ .CommonAnnotations.summary }}
+        color: 'danger'
+
+  # Compliance team notifications
+  - name: 'compliance-team'
+    email_configs:
+      - to: 'compliance@terragon.ai'
+        subject: '📋 MCE Compliance Alert: {{ .GroupLabels.alertname }}'
+        body: |
+          COMPLIANCE ALERT
+          
+          A compliance-related issue has been detected.
+          
+          Alert: {{ .GroupLabels.alertname }}
+          Instance: {{ .CommonLabels.instance }}
+          
+          Summary: {{ .CommonAnnotations.summary }}
+          Description: {{ .CommonAnnotations.description }}
+          
+          Compliance Dashboard: http://grafana.example.com/d/mce-compliance
+
+  # Infrastructure team notifications
+  - name: 'infrastructure-team'
+    email_configs:
+      - to: 'infra@terragon.ai'
+        subject: 'Infrastructure Alert: {{ .GroupLabels.alertname }}'
+        body: |
+          Infrastructure Alert
+          
+          Alert: {{ .GroupLabels.alertname }}
+          Instance: {{ .CommonLabels.instance }}
+          
+          Summary: {{ .CommonAnnotations.summary }}
+          Description: {{ .CommonAnnotations.description }}
+          
+          Infrastructure Dashboard: http://grafana.example.com/d/infrastructure
+    
+    slack_configs:
+      - api_url: 'https://hooks.slack.com/services/YOUR/INFRA/WEBHOOK'
+        channel: '#infrastructure'
+        title: 'Infrastructure: {{ .GroupLabels.alertname }}'
+        text: '{{ .CommonAnnotations.summary }}'
+
+  # Monitoring team notifications
+  - name: 'monitoring-team'
+    email_configs:
+      - to: 'monitoring@terragon.ai'
+        subject: 'Monitoring System Alert: {{ .GroupLabels.alertname }}'
+        body: |
+          Monitoring System Alert
+          
+          Alert: {{ .GroupLabels.alertname }}
+          Instance: {{ .CommonLabels.instance }}
+          
+          Summary: {{ .CommonAnnotations.summary }}
+          Description: {{ .CommonAnnotations.description }}
+    
+    slack_configs:
+      - api_url: 'https://hooks.slack.com/services/YOUR/MON/WEBHOOK'
+        channel: '#monitoring'
+        title: 'Monitoring: {{ .GroupLabels.alertname }}'
+        text: '{{ .CommonAnnotations.summary }}'
+        color: 'warning'
+
+  # Default notifications
+  - name: 'default-notifications'
+    webhook_configs:
+      - url: 'http://localhost:5001/default-alerts'
+        send_resolved: true
+        title: 'MCE Default Alert: {{ .GroupLabels.alertname }}'
+        text: '{{ .CommonAnnotations.summary }}'
+
+# Time intervals for various operations
+time_intervals:
+  - name: 'business-hours'
+    time_intervals:
+      - times:
+          - start_time: '09:00'
+            end_time: '17:00'
+        weekdays: ['monday:friday']
+        location: 'UTC'
+  
+  - name: 'after-hours'
+    time_intervals:
+      - times:
+          - start_time: '17:01'
+            end_time: '08:59'
+        weekdays: ['monday:friday']
+        location: 'UTC'
+      - weekdays: ['saturday', 'sunday']
+        location: 'UTC'
+
+# Mute time intervals (for planned maintenance)
+mute_time_intervals:
+  - name: 'maintenance-window'
+    time_intervals:
+      - times:
+          - start_time: '02:00'
+            end_time: '04:00'
+        weekdays: ['sunday']
+        location: 'UTC'

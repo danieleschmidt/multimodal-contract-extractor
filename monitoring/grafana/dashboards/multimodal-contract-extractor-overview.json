@@ -1,0 +1,442 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Multimodal Contract Extractor - Overview Dashboard",
+    "tags": ["multimodal", "contract", "extraction", "overview"],
+    "style": "dark",
+    "timezone": "browser",
+    "refresh": "30s",
+    "schemaVersion": 30,
+    "version": 1,
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "timepicker": {
+      "refresh_intervals": ["5s", "10s", "30s", "1m", "5m", "15m", "30m", "1h", "2h", "1d"]
+    },
+    "templating": {
+      "list": [
+        {
+          "name": "instance",
+          "type": "query",
+          "query": "label_values(up{job=\"multimodal-contract-extractor\"}, instance)",
+          "refresh": 1,
+          "includeAll": true,
+          "allValue": ".*",
+          "multi": true
+        }
+      ]
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "System Health Overview",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 24, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "health:overall_score",
+            "legendFormat": "Overall Health",
+            "refId": "A"
+          },
+          {
+            "expr": "health:application_score", 
+            "legendFormat": "Application Health",
+            "refId": "B"
+          },
+          {
+            "expr": "health:infrastructure_score",
+            "legendFormat": "Infrastructure Health", 
+            "refId": "C"
+          },
+          {
+            "expr": "health:business_score",
+            "legendFormat": "Business Metrics Health",
+            "refId": "D"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percentunit",
+            "min": 0,
+            "max": 1,
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 0.7},
+                {"color": "green", "value": 0.9}
+              ]
+            }
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "orientation": "horizontal",
+          "textMode": "auto",
+          "colorMode": "background"
+        }
+      },
+      {
+        "id": 2,
+        "title": "Application Availability",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+        "targets": [
+          {
+            "expr": "up{job=\"multimodal-contract-extractor\", instance=~\"$instance\"}",
+            "legendFormat": "{{instance}} Uptime",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "min": 0,
+            "max": 1,
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "stepAfter",
+              "lineWidth": 2,
+              "fillOpacity": 20,
+              "gradientMode": "none",
+              "spanNulls": false,
+              "pointSize": 5,
+              "stacking": {"mode": "none", "group": "A"},
+              "axisPlacement": "auto",
+              "axisLabel": "",
+              "scaleDistribution": {"type": "linear"}
+            }
+          }
+        },
+        "options": {
+          "tooltip": {"mode": "single", "sort": "none"},
+          "legend": {"displayMode": "list", "placement": "bottom"},
+          "displayMode": "list"
+        }
+      },
+      {
+        "id": 3,
+        "title": "Request Rate & Error Rate",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+        "targets": [
+          {
+            "expr": "sum(app:http_request_rate_5m{instance=~\"$instance\"})",
+            "legendFormat": "Request Rate",
+            "refId": "A"
+          },
+          {
+            "expr": "sum(app:http_error_rate_5m{instance=~\"$instance\"}) * 100",
+            "legendFormat": "Error Rate %",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps",
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "fillOpacity": 20
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "Error Rate %"},
+              "properties": [
+                {"id": "unit", "value": "percent"},
+                {"id": "custom.axisPlacement", "value": "right"}
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": 4,
+        "title": "Response Time Percentiles",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+        "targets": [
+          {
+            "expr": "app:http_request_duration_p50_5m{instance=~\"$instance\"}",
+            "legendFormat": "P50",
+            "refId": "A"
+          },
+          {
+            "expr": "app:http_request_duration_p95_5m{instance=~\"$instance\"}",
+            "legendFormat": "P95",
+            "refId": "B"
+          },
+          {
+            "expr": "app:http_request_duration_p99_5m{instance=~\"$instance\"}",
+            "legendFormat": "P99",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2
+            }
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Document Processing Metrics",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+        "targets": [
+          {
+            "expr": "app:document_processing_rate_5m{instance=~\"$instance\"}",
+            "legendFormat": "Documents/sec",
+            "refId": "A"
+          },
+          {
+            "expr": "document_processing_queue_size{instance=~\"$instance\"}",
+            "legendFormat": "Queue Size",
+            "refId": "B"
+          },
+          {
+            "expr": "app:document_processing_failure_rate_5m{instance=~\"$instance\"} * 100",
+            "legendFormat": "Failure Rate %",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "Failure Rate %"},
+              "properties": [
+                {"id": "unit", "value": "percent"},
+                {"id": "custom.axisPlacement", "value": "right"}
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": 6,
+        "title": "Business Metrics",
+        "type": "stat",
+        "gridPos": {"h": 6, "w": 8, "x": 0, "y": 20},
+        "targets": [
+          {
+            "expr": "business:clause_detection_accuracy_1h{instance=~\"$instance\"}",
+            "legendFormat": "Clause Detection Accuracy",
+            "refId": "A"
+          },
+          {
+            "expr": "sum(business:contracts_processed_rate_1h{instance=~\"$instance\"}) * 3600",
+            "legendFormat": "Contracts/Hour",
+            "refId": "B"
+          },
+          {
+            "expr": "business:data_quality_score_1h{instance=~\"$instance\"}",
+            "legendFormat": "Data Quality Score",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percentunit",
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 0.8},
+                {"color": "green", "value": 0.95}
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "Contracts/Hour"},
+              "properties": [{"id": "unit", "value": "short"}]
+            }
+          ]
+        },
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"]
+          },
+          "orientation": "horizontal",
+          "colorMode": "background"
+        }
+      },
+      {
+        "id": 7,
+        "title": "System Resources",
+        "type": "timeseries",
+        "gridPos": {"h": 6, "w": 8, "x": 8, "y": 20},
+        "targets": [
+          {
+            "expr": "node:cpu_utilization_5m{instance=~\"$instance\"}",
+            "legendFormat": "CPU %",
+            "refId": "A"
+          },
+          {
+            "expr": "node:memory_utilization_5m{instance=~\"$instance\"}",
+            "legendFormat": "Memory %",
+            "refId": "B"
+          },
+          {
+            "expr": "node:disk_utilization{instance=~\"$instance\"}",
+            "legendFormat": "Disk %",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2
+            }
+          }
+        }
+      },
+      {
+        "id": 8,
+        "title": "ML Model Performance",
+        "type": "timeseries",
+        "gridPos": {"h": 6, "w": 8, "x": 16, "y": 20},
+        "targets": [
+          {
+            "expr": "ml:inference_rate_5m{instance=~\"$instance\"}",
+            "legendFormat": "Inferences/sec",
+            "refId": "A"
+          },
+          {
+            "expr": "ml:inference_duration_p95_5m{instance=~\"$instance\"}",
+            "legendFormat": "P95 Latency",
+            "refId": "B"
+          },
+          {
+            "expr": "ml:inference_error_rate_5m{instance=~\"$instance\"} * 100",
+            "legendFormat": "Error Rate %",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "P95 Latency"},
+              "properties": [
+                {"id": "unit", "value": "s"},
+                {"id": "custom.axisPlacement", "value": "right"}
+              ]
+            },
+            {
+              "matcher": {"id": "byName", "options": "Error Rate %"},
+              "properties": [
+                {"id": "unit", "value": "percent"},
+                {"id": "custom.axisPlacement", "value": "right"}
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": 9,
+        "title": "SLA Compliance",
+        "type": "bargauge",
+        "gridPos": {"h": 6, "w": 12, "x": 0, "y": 26},
+        "targets": [
+          {
+            "expr": "sli:availability_24h{instance=~\"$instance\"}",
+            "legendFormat": "Availability SLA (99.9%)",
+            "refId": "A"
+          },
+          {
+            "expr": "sli:latency_1h{instance=~\"$instance\"}",
+            "legendFormat": "Latency SLA (95% < 5s)",
+            "refId": "B"
+          },
+          {
+            "expr": "sli:quality_24h{instance=~\"$instance\"}",
+            "legendFormat": "Quality SLA (95% accuracy)",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percentunit",
+            "min": 0.99,
+            "max": 1,
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0.99},
+                {"color": "yellow", "value": 0.995},
+                {"color": "green", "value": 0.999}
+              ]
+            }
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"]
+          },
+          "orientation": "horizontal",
+          "displayMode": "gradient"
+        }
+      },
+      {
+        "id": 10,
+        "title": "Recent Alerts",
+        "type": "alertlist",
+        "gridPos": {"h": 6, "w": 12, "x": 12, "y": 26},
+        "options": {
+          "showOptions": "current",
+          "maxItems": 20,
+          "sortOrder": 1,
+          "dashboardAlerts": false,
+          "alertInstanceLabelFilter": "",
+          "tags": ["multimodal-contract-extractor"]
+        }
+      }
+    ],
+    "annotations": {
+      "list": [
+        {
+          "name": "Deployments",
+          "datasource": "Prometheus",
+          "enable": true,
+          "expr": "changes(process_start_time_seconds{job=\"multimodal-contract-extractor\"}[1h])",
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "titleFormat": "Deployment",
+          "tagKeys": "instance"
+        }
+      ]
+    }
+  }
+}
