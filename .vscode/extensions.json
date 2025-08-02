@@ -1,39 +1,79 @@
 {
   "recommendations": [
+    // Python Development
     "ms-python.python",
+    "ms-python.vscode-pylance",
     "ms-python.black-formatter",
-    "ms-python.mypy-type-checker",
+    "ms-python.isort",
     "charliermarsh.ruff",
-    "ms-python.debugpy",
-    "ms-toolsai.jupyter",
-    "ryanluker.vscode-coverage-gutters",
-    "littlefoxteam.vscode-python-test-adapter",
+    "ms-python.mypy-type-checker",
+    
+    // Testing
     "ms-vscode.test-adapter-converter",
-    "esbenp.prettier-vscode",
-    "redhat.vscode-yaml",
-    "ms-vscode.vscode-json",
-    "ms-azuretools.vscode-docker",
-    "github.vscode-github-actions",
+    "hbenl.vscode-test-explorer",
+    "littlefoxteam.vscode-python-test-adapter",
+    "ryanluker.vscode-coverage-gutters",
+    
+    // Git and GitHub
     "github.copilot",
     "github.copilot-chat",
-    "ms-vscode.vscode-github-pullrequest",
+    "github.vscode-pull-request-github",
+    "github.vscode-github-actions",
+    "eamodio.gitlens",
+    "mhutchie.git-graph",
+    
+    // File Formats and Languages
+    "redhat.vscode-yaml",
+    "ms-vscode.vscode-json",
     "davidanson.vscode-markdownlint",
     "yzhang.markdown-all-in-one",
+    "bierner.markdown-mermaid",
+    "tamasfe.even-better-toml",
+    
+    // Docker and Containers
+    "ms-azuretools.vscode-docker",
     "ms-vscode-remote.remote-containers",
-    "ms-vscode-remote.remote-ssh",
-    "gruntfuggly.todo-tree",
+    
+    // Build Tools and Automation
+    "ms-vscode.makefile-tools",
+    "ms-vscode.task-runner",
+    
+    // Code Quality and Security
     "streetsidesoftware.code-spell-checker",
-    "ms-vscode.vscode-typescript-next",
-    "bradlc.vscode-tailwindcss",
-    "formulahendry.auto-rename-tag",
-    "christian-kohler.path-intellisense",
-    "visualstudioexptteam.vscodeintellicode",
     "ms-vscode.hexeditor",
-    "stkb.rewrap",
-    "usernamehw.errorlens"
+    "pflannery.vscode-versionlens",
+    
+    // API Development and Testing
+    "humao.rest-client",
+    "rangav.vscode-thunder-client",
+    "42crunch.vscode-openapi",
+    
+    // Productivity and Navigation
+    "ms-vscode.vscode-todo-highlight",
+    "gruntfuggly.todo-tree",
+    "alefragnani.bookmarks",
+    "formulahendry.auto-rename-tag",
+    
+    // Formatting and Editing
+    "esbenp.prettier-vscode",
+    "bradlc.vscode-tailwindcss",
+    "ms-vscode.vscode-typescript-next",
+    
+    // Documentation
+    "shd101wyy.markdown-preview-enhanced",
+    "yzane.markdown-pdf",
+    
+    // Environment and Configuration
+    "ms-vscode.env",
+    "mikestead.dotenv",
+    
+    // Performance and Monitoring
+    "ms-vscode.vscode-performance",
+    "ms-vscode.live-server"
   ],
   "unwantedRecommendations": [
     "ms-python.pylint",
-    "ms-python.flake8"
+    "ms-python.flake8",
+    "ms-vscode.vscode-pylint"
   ]
 }

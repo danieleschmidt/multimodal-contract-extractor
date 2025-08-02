@@ -2,6 +2,19 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "Setup Development Environment",
+      "type": "shell",
+      "command": "${workspaceFolder}/scripts/dev-setup.sh",
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
       "label": "Install Dependencies",
       "type": "shell",
       "command": "pip",
@@ -19,7 +32,7 @@
       "label": "Run Tests",
       "type": "shell",
       "command": "pytest",
-      "args": ["tests/", "-v", "--cov=src", "--cov-report=html"],
+      "args": ["-v"],
       "group": "test",
       "presentation": {
         "echo": true,
@@ -27,13 +40,13 @@
         "focus": false,
         "panel": "shared"
       },
-      "problemMatcher": []
+      "problemMatcher": ["$pytest"]
     },
     {
-      "label": "Run Tests (Quick)",
+      "label": "Run Tests with Coverage",
       "type": "shell",
       "command": "pytest",
-      "args": ["tests/", "-q", "--tb=short"],
+      "args": ["--cov=src", "--cov-report=html", "--cov-report=term", "-v"],
       "group": "test",
       "presentation": {
         "echo": true,
@@ -41,13 +54,13 @@
         "focus": false,
         "panel": "shared"
       },
-      "problemMatcher": []
+      "problemMatcher": ["$pytest"]
     },
     {
-      "label": "Run Integration Tests",
+      "label": "Quick Test",
       "type": "shell",
       "command": "pytest",
-      "args": ["tests/integration/", "-v", "-m", "integration"],
+      "args": ["-x", "--tb=short"],
       "group": "test",
       "presentation": {
         "echo": true,
@@ -55,10 +68,38 @@
         "focus": false,
         "panel": "shared"
       },
+      "problemMatcher": ["$pytest"]
+    },
+    {
+      "label": "Format Code",
+      "type": "shell",
+      "command": "black",
+      "args": ["."],
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "silent",
+        "focus": false,
+        "panel": "shared"
+      },
       "problemMatcher": []
     },
     {
-      "label": "Run Linting",
+      "label": "Lint Code",
+      "type": "shell",
+      "command": "ruff",
+      "args": ["check", "."],
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": ["$ruff"]
+    },
+    {
+      "label": "Fix Lint Issues",
       "type": "shell",
       "command": "ruff",
       "args": ["check", ".", "--fix"],
@@ -69,26 +110,13 @@
         "focus": false,
         "panel": "shared"
       },
-      "problemMatcher": [
-        {
-          "owner": "ruff",
-          "fileLocation": ["relative", "${workspaceFolder}"],
-          "pattern": {
-            "regexp": "^(.+):(\\d+):(\\d+):\\s+(\\w+)\\s+(.+)$",
-            "file": 1,
-            "line": 2,
-            "column": 3,
-            "severity": 4,
-            "message": 5
-          }
-        }
-      ]
+      "problemMatcher": ["$ruff"]
     },
     {
-      "label": "Run Type Checking",
+      "label": "Type Check",
       "type": "shell",
       "command": "mypy",
-      "args": ["src/", "tests/"],
+      "args": ["src/"],
       "group": "build",
       "presentation": {
         "echo": true,
@@ -96,26 +124,13 @@
         "focus": false,
         "panel": "shared"
       },
-      "problemMatcher": [
-        {
-          "owner": "mypy",
-          "fileLocation": ["relative", "${workspaceFolder}"],
-          "pattern": {
-            "regexp": "^(.+):(\\d+):(\\d+):\\s+(error|warning|note):\\s+(.+)$",
-            "file": 1,
-            "line": 2,
-            "column": 3,
-            "severity": 4,
-            "message": 5
-          }
-        }
-      ]
+      "problemMatcher": ["$mypy"]
     },
     {
-      "label": "Run Security Scan",
+      "label": "Security Scan",
       "type": "shell",
       "command": "bandit",
-      "args": ["-r", "src/", "-f", "json"],
+      "args": ["-r", "src/", "-q"],
       "group": "build",
       "presentation": {
         "echo": true,
@@ -126,10 +141,34 @@
       "problemMatcher": []
     },
     {
-      "label": "Format Code",
-      "type": "shell",
-      "command": "black",
-      "args": ["src/", "tests/"],
+      "label": "Full Quality Check",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Format Code",
+        "Fix Lint Issues", 
+        "Type Check",
+        "Security Scan",
+        "Run Tests with Coverage"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Quick Quality Check",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Lint Code",
+        "Quick Test"
+      ],
       "group": "build",
       "presentation": {
         "echo": true,
@@ -140,67 +179,25 @@
       "problemMatcher": []
     },
     {
-      "label": "Run Pre-commit",
-      "type": "shell",
-      "command": "pre-commit",
-      "args": ["run", "--all-files"],
-      "group": "build",
-      "presentation": {
-        "echo": true,
-        "reveal": "always",
-        "focus": false,
-        "panel": "shared"
-      },
-      "problemMatcher": []
-    },
-    {
-      "label": "Build Package",
-      "type": "shell",
-      "command": "python",
-      "args": ["-m", "build"],
-      "group": "build",
-      "presentation": {
-        "echo": true,
-        "reveal": "always",
-        "focus": false,
-        "panel": "shared"
-      },
-      "problemMatcher": []
-    },
-    {
-      "label": "Docker Build",
-      "type": "shell",
-      "command": "docker",
-      "args": ["build", "-t", "multimodal-contract-extractor:dev", "."],
-      "group": "build",
-      "presentation": {
-        "echo": true,
-        "reveal": "always",
-        "focus": false,
-        "panel": "shared"
-      },
-      "problemMatcher": []
-    },
-    {
-      "label": "Docker Run",
-      "type": "shell",
-      "command": "docker",
-      "args": ["run", "-p", "8501:8501", "multimodal-contract-extractor:dev"],
-      "group": "build",
-      "presentation": {
-        "echo": true,
-        "reveal": "always",
-        "focus": false,
-        "panel": "shared"
-      },
-      "problemMatcher": [],
-      "dependsOn": "Docker Build"
-    },
-    {
-      "label": "Start Web App",
+      "label": "Start Development Server",
       "type": "shell",
       "command": "streamlit",
-      "args": ["run", "web_app.py"],
+      "args": ["run", "web_app.py", "--server.port", "8501", "--server.address", "0.0.0.0"],
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "dedicated"
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Extract CLI Tool",
+      "type": "shell",
+      "command": "python",
+      "args": ["extract.py", "--help"],
       "group": "build",
       "presentation": {
         "echo": true,
@@ -211,7 +208,21 @@
       "problemMatcher": []
     },
     {
-      "label": "Generate Documentation",
+      "label": "Batch Extract CLI Tool",
+      "type": "shell",
+      "command": "python",
+      "args": ["batch_extract.py", "--help"],
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Build Documentation",
       "type": "shell",
       "command": "mkdocs",
       "args": ["build"],
@@ -228,7 +239,106 @@
       "label": "Serve Documentation",
       "type": "shell",
       "command": "mkdocs",
-      "args": ["serve"],
+      "args": ["serve", "--dev-addr", "localhost:8080"],
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "dedicated"
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Clean Cache",
+      "type": "shell",
+      "command": "find",
+      "args": [".", "-type", "d", "-name", "__pycache__", "-exec", "rm", "-rf", "{}", "+"],
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "silent",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Clean All Artifacts",
+      "type": "shell",
+      "command": "bash",
+      "args": ["-c", "find . -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true; rm -rf .coverage htmlcov/ .pytest_cache/ .mypy_cache/ .ruff_cache/ dist/ build/ *.egg-info/"],
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker Build",
+      "type": "shell",
+      "command": "docker",
+      "args": ["build", "-t", "multimodal-contract-extractor", "."],
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": ["$docker"]
+    },
+    {
+      "label": "Docker Compose Up (Dev)",
+      "type": "shell",
+      "command": "docker-compose",
+      "args": ["-f", "docker-compose.dev.yml", "up", "-d"],
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker Compose Down (Dev)",
+      "type": "shell",
+      "command": "docker-compose",
+      "args": ["-f", "docker-compose.dev.yml", "down"],
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Pre-commit All Files",
+      "type": "shell",
+      "command": "pre-commit",
+      "args": ["run", "--all-files"],
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Update Dependencies",
+      "type": "shell",
+      "command": "pip",
+      "args": ["list", "--outdated"],
       "group": "build",
       "presentation": {
         "echo": true,

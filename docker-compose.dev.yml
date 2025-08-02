@@ -1,0 +1,138 @@
+version: '3.8'
+
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: mce-dev
+    hostname: mce-dev
+    volumes:
+      - .:/workspace:cached
+      - vscode-extensions:/home/vscode/.vscode-server/extensions
+      - bash-history:/home/vscode/.bash_history
+      - zsh-history:/home/vscode/.zsh_history
+    environment:
+      - PYTHONPATH=/workspace/src
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+      - MCE_ENV=development
+      - MCE_DEBUG=true
+      - MCE_LOG_LEVEL=DEBUG
+      - STREAMLIT_SERVER_HEADLESS=true
+      - STREAMLIT_SERVER_ENABLE_CORS=false
+      - STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION=false
+    ports:
+      - "8501:8501"  # Streamlit app
+      - "8000:8000"  # Future API server
+      - "9090:9090"  # Prometheus metrics
+      - "3000:3000"  # Grafana
+      - "5555:5555"  # Debug port
+    working_dir: /workspace
+    command: sleep infinity
+    networks:
+      - mce-dev-network
+
+  # Development database (PostgreSQL) - for future use
+  postgres-dev:
+    image: postgres:15
+    container_name: mce-postgres-dev
+    environment:
+      POSTGRES_DB: mce_dev
+      POSTGRES_USER: mce_dev
+      POSTGRES_PASSWORD: mce_dev_password
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-dev-data:/var/lib/postgresql/data
+      - ./scripts/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - mce-dev-network
+
+  # Development Redis cache
+  redis-dev:
+    image: redis:7-alpine
+    container_name: mce-redis-dev
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-dev-data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - mce-dev-network
+
+  # Development Prometheus for metrics
+  prometheus-dev:
+    image: prom/prometheus:latest
+    container_name: mce-prometheus-dev
+    ports:
+      - "9091:9090"  # Different port to avoid conflict
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-dev-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - mce-dev-network
+
+  # Development Grafana for visualization
+  grafana-dev:
+    image: grafana/grafana:latest
+    container_name: mce-grafana-dev
+    ports:
+      - "3001:3000"  # Different port to avoid conflict
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-dev-data:/var/lib/grafana
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+    networks:
+      - mce-dev-network
+
+  # Development message queue (for future async processing)
+  rabbitmq-dev:
+    image: rabbitmq:3-management-alpine
+    container_name: mce-rabbitmq-dev
+    ports:
+      - "5672:5672"   # AMQP port
+      - "15672:15672" # Management UI
+    environment:
+      - RABBITMQ_DEFAULT_USER=mce_dev
+      - RABBITMQ_DEFAULT_PASS=mce_dev_password
+    volumes:
+      - rabbitmq-dev-data:/var/lib/rabbitmq
+    networks:
+      - mce-dev-network
+
+volumes:
+  vscode-extensions:
+    name: mce-vscode-extensions
+  bash-history:
+    name: mce-bash-history
+  zsh-history:
+    name: mce-zsh-history
+  postgres-dev-data:
+    name: mce-postgres-dev-data
+  redis-dev-data:
+    name: mce-redis-dev-data
+  prometheus-dev-data:
+    name: mce-prometheus-dev-data
+  grafana-dev-data:
+    name: mce-grafana-dev-data
+  rabbitmq-dev-data:
+    name: mce-rabbitmq-dev-data
+
+networks:
+  mce-dev-network:
+    name: mce-dev-network
+    driver: bridge
