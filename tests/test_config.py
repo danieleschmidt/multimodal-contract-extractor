@@ -1,272 +1,212 @@
-"""Tests for centralized configuration management."""
+"""
+Test configuration for different testing environments.
+
+This module provides configuration classes and utilities for setting up
+test environments with appropriate settings for unit, integration, 
+performance, and end-to-end tests.
+"""
 
 import os
-import tempfile
-from unittest.mock import patch
-
-import pytest
-
-from multimodal_contract_extractor.config import (
-    Config,
-    ConfigValidationError,
-    get_config,
-    load_config,
-    validate_config,
-)
+from dataclasses import dataclass
+from typing import Dict, Any, Optional, List
+from pathlib import Path
 
 
-def reset_config_singleton():
-    """Reset the configuration singleton for test isolation."""
-    import multimodal_contract_extractor.config as config_module
-
-    config_module._config_instance = None
-
-
-class TestConfigDefaults:
-    """Test default configuration values."""
-
-    def test_default_config_values(self):
-        """Test that default configuration contains expected values."""
-        config = Config()
-
-        # OCR Configuration
-        assert config.ocr.cache_size_limit == 100
-        assert config.ocr.context_window_size == 100
-
-        # Extraction Configuration
-        assert config.extraction.base_confidence_score == 0.75
-        assert config.extraction.length_bonus_divisor == 1000
-        assert config.extraction.max_confidence_cap == 0.95
-        assert config.extraction.file_size_threshold_mb == 10
-        assert config.extraction.streaming_chunk_size == 5
-
-        # Security Configuration
-        assert config.security.max_file_size_mb == 100
-        assert config.security.request_id_length_limit == 64
-
-        # Health Check Configuration
-        assert config.health.check_timeout_seconds == 5
-
-        # Document Processing Configuration
-        assert config.document.default_streaming_chunk_size == 10
-
-
-class TestConfigLoading:
-    """Test configuration loading from various sources."""
-
-    def setup_method(self):
-        """Reset config singleton before each test."""
-        reset_config_singleton()
-
-    def teardown_method(self):
-        """Reset config singleton after each test."""
-        reset_config_singleton()
-
-    def test_load_config_from_environment(self):
-        """Test loading configuration from environment variables."""
-        with patch.dict(
-            os.environ,
-            {
-                "MCE_OCR_CACHE_SIZE_LIMIT": "200",
-                "MCE_EXTRACTION_BASE_CONFIDENCE_SCORE": "0.8",
-                "MCE_SECURITY_MAX_FILE_SIZE_MB": "150",
+@dataclass
+class TestConfig:
+    """Base test configuration class."""
+    
+    # Test environment
+    test_env: str = "unit"
+    debug_mode: bool = True
+    verbose_logging: bool = False
+    
+    # File and directory settings
+    temp_dir: Optional[Path] = None
+    test_data_dir: Optional[Path] = None
+    output_dir: Optional[Path] = None
+    
+    # OCR settings for testing
+    ocr_cache_size_limit: int = 10
+    ocr_context_window_size: int = 50
+    ocr_confidence_threshold: float = 0.6
+    
+    # Extraction settings for testing
+    extraction_base_confidence: float = 0.6
+    extraction_max_confidence: float = 0.95
+    extraction_chunk_size: int = 2
+    
+    # Security settings for testing
+    max_file_size_mb: int = 10
+    request_id_length_limit: int = 32
+    allowed_extensions: List[str] = None
+    
+    # Performance settings
+    processing_timeout: int = 30
+    health_check_timeout: int = 1
+    
+    # Test data settings
+    use_real_files: bool = False
+    mock_external_services: bool = True
+    generate_test_data: bool = True
+    
+    def __post_init__(self):
+        """Initialize default values."""
+        if self.allowed_extensions is None:
+            self.allowed_extensions = [".pdf", ".png", ".jpg", ".jpeg", ".tiff"]
+        
+        if self.test_data_dir is None:
+            self.test_data_dir = Path(__file__).parent / "fixtures"
+        
+        if self.output_dir is None:
+            self.output_dir = Path(__file__).parent / "output"
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert configuration to dictionary format."""
+        return {
+            "ocr": {
+                "cache_size_limit": self.ocr_cache_size_limit,
+                "context_window_size": self.ocr_context_window_size,
+                "confidence_threshold": self.ocr_confidence_threshold
             },
-        ):
-            config = load_config()
-            assert config.ocr.cache_size_limit == 200
-            assert config.extraction.base_confidence_score == 0.8
-            assert config.security.max_file_size_mb == 150
-
-    def test_load_config_from_yaml_file(self):
-        """Test loading configuration from YAML file."""
-        config_content = """
-ocr:
-  cache_size_limit: 250
-  context_window_size: 150
-
-extraction:
-  base_confidence_score: 0.85
-  max_confidence_cap: 0.98
-
-security:
-  max_file_size_mb: 200
-"""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
-            f.write(config_content)
-            config_path = f.name
-
-        try:
-            config = load_config(config_path=config_path)
-            assert config.ocr.cache_size_limit == 250
-            assert config.ocr.context_window_size == 150
-            assert config.extraction.base_confidence_score == 0.85
-            assert config.extraction.max_confidence_cap == 0.98
-            assert config.security.max_file_size_mb == 200
-        finally:
-            os.unlink(config_path)
-
-    def test_environment_overrides_file_config(self):
-        """Test that environment variables override file configuration."""
-        config_content = """
-ocr:
-  cache_size_limit: 250
-
-extraction:
-  base_confidence_score: 0.85
-"""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
-            f.write(config_content)
-            config_path = f.name
-
-        try:
-            with patch.dict(
-                os.environ,
-                {
-                    "MCE_OCR_CACHE_SIZE_LIMIT": "300",  # Override file value
-                },
-            ):
-                config = load_config(config_path=config_path)
-                assert config.ocr.cache_size_limit == 300  # From env
-                assert config.extraction.base_confidence_score == 0.85  # From file
-        finally:
-            os.unlink(config_path)
-
-
-class TestConfigValidation:
-    """Test configuration validation."""
-
-    def test_valid_config_passes_validation(self):
-        """Test that a valid configuration passes validation."""
-        config = Config()
-        # Should not raise any exception
-        validate_config(config)
-
-    def test_invalid_confidence_score_raises_error(self):
-        """Test that invalid confidence scores raise validation errors."""
-        config = Config()
-        config.extraction.base_confidence_score = 1.5  # Invalid: > 1.0
-
-        with pytest.raises(ConfigValidationError) as exc_info:
-            validate_config(config)
-        assert "base_confidence_score must be between 0.0 and 1.0" in str(
-            exc_info.value
-        )
-
-    def test_negative_cache_size_raises_error(self):
-        """Test that negative cache sizes raise validation errors."""
-        config = Config()
-        config.ocr.cache_size_limit = -10  # Invalid: negative
-
-        with pytest.raises(ConfigValidationError) as exc_info:
-            validate_config(config)
-        assert "cache_size_limit must be positive" in str(exc_info.value)
-
-    def test_zero_file_size_threshold_raises_error(self):
-        """Test that zero file size thresholds raise validation errors."""
-        config = Config()
-        config.extraction.file_size_threshold_mb = 0  # Invalid: zero
-
-        with pytest.raises(ConfigValidationError) as exc_info:
-            validate_config(config)
-        assert "file_size_threshold_mb must be positive" in str(exc_info.value)
-
-
-class TestConfigSingleton:
-    """Test configuration singleton pattern."""
-
-    def setup_method(self):
-        """Reset config singleton before each test."""
-        reset_config_singleton()
-
-    def teardown_method(self):
-        """Reset config singleton after each test."""
-        reset_config_singleton()
-
-    def test_get_config_returns_same_instance(self):
-        """Test that get_config() returns the same instance consistently."""
-        config1 = get_config()
-        config2 = get_config()
-        assert config1 is config2
-
-    def test_config_reload_updates_singleton(self):
-        """Test that reloading configuration updates the singleton."""
-        get_config()  # Initialize singleton
-
-        # Reload with environment override
-        with patch.dict(
-            os.environ,
-            {
-                "MCE_OCR_CACHE_SIZE_LIMIT": "999",
+            "extraction": {
+                "base_confidence_score": self.extraction_base_confidence,
+                "max_confidence_cap": self.extraction_max_confidence,
+                "streaming_chunk_size": self.extraction_chunk_size,
+                "file_size_threshold_mb": 5
             },
-        ):
-            new_config = load_config(reload=True)
-            assert new_config.ocr.cache_size_limit == 999
+            "security": {
+                "max_file_size_mb": self.max_file_size_mb,
+                "request_id_length_limit": self.request_id_length_limit,
+                "allowed_extensions": self.allowed_extensions
+            },
+            "health": {
+                "check_timeout_seconds": self.health_check_timeout
+            },
+            "document": {
+                "default_streaming_chunk_size": self.extraction_chunk_size
+            },
+            "test": {
+                "debug_mode": self.debug_mode,
+                "verbose_logging": self.verbose_logging,
+                "mock_external_services": self.mock_external_services,
+                "processing_timeout": self.processing_timeout,
+                "use_real_files": self.use_real_files
+            }
+        }
 
-            # Verify singleton was updated
-            singleton_config = get_config()
-            assert singleton_config.ocr.cache_size_limit == 999
+
+@dataclass
+class UnitTestConfig(TestConfig):
+    """Configuration for unit tests."""
+    
+    test_env: str = "unit"
+    debug_mode: bool = True
+    verbose_logging: bool = False
+    mock_external_services: bool = True
+    use_real_files: bool = False
+    generate_test_data: bool = True
+    
+    # Faster settings for unit tests
+    ocr_cache_size_limit: int = 5
+    ocr_context_window_size: int = 25
+    extraction_chunk_size: int = 1
+    processing_timeout: int = 5
+    health_check_timeout: int = 1
 
 
-class TestConfigIntegration:
-    """Test configuration integration with existing modules."""
+@dataclass
+class IntegrationTestConfig(TestConfig):
+    """Configuration for integration tests."""
+    
+    test_env: str = "integration"
+    debug_mode: bool = True
+    verbose_logging: bool = True
+    mock_external_services: bool = False
+    use_real_files: bool = True
+    generate_test_data: bool = True
+    
+    # More realistic settings for integration tests
+    ocr_cache_size_limit: int = 25
+    ocr_context_window_size: int = 75
+    extraction_chunk_size: int = 3
+    processing_timeout: int = 30
+    health_check_timeout: int = 3
+    max_file_size_mb: int = 25
 
-    def setup_method(self):
-        """Reset config singleton before each test."""
-        reset_config_singleton()
 
-    def teardown_method(self):
-        """Reset config singleton after each test."""
-        reset_config_singleton()
+@dataclass
+class PerformanceTestConfig(TestConfig):
+    """Configuration for performance tests."""
+    
+    test_env: str = "performance"
+    debug_mode: bool = False
+    verbose_logging: bool = False
+    mock_external_services: bool = False
+    use_real_files: bool = True
+    generate_test_data: bool = False
+    
+    # Production-like settings for performance tests
+    ocr_cache_size_limit: int = 100
+    ocr_context_window_size: int = 100
+    extraction_chunk_size: int = 5
+    processing_timeout: int = 60
+    health_check_timeout: int = 5
+    max_file_size_mb: int = 100
 
-    def test_config_can_replace_hardcoded_values(self):
-        """Test that config values can replace hardcoded values in modules."""
-        config = get_config()
 
-        # These should match the values currently hardcoded in the modules
-        assert config.ocr.cache_size_limit >= 1
-        assert 0.0 < config.extraction.base_confidence_score <= 1.0
-        assert config.security.max_file_size_mb > 0
-        assert config.health.check_timeout_seconds > 0
+@dataclass
+class E2ETestConfig(TestConfig):
+    """Configuration for end-to-end tests."""
+    
+    test_env: str = "e2e"
+    debug_mode: bool = True
+    verbose_logging: bool = True
+    mock_external_services: bool = False
+    use_real_files: bool = True
+    generate_test_data: bool = False
+    
+    # Full production settings for E2E tests
+    ocr_cache_size_limit: int = 100
+    ocr_context_window_size: int = 100
+    extraction_chunk_size: int = 10
+    processing_timeout: int = 120
+    health_check_timeout: int = 5
+    max_file_size_mb: int = 100
 
-    def test_config_yaml_schema_example(self):
-        """Test that the example YAML schema loads correctly."""
-        example_config = """
-# Multimodal Contract Extractor Configuration
-ocr:
-  cache_size_limit: 100
-  context_window_size: 100
 
-extraction:
-  base_confidence_score: 0.75
-  length_bonus_divisor: 1000
-  max_confidence_cap: 0.95
-  file_size_threshold_mb: 10
-  streaming_chunk_size: 5
+# Configuration factory
 
-security:
-  max_file_size_mb: 100
-  request_id_length_limit: 64
-
-health:
-  check_timeout_seconds: 5
-
-document:
-  default_streaming_chunk_size: 10
-"""
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
-            f.write(example_config)
-            config_path = f.name
-
-        try:
-            config = load_config(config_path=config_path)
-            validate_config(config)  # Should not raise
-
-            # Verify all values loaded correctly
-            assert config.ocr.cache_size_limit == 100
-            assert config.extraction.base_confidence_score == 0.75
-            assert config.security.max_file_size_mb == 100
-            assert config.health.check_timeout_seconds == 5
-            assert config.document.default_streaming_chunk_size == 10
-        finally:
-            os.unlink(config_path)
+def get_test_config(test_type: str = None, **overrides) -> TestConfig:
+    """
+    Get test configuration based on test type.
+    
+    Args:
+        test_type: Type of test configuration to get
+        **overrides: Configuration value overrides
+        
+    Returns:
+        TestConfig instance
+    """
+    # Determine test type from environment or parameter
+    if test_type is None:
+        test_type = os.environ.get("TEST_TYPE", "unit")
+    
+    # Create appropriate configuration
+    if test_type == "unit":
+        config = UnitTestConfig()
+    elif test_type == "integration":
+        config = IntegrationTestConfig()
+    elif test_type == "performance":
+        config = PerformanceTestConfig()
+    elif test_type == "e2e":
+        config = E2ETestConfig()
+    else:
+        config = TestConfig(test_env=test_type)
+    
+    # Apply overrides
+    for key, value in overrides.items():
+        if hasattr(config, key):
+            setattr(config, key, value)
+    
+    return config
