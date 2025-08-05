@@ -1,12 +1,12 @@
 """Data models for the contract extraction system."""
 
-from .contract import Contract, ContractParty, ContractType
 from .clause import Clause, ClauseType, LegalClause
+from .contract import Contract, ContractParty, ContractType
 from .processing import ProcessingResult, ProcessingStatus, ValidationResult
 
 __all__ = [
     "Contract",
-    "ContractParty", 
+    "ContractParty",
     "ContractType",
     "Clause",
     "ClauseType",

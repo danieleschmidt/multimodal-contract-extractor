@@ -5,7 +5,7 @@ from src.multimodal_contract_extractor.clause_detection import _extract_text_coo
 
 class TestCoordinateExtraction:
     """Test coordinate extraction functionality."""
-    
+
     def test_extract_text_coordinates_with_ocr_data(self):
         """Test extracting coordinates from OCR bounding box data."""
         # Mock OCR data with bounding boxes
@@ -17,16 +17,16 @@ class TestCoordinateExtraction:
             'height': [0, 20, 20, 20, 20, 20, 0, 0],
             'conf': [0, 95, 95, 95, 95, 95, 0, 0]
         }
-        
+
         text_to_find = "contract clause"
         coordinates = _extract_text_coordinates(text_to_find, mock_ocr_data)
-        
+
         # Should return bounding box coordinates [left, top, right, bottom]
         assert coordinates is not None
         assert len(coordinates) == 4
         assert coordinates[0] <= coordinates[2]  # left <= right
         assert coordinates[1] <= coordinates[3]  # top <= bottom
-    
+
     def test_extract_text_coordinates_text_not_found(self):
         """Test coordinate extraction when text is not found in OCR data."""
         mock_ocr_data = {
@@ -37,13 +37,13 @@ class TestCoordinateExtraction:
             'height': [20, 20, 20, 20],
             'conf': [95, 95, 95, 95]
         }
-        
+
         text_to_find = "contract clause"
         coordinates = _extract_text_coordinates(text_to_find, mock_ocr_data)
-        
+
         # Should return None when text not found
         assert coordinates is None
-    
+
     def test_extract_text_coordinates_partial_match(self):
         """Test coordinate extraction with partial text match."""
         mock_ocr_data = {
@@ -54,15 +54,15 @@ class TestCoordinateExtraction:
             'height': [15, 15, 15, 15, 15],
             'conf': [95, 95, 95, 95, 95]
         }
-        
+
         text_to_find = "payment terms"
         coordinates = _extract_text_coordinates(text_to_find, mock_ocr_data)
-        
+
         # Should find coordinates spanning both words
         assert coordinates is not None
         assert coordinates[0] == 100  # left of "payment"
         assert coordinates[2] == 220  # right of "terms" (180 + 40)
-    
+
     def test_extract_text_coordinates_empty_ocr_data(self):
         """Test coordinate extraction with empty OCR data."""
         mock_ocr_data = {
@@ -73,8 +73,8 @@ class TestCoordinateExtraction:
             'height': [],
             'conf': []
         }
-        
+
         text_to_find = "any text"
         coordinates = _extract_text_coordinates(text_to_find, mock_ocr_data)
-        
+
         assert coordinates is None

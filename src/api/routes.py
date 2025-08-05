@@ -2,22 +2,26 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import tempfile
 import time
 from pathlib import Path
 from typing import List, Optional
-from uuid import UUID
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile, Depends, BackgroundTasks
+from fastapi import (
+    BackgroundTasks,
+    Depends,
+    FastAPI,
+    File,
+    HTTPException,
+    UploadFile,
+)
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from ..database import get_db_connection
 from ..database.repositories import ContractRepository, ProcessingResultRepository
-from ..models.contract import Contract, ContractType
-from ..models.processing import ProcessingResult, ProcessingStatus
+from ..models.processing import ProcessingStatus
 from ..services.processing_service import ProcessingService
 from ..services.validation_service import ValidationService
 
@@ -78,7 +82,7 @@ class HealthCheckResponse(BaseModel):
 
 def register_routes(app: FastAPI) -> None:
     """Register all API routes."""
-    
+
     # Health and status endpoints
     @app.get("/health", response_model=HealthCheckResponse, tags=["Health"])
     async def health_check():
@@ -88,10 +92,10 @@ def register_routes(app: FastAPI) -> None:
             db = get_db_connection()
             db_stats = db.get_database_stats()
             db_status = "healthy" if "error" not in db_stats else "unhealthy"
-            
+
             # Check cache (simplified)
             cache_status = "healthy"  # TODO: Implement actual cache health check
-            
+
             return HealthCheckResponse(
                 status="healthy",
                 timestamp=time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
@@ -107,7 +111,7 @@ def register_routes(app: FastAPI) -> None:
         except Exception as e:
             logger.exception("Health check failed")
             raise HTTPException(status_code=503, detail=f"Service unhealthy: {str(e)}")
-    
+
     @app.get("/metrics", tags=["Monitoring"])
     async def metrics():
         """Prometheus metrics endpoint."""
@@ -120,7 +124,7 @@ def register_routes(app: FastAPI) -> None:
                 "active_processing_jobs": 0
             }
         })
-    
+
     # Contract processing endpoints
     @app.post("/api/v1/process", response_model=ProcessingResponse, tags=["Processing"])
     async def process_document(
@@ -136,27 +140,27 @@ def register_routes(app: FastAPI) -> None:
         """
         if not file.filename:
             raise HTTPException(status_code=400, detail="No file provided")
-        
+
         # Validate file type
         allowed_extensions = {'.pdf', '.png', '.jpg', '.jpeg', '.tiff', '.bmp'}
         file_extension = Path(file.filename).suffix.lower()
-        
+
         if file_extension not in allowed_extensions:
             raise HTTPException(
-                status_code=400, 
+                status_code=400,
                 detail=f"Unsupported file type: {file_extension}. Allowed: {', '.join(allowed_extensions)}"
             )
-        
+
         # Create temporary file
         with tempfile.NamedTemporaryFile(delete=False, suffix=file_extension) as temp_file:
             content = await file.read()
             temp_file.write(content)
             temp_file_path = Path(temp_file.name)
-        
+
         try:
             # Initialize processing service
             processing_service = ProcessingService()
-            
+
             # Start processing in background
             processing_config = {
                 "enable_ocr_cache": config.enable_ocr_cache,
@@ -164,47 +168,47 @@ def register_routes(app: FastAPI) -> None:
                 "extract_entities": config.extract_entities,
                 "classify_risk": config.classify_risk,
             }
-            
+
             # For now, process synchronously (in production, use background tasks)
             result = processing_service.process_document(temp_file_path, processing_config)
-            
+
             # Save result to database
             result_repo = ProcessingResultRepository()
             result_repo.save(result)
-            
+
             # Save contract if processing was successful
             if result.contract:
                 contract_repo = ContractRepository()
                 contract_repo.save(result.contract)
-            
+
             return ProcessingResponse(
                 processing_id=str(result.id),
                 status=result.status.value,
                 message="Processing completed" if result.is_successful() else "Processing failed",
                 estimated_completion=None
             )
-            
+
         except Exception as e:
             logger.exception(f"Error processing document {file.filename}")
             raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
-        
+
         finally:
             # Clean up temporary file
             try:
                 temp_file_path.unlink()
             except Exception as e:
                 logger.warning(f"Failed to clean up temp file {temp_file_path}: {e}")
-    
+
     @app.get("/api/v1/process/{processing_id}/status", response_model=ProcessingStatusResponse, tags=["Processing"])
     async def get_processing_status(processing_id: str):
         """Get the status of a processing request."""
         try:
             result_repo = ProcessingResultRepository()
             result = result_repo.find_by_id(processing_id)
-            
+
             if not result:
                 raise HTTPException(status_code=404, detail="Processing request not found")
-            
+
             # Calculate progress percentage
             progress = 0.0
             if result.status == ProcessingStatus.COMPLETED:
@@ -213,7 +217,7 @@ def register_routes(app: FastAPI) -> None:
                 progress = result.get_success_rate() * 100
             elif result.status == ProcessingStatus.IN_PROGRESS:
                 progress = len(result.metrics.stage_times) * 20  # Rough estimate
-            
+
             return ProcessingStatusResponse(
                 id=str(result.id),
                 status=result.status.value,
@@ -224,33 +228,33 @@ def register_routes(app: FastAPI) -> None:
                 processing_time_seconds=result.get_processing_time(),
                 error_message=result.errors[0].message if result.errors else None
             )
-            
+
         except Exception as e:
             logger.exception(f"Error getting status for {processing_id}")
             raise HTTPException(status_code=500, detail=f"Failed to get status: {str(e)}")
-    
+
     @app.get("/api/v1/process/{processing_id}/result", tags=["Processing"])
     async def get_processing_result(processing_id: str):
         """Get the full result of a completed processing request."""
         try:
             result_repo = ProcessingResultRepository()
             result = result_repo.find_by_id(processing_id)
-            
+
             if not result:
                 raise HTTPException(status_code=404, detail="Processing request not found")
-            
+
             if result.status != ProcessingStatus.COMPLETED:
                 raise HTTPException(
-                    status_code=400, 
+                    status_code=400,
                     detail=f"Processing not completed. Current status: {result.status.value}"
                 )
-            
+
             return result.extracted_data
-            
+
         except Exception as e:
             logger.exception(f"Error getting result for {processing_id}")
             raise HTTPException(status_code=500, detail=f"Failed to get result: {str(e)}")
-    
+
     # Contract management endpoints
     @app.get("/api/v1/contracts", response_model=List[ContractSummary], tags=["Contracts"])
     async def list_contracts(
@@ -261,14 +265,14 @@ def register_routes(app: FastAPI) -> None:
         """List contracts with optional filtering."""
         try:
             contract_repo = ContractRepository()
-            
+
             if filename:
                 contracts = contract_repo.find_by_filename(filename)
             elif contract_type:
                 contracts = contract_repo.find_by_type(contract_type)
             else:
                 contracts = contract_repo.find_recent(limit)
-            
+
             return [
                 ContractSummary(
                     id=str(contract.id),
@@ -283,43 +287,43 @@ def register_routes(app: FastAPI) -> None:
                 )
                 for contract in contracts[:limit]
             ]
-            
+
         except Exception as e:
             logger.exception("Error listing contracts")
             raise HTTPException(status_code=500, detail=f"Failed to list contracts: {str(e)}")
-    
+
     @app.get("/api/v1/contracts/{contract_id}", tags=["Contracts"])
     async def get_contract(contract_id: str):
         """Get detailed information about a specific contract."""
         try:
             contract_repo = ContractRepository()
             contract = contract_repo.find_by_id(contract_id)
-            
+
             if not contract:
                 raise HTTPException(status_code=404, detail="Contract not found")
-            
+
             return contract.to_dict()
-            
+
         except Exception as e:
             logger.exception(f"Error getting contract {contract_id}")
             raise HTTPException(status_code=500, detail=f"Failed to get contract: {str(e)}")
-    
+
     @app.delete("/api/v1/contracts/{contract_id}", tags=["Contracts"])
     async def delete_contract(contract_id: str):
         """Delete a contract and all associated data."""
         try:
             contract_repo = ContractRepository()
             success = contract_repo.delete(contract_id)
-            
+
             if not success:
                 raise HTTPException(status_code=404, detail="Contract not found")
-            
+
             return {"message": "Contract deleted successfully"}
-            
+
         except Exception as e:
             logger.exception(f"Error deleting contract {contract_id}")
             raise HTTPException(status_code=500, detail=f"Failed to delete contract: {str(e)}")
-    
+
     # Statistics and analytics endpoints
     @app.get("/api/v1/stats", tags=["Analytics"])
     async def get_statistics():
@@ -327,10 +331,10 @@ def register_routes(app: FastAPI) -> None:
         try:
             contract_repo = ContractRepository()
             db = get_db_connection()
-            
+
             contract_stats = contract_repo.get_statistics()
             db_stats = db.get_database_stats()
-            
+
             return {
                 "contracts": contract_stats,
                 "database": db_stats,
@@ -340,41 +344,41 @@ def register_routes(app: FastAPI) -> None:
                     "average_confidence": contract_stats.get("processing", {}).get("avg_confidence", 0)
                 }
             }
-            
+
         except Exception as e:
             logger.exception("Error getting statistics")
             raise HTTPException(status_code=500, detail=f"Failed to get statistics: {str(e)}")
-    
+
     # Validation endpoints
     @app.post("/api/v1/validate", tags=["Validation"])
     async def validate_document(file: UploadFile = File(...)):
         """Validate a document without processing it."""
         if not file.filename:
             raise HTTPException(status_code=400, detail="No file provided")
-        
+
         # Create temporary file
         with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix) as temp_file:
             content = await file.read()
             temp_file.write(content)
             temp_file_path = Path(temp_file.name)
-        
+
         try:
             validation_service = ValidationService()
             result = validation_service.validate_document(temp_file_path)
-            
+
             return result.to_dict()
-            
+
         except Exception as e:
             logger.exception(f"Error validating document {file.filename}")
             raise HTTPException(status_code=500, detail=f"Validation failed: {str(e)}")
-        
+
         finally:
             # Clean up temporary file
             try:
                 temp_file_path.unlink()
             except Exception as e:
                 logger.warning(f"Failed to clean up temp file {temp_file_path}: {e}")
-    
+
     # System endpoints
     @app.get("/", tags=["System"])
     async def root():
@@ -387,5 +391,5 @@ def register_routes(app: FastAPI) -> None:
             "health_url": "/health",
             "api_base": "/api/v1"
         }
-    
+
     logger.info("API routes registered successfully")

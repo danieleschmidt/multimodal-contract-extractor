@@ -1,0 +1,279 @@
+# Generation 3 "Make it Scale" Configuration Example
+# Multimodal Contract Extractor - Enterprise Scaling Configuration
+
+# Global Generation 3 Settings
+generation_3_enabled: true
+environment: development  # development, staging, production
+debug_mode: false
+log_level: INFO
+
+# Feature Flags - Enable/disable major feature categories
+feature_flags:
+  gpu_acceleration: false           # Requires CUDA-compatible GPU
+  distributed_processing: false    # Requires Redis/RabbitMQ
+  advanced_caching: true          # Recommended for performance
+  auto_scaling: true              # Automatic resource scaling
+  performance_analytics: true     # Real-time performance monitoring
+  enterprise_integration: false   # SSO, API Gateway, etc.
+
+# High-Performance Computing Configuration
+high_performance_computing:
+  # GPU Acceleration (requires CUDA)
+  enable_gpu: false
+  gpu_device_ids: [0]  # GPU device IDs to use
+  gpu_memory_limit_mb: null  # null = use all available
+  gpu_batch_size: 32
+
+  # Parallel Processing
+  thread_pool_size: 8      # Number of worker threads
+  process_pool_size: 4     # Number of worker processes
+  worker_timeout_seconds: 300.0
+  max_queue_size: 1000
+  adaptive_pool_sizing: true
+
+  # Memory Optimization
+  memory_limit_mb: 2048    # Total memory limit (null = unlimited)
+  memory_warning_threshold: 0.8   # 80% memory usage warning
+  memory_critical_threshold: 0.9  # 90% memory usage critical
+  gc_optimization_enabled: true
+
+  # Streaming Processing (for large files)
+  streaming_enabled: true
+  streaming_chunk_size: 1048576    # 1MB chunks
+  streaming_overlap_bytes: 1024    # 1KB overlap between chunks
+  streaming_memory_limit_mb: 512
+
+# Distributed Processing Configuration
+distributed_processing:
+  enable_distributed: false
+  message_queue_type: redis        # redis, rabbitmq, inmemory
+  message_queue_url: redis://localhost:6379
+  queue_max_size: 10000
+
+  # Task Processing
+  task_timeout_seconds: 300.0
+  max_retries: 3
+  retry_delay_seconds: 5.0
+
+  # Load Balancing
+  load_balancing_strategy: weighted  # round_robin, least_loaded, weighted
+  worker_health_check_interval: 30.0
+  worker_heartbeat_timeout: 60.0
+
+  # Auto-scaling
+  min_workers: 2
+  max_workers: 20
+  auto_scaling_enabled: true
+  scale_up_threshold: 0.8    # Scale up at 80% utilization
+  scale_down_threshold: 0.3  # Scale down at 30% utilization
+
+# Advanced Multi-Level Caching Configuration
+advanced_caching:
+  # L1 Memory Cache (fastest, smallest)
+  l1_enabled: true
+  l1_max_size_mb: 128
+  l1_max_entries: 10000
+  l1_eviction_policy: lru    # lru, lfu, ttl, random, adaptive
+  l1_default_ttl: null       # null = no expiration
+
+  # L2 Redis Cache (medium speed, medium size)
+  l2_enabled: false
+  l2_redis_url: redis://localhost:6379
+  l2_key_prefix: mce_l2
+  l2_default_ttl: 3600.0     # 1 hour
+
+  # L3 Persistent Cache (slowest, largest)
+  l3_enabled: true
+  l3_cache_dir: ./cache/l3
+  l3_max_size_mb: 1024       # 1GB
+  l3_cleanup_interval: 300.0 # 5 minutes
+
+  # Cache Warming
+  cache_warming_enabled: true
+  cache_warming_strategies:
+    - pattern_based          # Warm related keys based on patterns
+    - frequency_based        # Warm frequently accessed keys
+
+  # Cache Analytics
+  cache_analytics_enabled: true
+  cache_metrics_interval: 60.0
+
+# Resource Management and Auto-Scaling
+resource_management:
+  # Resource Monitoring
+  monitoring_enabled: true
+  monitoring_interval: 5.0   # Check every 5 seconds
+  metrics_history_size: 100  # Keep 100 data points
+
+  # Resource Thresholds
+  cpu_warning_threshold: 70.0    # 70% CPU usage
+  cpu_critical_threshold: 90.0   # 90% CPU usage
+  memory_warning_threshold: 75.0 # 75% memory usage
+  memory_critical_threshold: 90.0 # 90% memory usage
+  disk_warning_threshold: 80.0   # 80% disk usage
+  disk_critical_threshold: 95.0  # 95% disk usage
+
+  # Auto-scaling
+  auto_scaling_enabled: true
+  auto_scaling_cooldown: 300.0        # 5 minutes between scaling actions
+  auto_scaling_evaluation_window: 5   # 5 minute evaluation window
+
+  # Worker Pool Management
+  initial_worker_pool_size: 4
+  min_worker_pool_size: 2
+  max_worker_pool_size: 20
+  worker_pool_scale_increment: 2
+
+# Performance Analytics and Optimization
+performance_analytics:
+  # Metrics Collection
+  metrics_collection_enabled: true
+  metrics_collection_interval: 1.0  # Collect every second
+  metrics_retention_hours: 24       # Keep 24 hours of metrics
+
+  # Performance Profiling
+  profiling_enabled: true
+  profiling_sample_rate: 0.1        # Profile 10% of operations
+  profiling_detailed_memory: false
+
+  # Bottleneck Detection
+  bottleneck_detection_enabled: true
+  bottleneck_detection_sensitivity: 0.7
+  bottleneck_analysis_window: 10    # 10 minutes
+
+  # Automated Optimization
+  auto_optimization_enabled: true
+  optimization_interval: 300.0      # 5 minutes
+  optimization_confidence_threshold: 0.8
+
+  # Performance Alerting
+  performance_alerting_enabled: true
+  alert_thresholds:
+    high_latency: 5.0        # 5 seconds
+    low_throughput: 0.1      # 0.1 requests/second
+    high_error_rate: 0.1     # 10% error rate
+
+# Enterprise Integration (for enterprise deployments)
+enterprise_integration:
+  # Single Sign-On (SSO)
+  sso_enabled: false
+  sso_default_provider: oauth2
+  sso_session_timeout: 3600.0  # 1 hour
+  sso_providers: []
+    # Example OAuth2 provider:
+    # - type: oauth2
+    #   provider_url: https://login.example.com
+    #   client_id: your-client-id
+    #   client_secret: your-client-secret
+    #   redirect_uri: https://your-app.com/auth/callback
+    #   scopes: [openid, profile, email]
+
+  # API Gateway
+  api_gateway_enabled: false
+  api_gateway_features:
+    - authentication
+    - rate_limiting
+    - logging
+  api_gateway_rate_limits: []
+    # Example rate limit:
+    # - path_pattern: /api/*
+    #   requests_per_minute: 100
+    #   burst_limit: 200
+
+  # Microservices
+  microservices_enabled: false
+  service_registry_enabled: false
+  service_discovery_enabled: false
+  service_mesh_enabled: false
+
+  # Enterprise Security
+  enterprise_security_enabled: false
+  token_validation_strict: true
+  audit_logging_enabled: true
+
+  # Integration Patterns
+  circuit_breaker_enabled: true
+  bulkhead_pattern_enabled: false
+  timeout_pattern_enabled: true
+
+# Testing and Quality Assurance
+testing:
+  # Performance Testing
+  performance_testing_enabled: true
+  load_testing_enabled: false
+  stress_testing_enabled: false
+
+  # Regression Testing
+  regression_testing_enabled: true
+  regression_baseline_path: null
+  regression_threshold: 0.1  # 10% performance degradation allowed
+
+  # Quality Gates
+  quality_gates_enabled: true
+  min_success_rate: 0.95     # 95% minimum success rate
+  max_response_time: 5.0     # 5 seconds maximum response time
+  max_error_rate: 0.05       # 5% maximum error rate
+
+# Base Configuration (Generation 1 & 2 features)
+# These sections inherit from previous generations
+ocr:
+  cache_size_limit: 100
+  context_window_size: 100
+  auto_detect_language: true
+  default_language: en
+  supported_languages: [en, es, fr, de, ja, zh, zh-tw]
+  language_confidence_threshold: 0.6
+
+extraction:
+  base_confidence_score: 0.75
+  length_bonus_divisor: 1000
+  max_confidence_cap: 0.95
+  file_size_threshold_mb: 10
+  streaming_chunk_size: 5
+
+security:
+  max_file_size_mb: 100
+  request_id_length_limit: 64
+
+health:
+  check_timeout_seconds: 5
+
+document:
+  default_streaming_chunk_size: 10
+
+# Example Production Configuration Overrides
+# Uncomment and modify for production deployment:
+
+# production_overrides:
+#   environment: production
+#   debug_mode: false
+#   log_level: WARNING
+#   
+#   feature_flags:
+#     gpu_acceleration: true
+#     distributed_processing: true
+#     enterprise_integration: true
+#   
+#   high_performance_computing:
+#     enable_gpu: true
+#     memory_limit_mb: 8192
+#     thread_pool_size: 16
+#   
+#   distributed_processing:
+#     enable_distributed: true
+#     message_queue_url: redis://redis-cluster:6379
+#     max_workers: 50
+#   
+#   advanced_caching:
+#     l2_enabled: true
+#     l2_redis_url: redis://redis-cache:6379
+#     l3_max_size_mb: 10240  # 10GB
+#   
+#   resource_management:
+#     auto_scaling_enabled: true
+#     max_worker_pool_size: 100
+#   
+#   enterprise_integration:
+#     sso_enabled: true
+#     api_gateway_enabled: true
+#     enterprise_security_enabled: true

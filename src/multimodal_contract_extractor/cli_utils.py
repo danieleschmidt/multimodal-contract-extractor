@@ -10,7 +10,13 @@ from .security import sanitize_request_id
 if TYPE_CHECKING:
     import argparse
 
-SUPPORTED_FORMATS = {"json", "xml", "csv"}
+# Import dynamically to check availability
+def get_supported_formats():
+    """Get supported formats based on available dependencies."""
+    from .serialization import get_supported_formats
+    return set(get_supported_formats())
+
+SUPPORTED_FORMATS = {"json", "xml", "csv", "yaml", "toml"}  # All possible formats
 
 
 def add_common_arguments(parser: argparse.ArgumentParser) -> None:
@@ -19,7 +25,7 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
         "--output-format",
         "--format",
         default="json",
-        help="Output format: json, xml, or csv",
+        help="Output format: json, xml, csv, yaml, or toml (depending on installed dependencies)",
     )
     parser.add_argument(
         "--include-coordinates",

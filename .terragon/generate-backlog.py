@@ -7,20 +7,19 @@ Creates prioritized backlog for advanced SDLC repositories
 import json
 import os
 import subprocess
-import time
 from datetime import datetime
-from pathlib import Path
+
 
 def discover_git_signals():
     """Extract value signals from Git history"""
     signals = []
-    
+
     try:
         # Find potential technical debt in commit messages
         result = subprocess.run([
             "git", "log", "--oneline", "-50", "--grep=TODO\\|FIXME\\|HACK\\|temp\\|quick"
         ], capture_output=True, text=True, cwd=".")
-        
+
         debt_commits = len(result.stdout.strip().split('\n')) if result.stdout.strip() else 0
         if debt_commits > 0:
             signals.append({
@@ -35,12 +34,12 @@ def discover_git_signals():
                 "priority": "medium",
                 "source": "git_history"
             })
-        
+
         # Check for large files that might need refactoring
         result = subprocess.run([
             "find", ".", "-name", "*.py", "-size", "+1000c", "-exec", "wc", "-l", "{}", "+"
         ], capture_output=True, text=True, cwd=".")
-        
+
         large_files = []
         if result.stdout:
             for line in result.stdout.strip().split('\n'):
@@ -50,7 +49,7 @@ def discover_git_signals():
                         line_count, file_path = parts[0], parts[1]
                         if line_count.isdigit() and int(line_count) > 300:
                             large_files.append((file_path, int(line_count)))
-        
+
         if large_files:
             signals.append({
                 "id": "refactor-001",
@@ -65,28 +64,28 @@ def discover_git_signals():
                 "source": "file_analysis",
                 "files": [f[0] for f in large_files[:5]]
             })
-            
+
     except subprocess.CalledProcessError:
         pass
-    
+
     return signals
 
 def discover_dependency_signals():
     """Check for dependency-related opportunities"""
     signals = []
-    
+
     try:
         # Check requirements files for potential updates
         req_files = ["requirements.txt", "requirements-dev.txt", "pyproject.toml"]
         outdated_deps = 0
-        
+
         for req_file in req_files:
             if os.path.exists(req_file):
                 outdated_deps += 1
-        
+
         if outdated_deps > 0:
             signals.append({
-                "id": "deps-001", 
+                "id": "deps-001",
                 "title": "Update project dependencies",
                 "category": "dependency_update",
                 "description": f"Review and update dependencies in {outdated_deps} requirement files",
@@ -97,24 +96,24 @@ def discover_dependency_signals():
                 "priority": "low",
                 "source": "dependency_analysis"
             })
-            
+
     except Exception:
         pass
-    
+
     return signals
 
 def discover_documentation_signals():
     """Find documentation improvement opportunities"""
     signals = []
-    
+
     try:
         # Check for missing documentation
         python_files = subprocess.run([
             "find", "src/", "-name", "*.py", "-type", "f"
         ], capture_output=True, text=True, cwd=".")
-        
+
         py_count = len(python_files.stdout.strip().split('\n')) if python_files.stdout.strip() else 0
-        
+
         # Check for docstrings
         if py_count > 0:
             signals.append({
@@ -129,31 +128,31 @@ def discover_documentation_signals():
                 "priority": "low",
                 "source": "documentation_analysis"
             })
-            
+
     except subprocess.CalledProcessError:
         pass
-    
+
     return signals
 
 def discover_testing_signals():
     """Find testing improvement opportunities"""
     signals = []
-    
+
     try:
         # Count test files
         test_result = subprocess.run([
             "find", "tests/", "-name", "test_*.py", "-type", "f"
         ], capture_output=True, text=True, cwd=".")
-        
+
         test_count = len(test_result.stdout.strip().split('\n')) if test_result.stdout.strip() else 0
-        
+
         # Count source files
         src_result = subprocess.run([
             "find", "src/", "-name", "*.py", "-type", "f"
         ], capture_output=True, text=True, cwd=".")
-        
+
         src_count = len(src_result.stdout.strip().split('\n')) if src_result.stdout.strip() else 0
-        
+
         # Check test coverage ratio
         if src_count > 0 and test_count < src_count:
             missing_tests = src_count - test_count
@@ -169,32 +168,32 @@ def discover_testing_signals():
                 "priority": "medium",
                 "source": "test_analysis"
             })
-            
+
     except subprocess.CalledProcessError:
         pass
-    
+
     return signals
 
 def discover_security_signals():
     """Find security improvement opportunities"""
     signals = []
-    
+
     # Check for security-related files and configurations
     security_files = [
         ".github/workflows/security.yml",
-        "trivy.yaml", 
+        "trivy.yaml",
         "SECURITY.md",
         ".bandit"
     ]
-    
+
     existing_security = sum(1 for f in security_files if os.path.exists(f))
-    
+
     if existing_security > 0:
         signals.append({
             "id": "sec-001",
             "title": "Enhance security scanning automation",
             "category": "security",
-            "description": f"Optimize existing security tools and add advanced scanning",
+            "description": "Optimize existing security tools and add advanced scanning",
             "wsjf_score": 20.0,
             "ice_score": 200,
             "composite_score": 60.0,
@@ -202,7 +201,7 @@ def discover_security_signals():
             "priority": "high",
             "source": "security_analysis"
         })
-    
+
     return signals
 
 def calculate_composite_score(signal):
@@ -210,42 +209,42 @@ def calculate_composite_score(signal):
     # Advanced repository weights
     weights = {
         "wsjf": 0.5,
-        "ice": 0.1, 
+        "ice": 0.1,
         "technicalDebt": 0.3,
         "security": 0.1
     }
-    
+
     base_score = (
         weights["wsjf"] * signal["wsjf_score"] +
         weights["ice"] * signal["ice_score"] / 100
     )
-    
+
     # Apply category-specific boosts
     if signal["category"] == "security":
         base_score *= 2.0  # Security boost
     elif signal["category"] == "technical_debt":
         base_score *= 1.3  # Technical debt boost
-    
+
     return round(base_score, 2)
 
 def generate_backlog():
     """Generate comprehensive value backlog"""
     print("🔍 Discovering autonomous value opportunities...")
-    
+
     all_signals = []
     all_signals.extend(discover_git_signals())
     all_signals.extend(discover_dependency_signals())
     all_signals.extend(discover_documentation_signals())
-    all_signals.extend(discover_testing_signals()) 
+    all_signals.extend(discover_testing_signals())
     all_signals.extend(discover_security_signals())
-    
+
     # Recalculate composite scores
     for signal in all_signals:
         signal["composite_score"] = calculate_composite_score(signal)
-    
+
     # Sort by composite score
     all_signals.sort(key=lambda x: x["composite_score"], reverse=True)
-    
+
     # Generate backlog data
     backlog_data = {
         "timestamp": datetime.now().isoformat(),
@@ -259,30 +258,30 @@ def generate_backlog():
         "top_opportunities": all_signals[:10],
         "categories": {}
     }
-    
+
     # Category breakdown
     for signal in all_signals:
         category = signal["category"]
         backlog_data["categories"][category] = backlog_data["categories"].get(category, 0) + 1
-    
+
     # Save metrics
     os.makedirs(".terragon", exist_ok=True)
     with open(".terragon/value-metrics.json", "w") as f:
         json.dump(backlog_data, f, indent=2)
-    
+
     # Generate markdown backlog
     generate_backlog_markdown(backlog_data)
-    
+
     print(f"📊 Generated backlog with {len(all_signals)} opportunities")
     if all_signals:
         best = all_signals[0]
         print(f"🎯 Next Best Value: {best['title']} (Score: {best['composite_score']})")
-    
+
     return backlog_data
 
 def generate_backlog_markdown(data):
     """Generate markdown backlog file"""
-    
+
     md_content = f"""# 📊 Autonomous Value Backlog
 
 **Repository**: {data['repository']}  
@@ -293,7 +292,7 @@ def generate_backlog_markdown(data):
 ## 🎯 Next Best Value Item
 
 """
-    
+
     if data['next_best_item']:
         item = data['next_best_item']
         md_content += f"""**{item['title']}**
@@ -308,16 +307,16 @@ def generate_backlog_markdown(data):
 """
     else:
         md_content += "✅ No immediate opportunities identified\n\n"
-    
+
     md_content += """## 📋 Prioritized Backlog
 
 | Rank | Title | Score | Category | Priority | Effort (h) |
 |------|-------|-------|----------|----------|------------|
 """
-    
+
     for i, item in enumerate(data['top_opportunities'], 1):
         md_content += f"| {i} | {item['title'][:40]}{'...' if len(item['title']) > 40 else ''} | {item['composite_score']} | {item['category'].replace('_', ' ').title()} | {item['priority'].title()} | {item['effort_hours']} |\n"
-    
+
     md_content += f"""
 
 ## 📈 Value Metrics
@@ -328,11 +327,11 @@ def generate_backlog_markdown(data):
 
 ### Category Breakdown
 """
-    
+
     for category, count in data['categories'].items():
         md_content += f"- **{category.replace('_', ' ').title()}**: {count} items\n"
-    
-    md_content += f"""
+
+    md_content += """
 
 ## 🔄 Continuous Discovery
 
@@ -355,10 +354,10 @@ This backlog is automatically updated by the Terragon Autonomous SDLC system bas
 ---
 *Generated by Terragon Autonomous SDLC v2.1.0*
 """
-    
+
     with open("AUTONOMOUS_BACKLOG.md", "w") as f:
         f.write(md_content)
-    
+
     print("📄 Generated AUTONOMOUS_BACKLOG.md")
 
 if __name__ == "__main__":

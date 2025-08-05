@@ -17,11 +17,11 @@ logger = logging.getLogger(__name__)
 
 class BaseRepository:
     """Base repository class with common database operations."""
-    
+
     def __init__(self, db_connection: Optional[DatabaseConnection] = None):
         """Initialize repository with database connection."""
         self.db = db_connection or get_db_connection()
-    
+
     def _serialize_json(self, data: Any) -> str:
         """Serialize data to JSON string for database storage."""
         if data is None:
@@ -31,7 +31,7 @@ class BaseRepository:
         except Exception as e:
             logger.warning(f"Failed to serialize data to JSON: {e}")
             return ""
-    
+
     def _deserialize_json(self, json_str: str, default: Any = None) -> Any:
         """Deserialize JSON string from database."""
         if not json_str:
@@ -45,7 +45,7 @@ class BaseRepository:
 
 class ContractRepository(BaseRepository):
     """Repository for managing contract data persistence."""
-    
+
     def save(self, contract: Contract) -> bool:
         """
         Save a contract to the database.
@@ -77,7 +77,7 @@ class ContractRepository(BaseRepository):
                 'key_terms': self._serialize_json(contract.key_terms),
                 'updated_at': datetime.utcnow().isoformat(),
             }
-            
+
             # Save main contract record
             query = """
                 INSERT OR REPLACE INTO contracts (
@@ -92,22 +92,22 @@ class ContractRepository(BaseRepository):
                     :jurisdiction, :governing_law, :key_terms, :updated_at
                 )
             """
-            
+
             self.db.execute_update(query, contract_data)
-            
+
             # Save contract parties
             self._save_contract_parties(contract)
-            
+
             # Save legal clauses
             self._save_legal_clauses(contract)
-            
+
             logger.debug(f"Contract {contract.id} saved successfully")
             return True
-            
+
         except Exception as e:
             logger.exception(f"Error saving contract {contract.id}: {str(e)}")
             return False
-    
+
     def find_by_id(self, contract_id: UUID | str) -> Optional[Contract]:
         """
         Find a contract by its ID.
@@ -121,23 +121,23 @@ class ContractRepository(BaseRepository):
         try:
             query = "SELECT * FROM contracts WHERE id = :id"
             results = self.db.execute_query(query, {'id': str(contract_id)})
-            
+
             if not results:
                 return None
-            
+
             contract_data = results[0]
             contract = self._build_contract_from_data(contract_data)
-            
+
             # Load related data
             contract.parties = self._load_contract_parties(contract.id)
             contract.clauses = self._load_legal_clauses(contract.id)
-            
+
             return contract
-            
+
         except Exception as e:
             logger.exception(f"Error finding contract {contract_id}: {str(e)}")
             return None
-    
+
     def find_by_filename(self, filename: str) -> List[Contract]:
         """
         Find contracts by filename.
@@ -151,18 +151,18 @@ class ContractRepository(BaseRepository):
         try:
             query = "SELECT * FROM contracts WHERE filename = :filename ORDER BY processed_at DESC"
             results = self.db.execute_query(query, {'filename': filename})
-            
+
             contracts = []
             for contract_data in results:
                 contract = self._build_contract_from_data(contract_data)
                 contracts.append(contract)
-            
+
             return contracts
-            
+
         except Exception as e:
             logger.exception(f"Error finding contracts by filename {filename}: {str(e)}")
             return []
-    
+
     def find_by_type(self, contract_type: str) -> List[Contract]:
         """
         Find contracts by type.
@@ -176,18 +176,18 @@ class ContractRepository(BaseRepository):
         try:
             query = "SELECT * FROM contracts WHERE contract_type = :type ORDER BY processed_at DESC"
             results = self.db.execute_query(query, {'type': contract_type})
-            
+
             contracts = []
             for contract_data in results:
                 contract = self._build_contract_from_data(contract_data)
                 contracts.append(contract)
-            
+
             return contracts
-            
+
         except Exception as e:
             logger.exception(f"Error finding contracts by type {contract_type}: {str(e)}")
             return []
-    
+
     def find_recent(self, limit: int = 10) -> List[Contract]:
         """
         Find recently processed contracts.
@@ -201,18 +201,18 @@ class ContractRepository(BaseRepository):
         try:
             query = "SELECT * FROM contracts ORDER BY processed_at DESC LIMIT :limit"
             results = self.db.execute_query(query, {'limit': limit})
-            
+
             contracts = []
             for contract_data in results:
                 contract = self._build_contract_from_data(contract_data)
                 contracts.append(contract)
-            
+
             return contracts
-            
+
         except Exception as e:
             logger.exception(f"Error finding recent contracts: {str(e)}")
             return []
-    
+
     def delete(self, contract_id: UUID | str) -> bool:
         """
         Delete a contract and all related data.
@@ -226,18 +226,18 @@ class ContractRepository(BaseRepository):
         try:
             query = "DELETE FROM contracts WHERE id = :id"
             rows_affected = self.db.execute_update(query, {'id': str(contract_id)})
-            
+
             if rows_affected > 0:
                 logger.debug(f"Contract {contract_id} deleted successfully")
                 return True
             else:
                 logger.warning(f"Contract {contract_id} not found for deletion")
                 return False
-                
+
         except Exception as e:
             logger.exception(f"Error deleting contract {contract_id}: {str(e)}")
             return False
-    
+
     def get_statistics(self) -> Dict[str, Any]:
         """
         Get contract statistics from the database.
@@ -247,16 +247,16 @@ class ContractRepository(BaseRepository):
         """
         try:
             stats = {}
-            
+
             # Total contracts
             result = self.db.execute_query("SELECT COUNT(*) as count FROM contracts")
             stats['total_contracts'] = result[0]['count']
-            
+
             # Contracts by type
             query = "SELECT contract_type, COUNT(*) as count FROM contracts GROUP BY contract_type"
             results = self.db.execute_query(query)
             stats['by_type'] = {row['contract_type']: row['count'] for row in results}
-            
+
             # Processing statistics
             query = """
                 SELECT 
@@ -270,7 +270,7 @@ class ContractRepository(BaseRepository):
             results = self.db.execute_query(query)
             if results:
                 stats['processing'] = results[0]
-            
+
             # Recent activity
             query = """
                 SELECT DATE(processed_at) as date, COUNT(*) as count 
@@ -281,17 +281,17 @@ class ContractRepository(BaseRepository):
             """
             results = self.db.execute_query(query)
             stats['recent_activity'] = results
-            
+
             return stats
-            
+
         except Exception as e:
             logger.exception(f"Error getting contract statistics: {str(e)}")
             return {}
-    
+
     def _build_contract_from_data(self, data: Dict[str, Any]) -> Contract:
         """Build a Contract instance from database data."""
         from ..models.contract import ContractType
-        
+
         return Contract(
             id=UUID(data['id']),
             title=data.get('title'),
@@ -310,13 +310,13 @@ class ContractRepository(BaseRepository):
             governing_law=data.get('governing_law'),
             key_terms=self._deserialize_json(data.get('key_terms', '')),
         )
-    
+
     def _save_contract_parties(self, contract: Contract) -> None:
         """Save contract parties to database."""
         # Delete existing parties
         delete_query = "DELETE FROM contract_parties WHERE contract_id = :contract_id"
         self.db.execute_update(delete_query, {'contract_id': str(contract.id)})
-        
+
         # Insert new parties
         for party in contract.parties:
             party_data = {
@@ -328,7 +328,7 @@ class ContractRepository(BaseRepository):
                 'phone': party.phone,
                 'entity_type': party.entity_type,
             }
-            
+
             insert_query = """
                 INSERT INTO contract_parties (
                     contract_id, name, role, address, email, phone, entity_type
@@ -336,14 +336,14 @@ class ContractRepository(BaseRepository):
                     :contract_id, :name, :role, :address, :email, :phone, :entity_type
                 )
             """
-            
+
             self.db.execute_update(insert_query, party_data)
-    
+
     def _load_contract_parties(self, contract_id: UUID) -> List[ContractParty]:
         """Load contract parties from database."""
         query = "SELECT * FROM contract_parties WHERE contract_id = :contract_id"
         results = self.db.execute_query(query, {'contract_id': str(contract_id)})
-        
+
         parties = []
         for party_data in results:
             party = ContractParty(
@@ -355,15 +355,15 @@ class ContractRepository(BaseRepository):
                 entity_type=party_data.get('entity_type'),
             )
             parties.append(party)
-        
+
         return parties
-    
+
     def _save_legal_clauses(self, contract: Contract) -> None:
         """Save legal clauses to database."""
         # Delete existing clauses
         delete_query = "DELETE FROM legal_clauses WHERE contract_id = :contract_id"
         self.db.execute_update(delete_query, {'contract_id': str(contract.id)})
-        
+
         # Insert new clauses
         for clause in contract.clauses:
             if hasattr(clause, 'to_dict'):
@@ -387,7 +387,7 @@ class ContractRepository(BaseRepository):
                     'is_mandatory': getattr(clause, 'is_mandatory', True),
                     'risk_level': getattr(clause, 'risk_level', 'medium'),
                 }
-                
+
                 insert_query = """
                     INSERT INTO legal_clauses (
                         id, contract_id, type, title, text, page, coordinates,
@@ -401,19 +401,19 @@ class ContractRepository(BaseRepository):
                         :is_mandatory, :risk_level
                     )
                 """
-                
+
                 self.db.execute_update(insert_query, clause_data)
-    
+
     def _load_legal_clauses(self, contract_id: UUID) -> List[Any]:
         """Load legal clauses from database."""
         query = "SELECT * FROM legal_clauses WHERE contract_id = :contract_id ORDER BY page, id"
         results = self.db.execute_query(query, {'contract_id': str(contract_id)})
-        
+
         clauses = []
         for clause_data in results:
             # Convert back to LegalClause object
-            from ..models.clause import LegalClause, ClauseType
-            
+            from ..models.clause import ClauseType, LegalClause
+
             dates = []
             date_strings = self._deserialize_json(clause_data.get('dates', ''), [])
             for date_str in date_strings:
@@ -421,7 +421,7 @@ class ContractRepository(BaseRepository):
                     dates.append(datetime.fromisoformat(date_str))
                 except ValueError:
                     pass
-            
+
             clause = LegalClause(
                 id=UUID(clause_data['id']) if clause_data['id'] else None,
                 type=ClauseType(clause_data['type']),
@@ -441,15 +441,15 @@ class ContractRepository(BaseRepository):
                 is_mandatory=bool(clause_data.get('is_mandatory', True)),
                 risk_level=clause_data.get('risk_level', 'medium'),
             )
-            
+
             clauses.append(clause)
-        
+
         return clauses
 
 
 class ProcessingResultRepository(BaseRepository):
     """Repository for managing processing result data."""
-    
+
     def save(self, result: ProcessingResult) -> bool:
         """
         Save a processing result to the database.
@@ -475,7 +475,7 @@ class ProcessingResultRepository(BaseRepository):
                 'processing_config': self._serialize_json(result.processing_config),
                 'updated_at': datetime.utcnow().isoformat(),
             }
-            
+
             query = """
                 INSERT OR REPLACE INTO processing_results (
                     id, document_path, status, started_at, completed_at,
@@ -487,15 +487,15 @@ class ProcessingResultRepository(BaseRepository):
                     :errors, :processing_config, :updated_at
                 )
             """
-            
+
             self.db.execute_update(query, result_data)
             logger.debug(f"Processing result {result.id} saved successfully")
             return True
-            
+
         except Exception as e:
             logger.exception(f"Error saving processing result {result.id}: {str(e)}")
             return False
-    
+
     def find_by_id(self, result_id: UUID | str) -> Optional[ProcessingResult]:
         """
         Find a processing result by its ID.
@@ -509,16 +509,16 @@ class ProcessingResultRepository(BaseRepository):
         try:
             query = "SELECT * FROM processing_results WHERE id = :id"
             results = self.db.execute_query(query, {'id': str(result_id)})
-            
+
             if not results:
                 return None
-            
+
             return self._build_result_from_data(results[0])
-            
+
         except Exception as e:
             logger.exception(f"Error finding processing result {result_id}: {str(e)}")
             return None
-    
+
     def find_by_status(self, status: str) -> List[ProcessingResult]:
         """
         Find processing results by status.
@@ -532,30 +532,35 @@ class ProcessingResultRepository(BaseRepository):
         try:
             query = "SELECT * FROM processing_results WHERE status = :status ORDER BY started_at DESC"
             results = self.db.execute_query(query, {'status': status})
-            
+
             return [self._build_result_from_data(data) for data in results]
-            
+
         except Exception as e:
             logger.exception(f"Error finding processing results by status {status}: {str(e)}")
             return []
-    
+
     def _build_result_from_data(self, data: Dict[str, Any]) -> ProcessingResult:
         """Build a ProcessingResult instance from database data."""
-        from ..models.processing import ProcessingStatus, ProcessingStage, ValidationResult, ProcessingMetrics
-        
+        from ..models.processing import (
+            ProcessingMetrics,
+            ProcessingStage,
+            ProcessingStatus,
+            ValidationResult,
+        )
+
         # Build validation result
         validation = None
         if data.get('validation_result'):
             validation_data = self._deserialize_json(data['validation_result'])
             validation = ValidationResult(**validation_data)
-        
+
         # Build metrics
         metrics_data = self._deserialize_json(data.get('metrics', ''), {})
         metrics = ProcessingMetrics()
         for key, value in metrics_data.items():
             if hasattr(metrics, key):
                 setattr(metrics, key, value)
-        
+
         return ProcessingResult(
             id=UUID(data['id']),
             document_path=data.get('document_path'),
