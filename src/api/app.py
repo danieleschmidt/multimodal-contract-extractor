@@ -12,7 +12,6 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
-from starlette.middleware.base import BaseHTTPMiddleware
 
 from ..database import get_db_connection
 from .middleware import (
@@ -31,7 +30,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Manage application lifespan events."""
     # Startup
     logger.info("Starting Multimodal Contract Extractor API...")
-    
+
     # Initialize database
     try:
         db = get_db_connection()
@@ -40,18 +39,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as e:
         logger.exception(f"Failed to initialize database: {e}")
         raise
-    
+
     # Create necessary directories
     for directory in ["data", "logs", "cache", "temp"]:
         Path(directory).mkdir(exist_ok=True)
-    
+
     logger.info("API startup completed")
-    
+
     yield
-    
+
     # Shutdown
     logger.info("Shutting down API...")
-    
+
     # Cleanup tasks
     try:
         # Clean up temporary files
@@ -62,11 +61,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     temp_file.unlink()
                 except Exception as e:
                     logger.warning(f"Failed to clean up temp file {temp_file}: {e}")
-        
+
         logger.info("Cleanup completed")
     except Exception as e:
         logger.warning(f"Cleanup failed: {e}")
-    
+
     logger.info("API shutdown completed")
 
 
@@ -90,21 +89,21 @@ def create_app(testing: bool = False) -> FastAPI:
         "openapi_url": "/openapi.json",
         "lifespan": lifespan,
     }
-    
+
     if testing:
         app_config["lifespan"] = None  # Disable lifespan for testing
-    
+
     app = FastAPI(**app_config)
-    
+
     # Setup middleware
     setup_middleware(app, testing=testing)
-    
+
     # Register routes
     register_routes(app)
-    
+
     # Global exception handlers
     setup_exception_handlers(app)
-    
+
     return app
 
 
@@ -118,7 +117,7 @@ def setup_middleware(app: FastAPI, testing: bool = False) -> None:
     """
     # Security headers middleware
     app.add_middleware(SecurityHeadersMiddleware)
-    
+
     # CORS middleware
     if os.getenv("MCE_ENV") == "development" or testing:
         app.add_middleware(
@@ -138,25 +137,25 @@ def setup_middleware(app: FastAPI, testing: bool = False) -> None:
             allow_methods=["GET", "POST", "PUT", "DELETE"],
             allow_headers=["Authorization", "Content-Type"],
         )
-    
+
     # Compression middleware
     app.add_middleware(GZipMiddleware, minimum_size=1000)
-    
+
     # Rate limiting middleware (skip in testing)
     if not testing:
         app.add_middleware(RateLimitMiddleware)
-    
+
     # Authentication middleware (skip in testing)
     if not testing:
         app.add_middleware(AuthenticationMiddleware)
-    
+
     # Logging middleware
     app.add_middleware(LoggingMiddleware)
 
 
 def setup_exception_handlers(app: FastAPI) -> None:
     """Setup global exception handlers."""
-    
+
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request, exc: HTTPException):
         """Handle HTTP exceptions."""
@@ -171,7 +170,7 @@ def setup_exception_handlers(app: FastAPI) -> None:
                 }
             }
         )
-    
+
     @app.exception_handler(ValueError)
     async def value_error_handler(request, exc: ValueError):
         """Handle ValueError exceptions."""
@@ -186,7 +185,7 @@ def setup_exception_handlers(app: FastAPI) -> None:
                 }
             }
         )
-    
+
     @app.exception_handler(FileNotFoundError)
     async def file_not_found_handler(request, exc: FileNotFoundError):
         """Handle FileNotFoundError exceptions."""
@@ -201,7 +200,7 @@ def setup_exception_handlers(app: FastAPI) -> None:
                 }
             }
         )
-    
+
     @app.exception_handler(Exception)
     async def general_exception_handler(request, exc: Exception):
         """Handle general exceptions."""

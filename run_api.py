@@ -10,6 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 import uvicorn
+
 from src.api.app import create_app
 
 # Configure logging
@@ -28,15 +29,15 @@ def main():
     port = int(os.getenv("MCE_PORT", "8000"))
     debug = os.getenv("MCE_DEBUG", "false").lower() == "true"
     workers = int(os.getenv("MCE_WORKERS", "1"))
-    
+
     logger.info("Starting Multimodal Contract Extractor API")
     logger.info(f"Server will run on http://{host}:{port}")
     logger.info(f"Debug mode: {debug}")
     logger.info(f"Workers: {workers}")
-    
+
     # Create FastAPI app
     app = create_app(testing=False)
-    
+
     # Run with uvicorn
     uvicorn.run(
         app,

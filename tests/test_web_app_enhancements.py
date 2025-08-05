@@ -2,7 +2,6 @@
 
 from types import SimpleNamespace
 
-
 import web_app
 
 
@@ -263,14 +262,14 @@ class TestCurrentFunctionality:
     def test_temp_file_manager_functionality(self):
         """Test TempFileManager works correctly."""
         from web_app import TempFileManager
-        
+
         upload = SimpleNamespace(name="test.pdf", read=lambda: b"test data")
-        
+
         with TempFileManager(upload) as path:
             assert path.exists()
             assert path.read_bytes() == b"test data"
             assert path.suffix == ".pdf"
-        
+
         # File should be automatically cleaned up
         assert not path.exists()
 
@@ -287,25 +286,25 @@ class TestStreamlitIntegration:
     def test_streamlit_ui_components(self):
         """Test Streamlit UI components with proper mocking."""
         import unittest.mock as mock
-        
+
         # Mock streamlit module and its functions
         with mock.patch.dict('sys.modules', {'streamlit': mock.MagicMock()}):
             import streamlit as st
-            
+
             # Mock streamlit functions that would be used in web_app
             st.title = mock.MagicMock()
             st.file_uploader = mock.MagicMock()
             st.error = mock.MagicMock()
             st.success = mock.MagicMock()
             st.json = mock.MagicMock()
-            
+
             # Test that Streamlit functions can be called without error
             st.title("Test Title")
             st.file_uploader("Upload file", type=["pdf", "jpg"])
             st.error("Test error message")
             st.success("Test success message")
             st.json({"test": "data"})
-            
+
             # Verify functions were called
             st.title.assert_called_once_with("Test Title")
             st.file_uploader.assert_called_once()

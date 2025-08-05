@@ -85,7 +85,7 @@ def _check_tesseract() -> dict[str, Any]:
                 "version": None,
                 "message": "Tesseract OCR not found in PATH",
             }
-        
+
         # Try to run tesseract --version with absolute path
         config = get_config()
         result = subprocess.run(
@@ -138,7 +138,7 @@ def _check_poppler() -> dict[str, Any]:
                 "version": None,
                 "message": "Poppler utilities (pdfinfo) not found in PATH",
             }
-        
+
         # Try to get version with absolute path
         config = get_config()
         result = subprocess.run(

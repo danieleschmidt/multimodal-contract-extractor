@@ -57,6 +57,14 @@ class OCRConfig:
 
     cache_size_limit: int = 100
     context_window_size: int = 100
+    auto_detect_language: bool = True
+    default_language: str = "en"
+    supported_languages: list[str] = None
+    language_confidence_threshold: float = 0.6
+
+    def __post_init__(self):
+        if self.supported_languages is None:
+            self.supported_languages = ["en", "es", "fr", "de", "ja", "zh", "zh-tw"]
 
 
 @dataclass
@@ -120,6 +128,14 @@ def _load_from_environment() -> dict[str, Any]:
         env_config.setdefault("ocr", {})["cache_size_limit"] = int(val)
     if val := os.getenv("MCE_OCR_CONTEXT_WINDOW_SIZE"):
         env_config.setdefault("ocr", {})["context_window_size"] = int(val)
+    if val := os.getenv("MCE_OCR_AUTO_DETECT_LANGUAGE"):
+        env_config.setdefault("ocr", {})["auto_detect_language"] = val.lower() in ("true", "1", "yes")
+    if val := os.getenv("MCE_OCR_DEFAULT_LANGUAGE"):
+        env_config.setdefault("ocr", {})["default_language"] = val
+    if val := os.getenv("MCE_OCR_SUPPORTED_LANGUAGES"):
+        env_config.setdefault("ocr", {})["supported_languages"] = [lang.strip() for lang in val.split(",")]
+    if val := os.getenv("MCE_OCR_LANGUAGE_CONFIDENCE_THRESHOLD"):
+        env_config.setdefault("ocr", {})["language_confidence_threshold"] = float(val)
 
     # Extraction Configuration
     if val := os.getenv("MCE_EXTRACTION_BASE_CONFIDENCE_SCORE"):
@@ -259,6 +275,10 @@ def validate_config(config: Config) -> None:
         errors.append("ocr.cache_size_limit must be positive")
     if config.ocr.context_window_size <= 0:
         errors.append("ocr.context_window_size must be positive")
+    if not 0.0 <= config.ocr.language_confidence_threshold <= 1.0:
+        errors.append("ocr.language_confidence_threshold must be between 0.0 and 1.0")
+    if config.ocr.default_language not in config.ocr.supported_languages:
+        errors.append(f"ocr.default_language '{config.ocr.default_language}' must be in supported_languages")
 
     # Validate Extraction configuration
     if not 0.0 <= config.extraction.base_confidence_score <= 1.0:

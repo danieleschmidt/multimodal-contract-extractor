@@ -19,14 +19,10 @@ from multimodal_contract_extractor import (  # noqa: E402
     ExtractionResult,
     SecurityError,
     __version__,
-    serialize_to_csv,
-    serialize_to_json,
-    serialize_to_xml,
     validate_file_input,
     validate_output_path,
 )
 from multimodal_contract_extractor.cli_utils import (  # noqa: E402
-    SUPPORTED_FORMATS,
     add_common_arguments,
     setup_logging,
 )
@@ -47,6 +43,21 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     add_common_arguments(parser)
     parser.add_argument(
+        "--language",
+        default=None,
+        help="Document language code (e.g., en, es, fr, de, ja, zh). Auto-detected if not specified.",
+    )
+    parser.add_argument(
+        "--disable-advanced-classification",
+        action="store_true",
+        help="Disable advanced clause classification for specialized contract types",
+    )
+    parser.add_argument(
+        "--disable-adaptive-processing",
+        action="store_true",
+        help="Disable adaptive processing pipeline for low-confidence extractions",
+    )
+    parser.add_argument(
         "--version",
         action="version",
         version=f"%(prog)s {__version__}",
@@ -60,8 +71,16 @@ def main(argv: list[str] | None = None) -> int:
     setup_logging(args.log_level, json_logs=args.json_logs, request_id=request_id)
     logger.debug("Arguments: %s", args)
 
-    if args.output_format not in SUPPORTED_FORMATS:
-        logger.error("Unsupported format: %s", args.output_format)
+    # Check if the requested format is supported
+    try:
+        from multimodal_contract_extractor.serialization import get_supported_formats
+        supported_formats = get_supported_formats()
+        if args.output_format not in supported_formats:
+            logger.error("Unsupported format: %s. Supported formats: %s",
+                        args.output_format, ', '.join(supported_formats))
+            return 1
+    except ImportError as e:
+        logger.error("Failed to check format support: %s", e)
         return 1
 
     # Validate input file with security checks
@@ -82,7 +101,12 @@ def main(argv: list[str] | None = None) -> int:
     with PROCESSING_TIME.time():
         from multimodal_contract_extractor import extract_from_document
 
-        extraction_result = extract_from_document(input_path)
+        extraction_result = extract_from_document(
+            input_path,
+            language_code=args.language,
+            enable_advanced_classification=not args.disable_advanced_classification,
+            enable_adaptive_processing=not args.disable_adaptive_processing
+        )
 
     processing_time = extraction_result["document_info"]["processing_time"]
     logger.info("Processing completed in %.2fs", processing_time)
@@ -110,12 +134,23 @@ def main(argv: list[str] | None = None) -> int:
 
     result = ExtractionResult(document_info=info, clauses=clauses)
 
-    if args.output_format == "json":
-        data = serialize_to_json(result, pretty=True)
-    elif args.output_format == "xml":
-        data = serialize_to_xml(result, pretty=True)
-    else:  # csv
-        data = serialize_to_csv(result, include_coordinates=args.include_coordinates)
+    # Use enhanced serialization with validation
+    from multimodal_contract_extractor.serialization import serialize_with_validation
+
+    try:
+        data, validation_error = serialize_with_validation(
+            result,
+            args.output_format,
+            pretty=True,
+            validate=True
+        )
+
+        if validation_error:
+            logger.warning("Validation warning: %s", validation_error)
+
+    except Exception as e:
+        logger.error("Serialization failed: %s", e)
+        return 1
 
     output_path.write_text(data)
     logger.info("Wrote output to %s", output_path)

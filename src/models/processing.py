@@ -11,7 +11,7 @@ from uuid import UUID, uuid4
 
 class ProcessingStatus(Enum):
     """Status of document processing."""
-    
+
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
@@ -21,7 +21,7 @@ class ProcessingStatus(Enum):
 
 class ProcessingStage(Enum):
     """Stages of the processing pipeline."""
-    
+
     VALIDATION = "validation"
     PREPROCESSING = "preprocessing"
     OCR_EXTRACTION = "ocr_extraction"
@@ -34,23 +34,23 @@ class ProcessingStage(Enum):
 @dataclass
 class ValidationResult:
     """Result of document validation."""
-    
+
     is_valid: bool
     errors: List[str] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
     file_size_bytes: Optional[int] = None
     file_type: Optional[str] = None
     pages_detected: Optional[int] = None
-    
+
     def add_error(self, error: str) -> None:
         """Add a validation error."""
         self.errors.append(error)
         self.is_valid = False
-    
+
     def add_warning(self, warning: str) -> None:
         """Add a validation warning."""
         self.warnings.append(warning)
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary representation."""
         return {
@@ -66,45 +66,45 @@ class ValidationResult:
 @dataclass
 class ProcessingMetrics:
     """Metrics collected during processing."""
-    
+
     # Timing metrics
     total_time_seconds: float = 0.0
     stage_times: Dict[str, float] = field(default_factory=dict)
-    
+
     # Quality metrics
     ocr_confidence: float = 0.0
     clause_detection_confidence: float = 0.0
     overall_confidence: float = 0.0
-    
+
     # Content metrics
     pages_processed: int = 0
     text_extracted_chars: int = 0
     clauses_detected: int = 0
     entities_extracted: int = 0
-    
+
     # Performance metrics
     memory_usage_mb: float = 0.0
     cpu_usage_percent: float = 0.0
-    
+
     def add_stage_time(self, stage: ProcessingStage, time_seconds: float) -> None:
         """Add timing for a processing stage."""
         self.stage_times[stage.value] = time_seconds
         self.total_time_seconds += time_seconds
-    
+
     def calculate_overall_confidence(self) -> None:
         """Calculate overall confidence from component confidences."""
         confidences = []
-        
+
         if self.ocr_confidence > 0:
             confidences.append(self.ocr_confidence)
         if self.clause_detection_confidence > 0:
             confidences.append(self.clause_detection_confidence)
-        
+
         if confidences:
             self.overall_confidence = sum(confidences) / len(confidences)
         else:
             self.overall_confidence = 0.0
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary representation."""
         return {
@@ -125,14 +125,14 @@ class ProcessingMetrics:
 @dataclass
 class ProcessingError:
     """Represents an error that occurred during processing."""
-    
+
     stage: ProcessingStage
     error_type: str
     message: str
     timestamp: datetime = field(default_factory=datetime.utcnow)
     stack_trace: Optional[str] = None
     recoverable: bool = False
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary representation."""
         return {
@@ -148,41 +148,41 @@ class ProcessingError:
 @dataclass
 class ProcessingResult:
     """Complete result of document processing operation."""
-    
+
     # Identifiers
     id: UUID = field(default_factory=uuid4)
     document_path: Optional[str] = None
-    
+
     # Status and timing
     status: ProcessingStatus = ProcessingStatus.PENDING
     started_at: datetime = field(default_factory=datetime.utcnow)
     completed_at: Optional[datetime] = None
-    
+
     # Results
     validation: Optional[ValidationResult] = None
     metrics: ProcessingMetrics = field(default_factory=ProcessingMetrics)
     contract: Optional[Any] = None  # Contract object
     extracted_data: Dict[str, Any] = field(default_factory=dict)
-    
+
     # Error handling
     errors: List[ProcessingError] = field(default_factory=list)
     current_stage: ProcessingStage = ProcessingStage.VALIDATION
-    
+
     # Configuration
     processing_config: Dict[str, Any] = field(default_factory=dict)
-    
+
     def __post_init__(self) -> None:
         """Initialize processing result."""
         if self.validation is None:
             self.validation = ValidationResult(is_valid=True)
-    
+
     def set_status(self, status: ProcessingStatus) -> None:
         """Update processing status."""
         self.status = status
         if status in {ProcessingStatus.COMPLETED, ProcessingStatus.FAILED, ProcessingStatus.CANCELLED}:
             self.completed_at = datetime.utcnow()
-    
-    def add_error(self, stage: ProcessingStage, error_type: str, message: str, 
+
+    def add_error(self, stage: ProcessingStage, error_type: str, message: str,
                   stack_trace: Optional[str] = None, recoverable: bool = False) -> None:
         """Add a processing error."""
         error = ProcessingError(
@@ -193,25 +193,25 @@ class ProcessingResult:
             recoverable=recoverable
         )
         self.errors.append(error)
-        
+
         # Set status to failed if error is not recoverable
         if not recoverable:
             self.set_status(ProcessingStatus.FAILED)
-    
+
     def has_errors(self) -> bool:
         """Check if there are any processing errors."""
         return bool(self.errors)
-    
+
     def has_non_recoverable_errors(self) -> bool:
         """Check if there are any non-recoverable errors."""
         return any(not error.recoverable for error in self.errors)
-    
+
     def get_processing_time(self) -> Optional[float]:
         """Get total processing time in seconds."""
         if self.completed_at:
             return (self.completed_at - self.started_at).total_seconds()
         return None
-    
+
     def is_successful(self) -> bool:
         """Check if processing was successful."""
         return (
@@ -220,11 +220,11 @@ class ProcessingResult:
             self.validation and
             self.validation.is_valid
         )
-    
+
     def get_success_rate(self) -> float:
         """Calculate success rate based on completed stages."""
         total_stages = len(ProcessingStage)
-        
+
         if self.status == ProcessingStatus.COMPLETED:
             return 1.0
         elif self.status == ProcessingStatus.FAILED:
@@ -233,7 +233,7 @@ class ProcessingResult:
             return completed_stages / total_stages
         else:
             return 0.0
-    
+
     def generate_summary(self) -> Dict[str, Any]:
         """Generate a summary of the processing result."""
         summary = {
@@ -249,7 +249,7 @@ class ProcessingResult:
             'errors_count': len(self.errors),
             'has_warnings': bool(self.validation and self.validation.warnings),
         }
-        
+
         # Add metrics summary
         if self.metrics:
             summary.update({
@@ -258,7 +258,7 @@ class ProcessingResult:
                 'overall_confidence': self.metrics.overall_confidence,
                 'total_time_seconds': self.metrics.total_time_seconds,
             })
-        
+
         # Add validation summary
         if self.validation:
             summary.update({
@@ -266,9 +266,9 @@ class ProcessingResult:
                 'file_type': self.validation.file_type,
                 'file_size_mb': round(self.validation.file_size_bytes / (1024 * 1024), 2) if self.validation.file_size_bytes else None,
             })
-        
+
         return summary
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to complete dictionary representation."""
         return {
@@ -286,19 +286,19 @@ class ProcessingResult:
             'processing_config': self.processing_config,
             'summary': self.generate_summary(),
         }
-    
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> ProcessingResult:
         """Create ProcessingResult from dictionary."""
         # Parse dates
         started_at = datetime.fromisoformat(data['started_at'])
         completed_at = datetime.fromisoformat(data['completed_at']) if data.get('completed_at') else None
-        
+
         # Parse validation
         validation = None
         if data.get('validation'):
             validation = ValidationResult(**data['validation'])
-        
+
         # Parse metrics
         metrics = ProcessingMetrics()
         if data.get('metrics'):
@@ -314,7 +314,7 @@ class ProcessingResult:
             metrics.entities_extracted = metrics_data.get('entities_extracted', 0)
             metrics.memory_usage_mb = metrics_data.get('memory_usage_mb', 0.0)
             metrics.cpu_usage_percent = metrics_data.get('cpu_usage_percent', 0.0)
-        
+
         # Parse errors
         errors = []
         for error_data in data.get('errors', []):
@@ -327,7 +327,7 @@ class ProcessingResult:
                 recoverable=error_data.get('recoverable', False),
             )
             errors.append(error)
-        
+
         return cls(
             id=UUID(data['id']),
             document_path=data.get('document_path'),

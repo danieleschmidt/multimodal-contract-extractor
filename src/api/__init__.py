@@ -6,6 +6,6 @@ from .routes import register_routes
 
 __all__ = [
     "create_app",
-    "setup_middleware", 
+    "setup_middleware",
     "register_routes",
 ]

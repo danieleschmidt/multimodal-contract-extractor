@@ -5,10 +5,9 @@ This module provides common fixtures, test configuration, and utilities
 used across all test modules.
 """
 
-import json
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, Generator, List
+from typing import Any, Dict, Generator
 from unittest.mock import Mock, patch
 
 import pytest
@@ -49,12 +48,12 @@ def test_config() -> Config:
             "default_streaming_chunk_size": 3,
         },
     }
-    
+
     with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
         import yaml
         yaml.dump(config_data, f)
         temp_config_path = f.name
-    
+
     try:
         config = load_config(temp_config_path)
         yield config
@@ -86,12 +85,12 @@ def sample_pdf_path(temp_dir: Path) -> Path:
         Path: Path to sample PDF file
     """
     pdf_path = temp_dir / "sample_contract.pdf"
-    
+
     # Create a minimal PDF-like file for testing
     # Note: This is a mock file, real PDF generation would require reportlab
     pdf_content = b"%PDF-1.4\n1 0 obj\n<<\n/Type /Catalog\n/Pages 2 0 R\n>>\nendobj\n%%EOF"
     pdf_path.write_bytes(pdf_content)
-    
+
     return pdf_path
 
 
@@ -107,11 +106,11 @@ def sample_image_path(temp_dir: Path) -> Path:
         Path: Path to sample image file
     """
     image_path = temp_dir / "sample_document.png"
-    
+
     # Create a minimal test image
     image = Image.new('RGB', (800, 600), color='white')
     image.save(image_path, 'PNG')
-    
+
     return image_path
 
 
@@ -253,9 +252,9 @@ def performance_timer():
         callable: Timer function that returns elapsed time
     """
     import time
-    
+
     start_times = {}
-    
+
     def timer(name: str = "default") -> float:
         if name not in start_times:
             start_times[name] = time.time()
@@ -264,7 +263,7 @@ def performance_timer():
             elapsed = time.time() - start_times[name]
             del start_times[name]
             return elapsed
-    
+
     return timer
 
 
@@ -303,7 +302,7 @@ def test_data_factory():
             }
         else:
             raise ValueError(f"Unknown data type: {data_type}")
-    
+
     return create_test_data
 
 
@@ -319,7 +318,7 @@ def integration_markers():
         """Check if current test is marked as integration test."""
         return hasattr(pytest.current_test, "pytestmark") and \
                any(mark.name == "integration" for mark in pytest.current_test.pytestmark)
-    
+
     return is_integration_test
 
 
@@ -384,11 +383,11 @@ def pytest_collection_modifyitems(config, items):
         # Automatically mark tests in integration directory
         if "integration" in str(item.fspath):
             item.add_marker(pytest.mark.integration)
-        
+
         # Automatically mark performance tests
         if "performance" in str(item.fspath) or "benchmark" in item.name:
             item.add_marker(pytest.mark.performance)
-        
+
         # Automatically mark security tests
         if "security" in str(item.fspath) or "security" in item.name:
             item.add_marker(pytest.mark.security)
@@ -421,16 +420,16 @@ def setup_test_environment():
     # Ensure test directories exist
     test_dirs = [
         "tests/fixtures",
-        "tests/mocks", 
+        "tests/mocks",
         "tests/performance",
         "tests/e2e",
         "tests/contracts"
     ]
-    
+
     for test_dir in test_dirs:
         Path(test_dir).mkdir(parents=True, exist_ok=True)
-    
+
     yield
-    
+
     # Cleanup after all tests
     # Remove any temporary test files or state

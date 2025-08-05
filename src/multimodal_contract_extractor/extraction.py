@@ -7,6 +7,8 @@ import time
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
+from .adaptive_processing import process_with_adaptive_pipeline
+from .advanced_classification import classify_clause_advanced, identify_contract_type
 from .clause_detection import detect_clauses
 from .config import get_config
 from .document import Document, load_document, stream_document
@@ -23,18 +25,28 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def extract_from_document(file_path: Path) -> dict[str, Any]:
+def extract_from_document(file_path: Path, *,
+                         language_code: str | None = None,
+                         enable_advanced_classification: bool = True,
+                         enable_adaptive_processing: bool = True) -> dict[str, Any]:
     """Extract clauses from a document and return structured JSON-compatible data.
 
     This function provides the main extraction pipeline that:
     1. Loads the document
-    2. Detects clauses using OCR
-    3. Formats the output to match the documented JSON structure
+    2. Detects clauses using OCR with multi-language support
+    3. Performs advanced clause classification for specialized contract types
+    4. Formats the output to match the documented JSON structure
 
     Parameters
     ----------
     file_path : Path
         Path to the document to process
+    language_code : str, optional
+        Specific language code to use for processing. If None, language will be auto-detected.
+    enable_advanced_classification : bool
+        Whether to enable advanced clause classification for specialized contract types.
+    enable_adaptive_processing : bool
+        Whether to enable adaptive processing pipeline for low-confidence extractions.
 
     Returns
     -------
@@ -50,7 +62,28 @@ def extract_from_document(file_path: Path) -> dict[str, Any]:
 
             # Adaptive document loading: use streaming for large files to optimize memory usage
             document = _load_document_adaptive(file_path)
-            clauses = detect_clauses(document)
+
+            # Use adaptive processing pipeline if enabled
+            if enable_adaptive_processing:
+                adaptive_result = process_with_adaptive_pipeline(
+                    document,
+                    language_code=language_code or "en"
+                )
+                clauses = adaptive_result.final_clauses
+
+                # Log adaptive processing results
+                logger.info(
+                    "Adaptive processing completed: strategy=%s, improvement=%s, attempts=%d",
+                    adaptive_result.processing_strategy,
+                    adaptive_result.improvement_achieved,
+                    len(adaptive_result.attempts_made)
+                )
+            else:
+                clauses = detect_clauses(document, language_code=language_code)
+
+            # Perform advanced classification if enabled
+            if enable_advanced_classification:
+                clauses = _enhance_clauses_with_advanced_classification(clauses, language_code or "en")
 
             processing_time = time.perf_counter() - start_time
 
@@ -68,7 +101,17 @@ def extract_from_document(file_path: Path) -> dict[str, Any]:
             # Record successful processing
             record_document_processed("success")
 
-            result = _build_extraction_result(document, clauses, processing_time)
+            result = _build_extraction_result(document, clauses, processing_time, enable_advanced_classification)
+
+            # Add adaptive processing metadata if it was used
+            if enable_adaptive_processing and 'adaptive_result' in locals():
+                result["metadata"]["adaptive_processing"] = {
+                    "strategy_used": adaptive_result.processing_strategy,
+                    "improvement_achieved": adaptive_result.improvement_achieved,
+                    "total_attempts": len(adaptive_result.attempts_made),
+                    "consensus_confidence": round(adaptive_result.consensus_confidence, 3),
+                    "processing_time": round(adaptive_result.total_processing_time, 2)
+                }
 
             logger.info(
                 "Extraction completed for %s: %d clauses found in %.2fs",
@@ -115,15 +158,38 @@ def _build_extraction_result(
             1.0  # High confidence when no clauses found means OCR worked
         )
 
+    # Identify contract type using advanced classification if enabled
+    document_type = _infer_document_type(clauses)
+    contract_type_scores = {}
+
+    if enable_advanced_classification:
+        clause_tuples = [(clause.type, clause.text) for clause in clauses]
+        contract_type_scores = identify_contract_type(clause_tuples)
+
+        # Override document type with highest scoring contract type if confident enough
+        if contract_type_scores:
+            best_type = max(contract_type_scores.keys(), key=lambda k: contract_type_scores[k])
+            if contract_type_scores[best_type] > 0.6:
+                document_type = best_type
+
+    # Build document info
+    document_info = {
+        "filename": document.path.name,
+        "pages": len(document.pages),
+        "processing_time": round(processing_time, 2),
+        "overall_confidence": round(overall_confidence, 2),
+        "document_type": document_type,
+    }
+
+    # Add contract type scores if advanced classification was used
+    if enable_advanced_classification and contract_type_scores:
+        document_info["contract_type_scores"] = {
+            k: round(v, 3) for k, v in contract_type_scores.items() if v > 0.1
+        }
+
     # Build result in documented JSON format
     return {
-        "document_info": {
-            "filename": document.path.name,
-            "pages": len(document.pages),
-            "processing_time": round(processing_time, 2),
-            "overall_confidence": round(overall_confidence, 2),
-            "document_type": _infer_document_type(clauses),
-        },
+        "document_info": document_info,
         "clauses": [
             {
                 "id": clause.id
@@ -140,13 +206,21 @@ def _build_extraction_result(
                 "key_terms": clause.key_terms
                 if hasattr(clause, "key_terms")
                 else _extract_key_terms(clause),
+                # Add advanced classification results if available
+                **(_get_advanced_clause_data(clause) if enable_advanced_classification
+                   and hasattr(clause, 'advanced_classification') else {})
             }
             for i, clause in enumerate(clauses, 1)
         ],
         "metadata": {
             "extraction_timestamp": datetime.now(timezone.utc).isoformat(),
-            "model_version": "v0.1.0-ocr",
-            "processing_method": "ocr_keyword_detection",
+            "model_version": "v0.1.0-ocr-multilang",
+            "processing_method": "ocr_keyword_detection" + ("_advanced" if enable_advanced_classification else "") + ("_adaptive" if enable_adaptive_processing else ""),
+            "features_enabled": {
+                "multi_language_support": True,
+                "advanced_classification": enable_advanced_classification,
+                "adaptive_processing": enable_adaptive_processing,
+            }
         },
     }
 
@@ -218,19 +292,36 @@ def _extract_key_terms(clause) -> list[str]:
 
 
 def _infer_document_type(clauses) -> str:
-    """Infer document type based on detected clause types."""
+    """Infer document type based on detected clause types with enhanced logic."""
     if not clauses:
         return "unknown"
 
     clause_types = {clause.type for clause in clauses}
 
-    # Simple heuristics for document type classification
+    # Enhanced heuristics for document type classification
+    # Check for specialized contract types first
+    if "licensing" in clause_types or "intellectual_property" in clause_types:
+        return "licensing_agreement"
+    if "merger_acquisition" in clause_types:
+        return "merger_acquisition"
+    if "trade_agreement" in clause_types or ("import" in str(clauses).lower() and "export" in str(clauses).lower()):
+        return "trade_agreement"
+
+    # Traditional classification logic
     if "confidentiality" in clause_types and len(clause_types) <= 3:
         return "nda"
     if "payment_terms" in clause_types and "termination" in clause_types:
-        return "employment_agreement"
+        # Check for employment-specific terms
+        all_text = " ".join([clause.text.lower() for clause in clauses])
+        if any(term in all_text for term in ["employee", "employer", "salary", "wages"]):
+            return "employment_agreement"
+        else:
+            return "service_agreement"
     if "liability" in clause_types and "governing_law" in clause_types:
         return "service_agreement"
+    if "lease" in str(clauses).lower() or "rent" in str(clauses).lower():
+        return "lease_agreement"
+
     return "general_contract"
 
 
@@ -279,3 +370,40 @@ def _load_document_adaptive(file_path: Path) -> Document:
             "Could not determine file size, falling back to standard loading: %s", e
         )
         return load_document(file_path)
+
+
+def _enhance_clauses_with_advanced_classification(clauses: list, language_code: str) -> list:
+    """Enhance clauses with advanced classification results."""
+    enhanced_clauses = []
+
+    for clause in clauses:
+        # Perform advanced classification
+        advanced_result = classify_clause_advanced(
+            clause.text, clause.type, language_code
+        )
+
+        # Store advanced classification results on the clause object
+        clause.advanced_classification = advanced_result
+
+        # Update confidence if advanced classification provides higher confidence
+        if advanced_result.confidence > clause.confidence:
+            clause.confidence = advanced_result.confidence
+
+        enhanced_clauses.append(clause)
+
+    return enhanced_clauses
+
+
+def _get_advanced_clause_data(clause) -> dict[str, Any]:
+    """Extract advanced classification data from a clause object."""
+    if not hasattr(clause, 'advanced_classification'):
+        return {}
+
+    advanced = clause.advanced_classification
+    return {
+        "legal_significance": advanced.legal_significance,
+        "contract_types": advanced.contract_types,
+        "keywords_matched": advanced.keywords_matched,
+        "context_indicators": advanced.context_indicators,
+        "advanced_confidence": round(advanced.confidence, 3),
+    }
