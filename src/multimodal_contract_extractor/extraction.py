@@ -18,6 +18,28 @@ from .metrics import (
     record_document_processed,
     record_pages_processed,
 )
+from .neuromorphic_engine import analyze_with_neuromorphic_computing
+from .quantum_analysis import analyze_with_quantum_computing
+from .advanced_error_handling import (
+    with_error_handling, 
+    ErrorSeverity, 
+    get_error_manager,
+    ContractProcessingError
+)
+from .enterprise_security import (
+    get_audit_logger,
+    get_threat_detector,
+    ThreatLevel
+)
+from .comprehensive_validation import (
+    validate_extraction_result,
+    ValidationLevel
+)
+from .performance_optimization import (
+    optimize_performance,
+    get_performance_optimizer,
+    OptimizationStrategy
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -25,10 +47,27 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+@optimize_performance(
+    cache_key=None,  # Auto-generate based on file path and settings
+    cache_ttl=3600.0,  # Cache for 1 hour
+    enable_parallel=True,
+    optimization_strategy=OptimizationStrategy.ADAPTIVE
+)
+@with_error_handling(
+    component="extraction",
+    operation="extract_from_document",
+    severity=ErrorSeverity.HIGH,
+    max_retries=2,
+    retry_delay=2.0
+)
 def extract_from_document(file_path: Path, *,
                          language_code: str | None = None,
                          enable_advanced_classification: bool = True,
-                         enable_adaptive_processing: bool = True) -> dict[str, Any]:
+                         enable_adaptive_processing: bool = True,
+                         enable_neuromorphic_analysis: bool = True,
+                         enable_quantum_analysis: bool = True,
+                         validation_level: ValidationLevel = ValidationLevel.STANDARD,
+                         enable_security_scanning: bool = True) -> dict[str, Any]:
     """Extract clauses from a document and return structured JSON-compatible data.
 
     This function provides the main extraction pipeline that:
@@ -47,6 +86,14 @@ def extract_from_document(file_path: Path, *,
         Whether to enable advanced clause classification for specialized contract types.
     enable_adaptive_processing : bool
         Whether to enable adaptive processing pipeline for low-confidence extractions.
+    enable_neuromorphic_analysis : bool
+        Whether to enable neuromorphic computing analysis for advanced pattern recognition.
+    enable_quantum_analysis : bool
+        Whether to enable quantum-inspired analysis for complex clause relationships.
+    validation_level : ValidationLevel
+        Level of validation to perform on extraction results.
+    enable_security_scanning : bool
+        Whether to perform security scanning on input files.
 
     Returns
     -------
@@ -56,8 +103,39 @@ def extract_from_document(file_path: Path, *,
     # Record processing time with Prometheus histogram
     with PROCESSING_TIME.time():
         start_time = time.perf_counter()
-
+        
+        # Initialize security and audit logging
+        audit_logger = get_audit_logger() if enable_security_scanning else None
+        threat_detector = get_threat_detector() if enable_security_scanning else None
+        
         try:
+            # Security scanning
+            if enable_security_scanning:
+                if audit_logger:
+                    audit_logger.log_security_event(
+                        event_type="document_processing_started",
+                        severity=ThreatLevel.INFO,
+                        resource=str(file_path),
+                        action="extract_from_document",
+                        outcome="started"
+                    )
+                
+                if threat_detector:
+                    # Scan file for threats
+                    threat_scan = threat_detector.scan_file(file_path)
+                    if threat_scan["risk_score"] > 0.5:
+                        if audit_logger:
+                            audit_logger.log_security_event(
+                                event_type="high_risk_file_detected",
+                                severity=ThreatLevel.HIGH,
+                                resource=str(file_path),
+                                action="threat_scan",
+                                outcome="threat_detected",
+                                details=threat_scan
+                            )
+                        logger.warning("High-risk file detected: %s", threat_scan)
+                        # Continue processing but log the risk
+            
             logger.info("Starting extraction for %s", file_path.name)
 
             # Adaptive document loading: use streaming for large files to optimize memory usage
@@ -113,6 +191,114 @@ def extract_from_document(file_path: Path, *,
                     "processing_time": round(adaptive_result.total_processing_time, 2)
                 }
 
+            # Perform neuromorphic analysis if enabled
+            if enable_neuromorphic_analysis:
+                try:
+                    import asyncio
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    
+                    neuromorphic_result = loop.run_until_complete(
+                        analyze_with_neuromorphic_computing(
+                            result["document_info"],
+                            result["clauses"]
+                        )
+                    )
+                    result["metadata"]["neuromorphic_analysis"] = neuromorphic_result
+                    logger.info("Neuromorphic analysis completed with %d neural spikes", 
+                              neuromorphic_result.get("total_spikes", 0))
+                    
+                    loop.close()
+                except Exception as e:
+                    logger.warning("Neuromorphic analysis failed: %s", e)
+                    result["metadata"]["neuromorphic_analysis"] = {"error": str(e)}
+
+            # Perform quantum analysis if enabled  
+            if enable_quantum_analysis:
+                try:
+                    if 'loop' not in locals():
+                        import asyncio
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                    
+                    quantum_result = loop.run_until_complete(
+                        analyze_with_quantum_computing(
+                            result["clauses"],
+                            enable_entanglement=True,
+                            enable_interference=True
+                        )
+                    )
+                    result["metadata"]["quantum_analysis"] = quantum_result
+                    logger.info("Quantum analysis completed with %.3f confidence", 
+                              quantum_result.get("quantum_confidence", 0.0))
+                    
+                    if 'loop' in locals():
+                        loop.close()
+                except Exception as e:
+                    logger.warning("Quantum analysis failed: %s", e)
+                    result["metadata"]["quantum_analysis"] = {"error": str(e)}
+
+            # Perform comprehensive validation
+            try:
+                validation_report = validate_extraction_result(result, validation_level)
+                result["metadata"]["validation"] = {
+                    "validation_id": validation_report.validation_id,
+                    "level": validation_report.validation_level.value,
+                    "success_rate": validation_report.success_rate,
+                    "is_valid": validation_report.is_valid,
+                    "total_checks": validation_report.total_checks,
+                    "warning_count": len(validation_report.warning_issues),
+                    "error_count": len(validation_report.failed_issues),
+                    "critical_count": len(validation_report.critical_issues),
+                    "execution_time": validation_report.execution_time
+                }
+                
+                if not validation_report.is_valid:
+                    logger.warning(
+                        "Validation issues found: %d errors, %d critical",
+                        len(validation_report.failed_issues),
+                        len(validation_report.critical_issues)
+                    )
+                    
+                    if audit_logger:
+                        audit_logger.log_security_event(
+                            event_type="validation_issues_found",
+                            severity=ThreatLevel.MEDIUM if validation_report.has_critical_issues else ThreatLevel.LOW,
+                            resource=str(file_path),
+                            action="validation",
+                            outcome="issues_detected",
+                            details={
+                                "error_count": len(validation_report.failed_issues),
+                                "critical_count": len(validation_report.critical_issues)
+                            }
+                        )
+                
+                logger.info("Validation completed with %.1f%% success rate", 
+                          validation_report.success_rate * 100)
+                          
+            except Exception as e:
+                logger.error("Validation failed: %s", e)
+                result["metadata"]["validation"] = {"error": str(e)}
+
+            # Final security audit log
+            if audit_logger:
+                audit_logger.log_security_event(
+                    event_type="document_processing_completed",
+                    severity=ThreatLevel.INFO,
+                    resource=str(file_path),
+                    action="extract_from_document",
+                    outcome="success",
+                    details={
+                        "clauses_extracted": len(clauses),
+                        "processing_time": processing_time,
+                        "features_enabled": {
+                            "neuromorphic": enable_neuromorphic_analysis,
+                            "quantum": enable_quantum_analysis,
+                            "validation": validation_level.value
+                        }
+                    }
+                )
+
             logger.info(
                 "Extraction completed for %s: %d clauses found in %.2fs",
                 file_path.name,
@@ -125,7 +311,26 @@ def extract_from_document(file_path: Path, *,
         except Exception as e:
             # Record failed processing
             record_document_processed("error")
+            
+            # Security audit log for failure
+            if audit_logger:
+                audit_logger.log_security_event(
+                    event_type="document_processing_failed",
+                    severity=ThreatLevel.HIGH,
+                    resource=str(file_path),
+                    action="extract_from_document",
+                    outcome="failure",
+                    details={"error": str(e), "error_type": type(e).__name__}
+                )
+            
             logger.exception("Extraction failed for %s: %s", file_path.name, e)
+            
+            # Wrap in ContractProcessingError for better error handling
+            if not isinstance(e, ContractProcessingError):
+                raise ContractProcessingError(
+                    f"Document extraction failed: {str(e)}", 
+                    ErrorSeverity.HIGH
+                ) from e
             raise
 
 
@@ -215,11 +420,13 @@ def _build_extraction_result(
         "metadata": {
             "extraction_timestamp": datetime.now(timezone.utc).isoformat(),
             "model_version": "v0.1.0-ocr-multilang",
-            "processing_method": "ocr_keyword_detection" + ("_advanced" if enable_advanced_classification else "") + ("_adaptive" if enable_adaptive_processing else ""),
+            "processing_method": "ocr_keyword_detection" + ("_advanced" if enable_advanced_classification else "") + ("_adaptive" if enable_adaptive_processing else "") + ("_neuromorphic" if enable_neuromorphic_analysis else "") + ("_quantum" if enable_quantum_analysis else ""),
             "features_enabled": {
                 "multi_language_support": True,
                 "advanced_classification": enable_advanced_classification,
                 "adaptive_processing": enable_adaptive_processing,
+                "neuromorphic_analysis": enable_neuromorphic_analysis,
+                "quantum_analysis": enable_quantum_analysis,
             }
         },
     }

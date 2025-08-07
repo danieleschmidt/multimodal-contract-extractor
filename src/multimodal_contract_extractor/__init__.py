@@ -57,6 +57,46 @@ from .websocket_server import (
     start_websocket_server,
     websocket_manager,
 )
+from .neuromorphic_engine import (
+    analyze_with_neuromorphic_computing,
+    get_neuromorphic_processor,
+    NeuromorphicConfig,
+    NeuromorphicProcessor,
+)
+from .quantum_analysis import (
+    analyze_with_quantum_computing,
+    get_quantum_processor,
+    QuantumConfig,
+    QuantumProcessor,
+)
+from .advanced_error_handling import (
+    ErrorRecoveryManager,
+    ErrorSeverity,
+    get_error_manager,
+    with_error_handling,
+)
+from .enterprise_security import (
+    get_audit_logger,
+    get_encryption_manager,
+    get_compliance_manager,
+    EnterpriseSecurityConfig,
+)
+from .comprehensive_validation import (
+    validate_extraction_result,
+    ValidationLevel,
+    ValidationReport,
+)
+from .performance_optimization import (
+    get_performance_optimizer,
+    optimize_performance,
+    PerformanceConfig,
+    OptimizationStrategy,
+)
+from .distributed_computing import (
+    get_distributed_processor,
+    DistributedConfig,
+    ClusterCoordinator,
+)
 
 __all__ = [
     "Clause",
@@ -105,4 +145,30 @@ __all__ = [
     "stream_document",
     "validate_file_input",
     "validate_output_path",
+    "analyze_with_neuromorphic_computing",
+    "get_neuromorphic_processor",
+    "NeuromorphicConfig",
+    "NeuromorphicProcessor",
+    "analyze_with_quantum_computing",
+    "get_quantum_processor",
+    "QuantumConfig",
+    "QuantumProcessor",
+    "ErrorRecoveryManager",
+    "ErrorSeverity",
+    "get_error_manager",
+    "with_error_handling",
+    "get_audit_logger",
+    "get_encryption_manager",
+    "get_compliance_manager",
+    "EnterpriseSecurityConfig",
+    "validate_extraction_result",
+    "ValidationLevel",
+    "ValidationReport",
+    "get_performance_optimizer",
+    "optimize_performance",
+    "PerformanceConfig",
+    "OptimizationStrategy",
+    "get_distributed_processor",
+    "DistributedConfig",
+    "ClusterCoordinator",
 ]
