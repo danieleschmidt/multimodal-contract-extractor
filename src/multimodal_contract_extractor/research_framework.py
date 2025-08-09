@@ -12,13 +12,15 @@ import logging
 import statistics
 import time
 import hashlib
+import math
+import random
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union, Callable
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +45,34 @@ class StatisticalTest(Enum):
     KRUSKAL_WALLIS = "kruskal_wallis"
     ANOVA = "anova"
     CHI_SQUARE = "chi_square"
+    BOOTSTRAP_TEST = "bootstrap_test"
+    PERMUTATION_TEST = "permutation_test"
+    BAYESIAN_T_TEST = "bayesian_t_test"
+    KOLMOGOROV_SMIRNOV = "kolmogorov_smirnov"
+    
+
+class MultipleComparisonCorrection(Enum):
+    """Multiple comparison correction methods."""
+    NONE = "none"
+    BONFERRONI = "bonferroni"
+    HOLM_BONFERRONI = "holm_bonferroni"
+    BENJAMINI_HOCHBERG = "benjamini_hochberg"
+    BENJAMINI_YEKUTIELI = "benjamini_yekutieli"
+    
+
+class CrossValidationType(Enum):
+    """Cross-validation types for model evaluation."""
+    K_FOLD = "k_fold"
+    STRATIFIED_K_FOLD = "stratified_k_fold"
+    TIME_SERIES_SPLIT = "time_series_split"
+    LEAVE_ONE_OUT = "leave_one_out"
+    LEAVE_ONE_GROUP_OUT = "leave_one_group_out"
+    
+
+# Statistical test result structures
+BootstrapResult = namedtuple('BootstrapResult', ['statistic', 'confidence_interval', 'p_value', 'bootstrap_samples'])
+BayesianTestResult = namedtuple('BayesianTestResult', ['bayes_factor', 'posterior_prob', 'credible_interval'])
+CrossValidationResult = namedtuple('CrossValidationResult', ['scores', 'mean_score', 'std_score', 'fold_results'])
 
 
 @dataclass
@@ -63,6 +93,11 @@ class ExperimentConfig:
     repetitions: int = 10
     confidence_level: float = 0.95
     statistical_tests: List[StatisticalTest] = field(default_factory=list)
+    multiple_comparison_correction: MultipleComparisonCorrection = MultipleComparisonCorrection.BENJAMINI_HOCHBERG
+    cross_validation_type: CrossValidationType = CrossValidationType.STRATIFIED_K_FOLD
+    cross_validation_folds: int = 5
+    bootstrap_samples: int = 10000
+    alpha_level: float = 0.05
     publication_ready: bool = False
     ethical_considerations: List[str] = field(default_factory=list)
 
@@ -267,22 +302,33 @@ class ResearchDataGenerator:
         return {"document_id": f"license_{doc_id:04d}", "document_type": "licensing", "complexity": complexity}
 
 
-class StatisticalAnalyzer:
-    """Performs statistical analysis for research evaluation."""
+class AdvancedStatisticalAnalyzer:
+    """Performs comprehensive statistical analysis for research evaluation."""
     
-    def __init__(self):
-        self.significance_threshold = 0.05
+    def __init__(self, significance_threshold: float = 0.05):
+        self.significance_threshold = significance_threshold
+        self.random_state = 42
+        random.seed(self.random_state)
+        np.random.seed(self.random_state)
     
-    def perform_comparative_analysis(self, baseline_results: List[ExperimentResult],
-                                   novel_results: List[ExperimentResult],
-                                   metrics: List[str] = None) -> ComparativeAnalysis:
-        """Perform comprehensive comparative analysis."""
+    def perform_comprehensive_comparative_analysis(
+        self,
+        baseline_results: List[ExperimentResult],
+        novel_results: List[ExperimentResult],
+        metrics: List[str] = None,
+        statistical_tests: List[StatisticalTest] = None,
+        correction_method: MultipleComparisonCorrection = MultipleComparisonCorrection.BENJAMINI_HOCHBERG
+    ) -> ComparativeAnalysis:
+        """Perform comprehensive comparative analysis with advanced statistics."""
         if metrics is None:
-            metrics = ["accuracy", "processing_time", "f1_score"]
+            metrics = ["accuracy", "processing_time", "f1_score", "energy_consumption"]
+        if statistical_tests is None:
+            statistical_tests = [StatisticalTest.T_TEST, StatisticalTest.MANN_WHITNEY_U, 
+                               StatisticalTest.BOOTSTRAP_TEST]
         
-        # Calculate improvements
+        # Calculate improvements and perform multiple statistical tests
         improvements = {}
-        statistical_tests = {}
+        all_statistical_tests = {}
         practical_significance = {}
         
         for metric in metrics:
@@ -298,50 +344,68 @@ class StatisticalAnalyzer:
             
             if baseline_mean != 0:
                 if metric in ["processing_time", "error_rate", "energy_consumption"]:
-                    # Lower is better for these metrics
                     improvement = ((baseline_mean - novel_mean) / baseline_mean) * 100
                 else:
-                    # Higher is better for these metrics
                     improvement = ((novel_mean - baseline_mean) / baseline_mean) * 100
             else:
                 improvement = 0.0
             
             improvements[metric] = improvement
             
-            # Perform statistical test
-            statistical_tests[metric] = self._perform_t_test(baseline_values, novel_values)
+            # Perform multiple statistical tests
+            metric_tests = {}
+            for test_type in statistical_tests:
+                if test_type == StatisticalTest.T_TEST:
+                    metric_tests[test_type.value] = self._perform_t_test(baseline_values, novel_values)
+                elif test_type == StatisticalTest.MANN_WHITNEY_U:
+                    metric_tests[test_type.value] = self._perform_mann_whitney_u_test(baseline_values, novel_values)
+                elif test_type == StatisticalTest.BOOTSTRAP_TEST:
+                    metric_tests[test_type.value] = self._perform_bootstrap_test(baseline_values, novel_values)
+                elif test_type == StatisticalTest.BAYESIAN_T_TEST:
+                    metric_tests[test_type.value] = self._perform_bayesian_t_test(baseline_values, novel_values)
+                elif test_type == StatisticalTest.KOLMOGOROV_SMIRNOV:
+                    metric_tests[test_type.value] = self._perform_ks_test(baseline_values, novel_values)
             
-            # Determine practical significance
-            practical_significance[metric] = abs(improvement) > 5.0  # 5% improvement threshold
+            all_statistical_tests[metric] = metric_tests
+            
+            # Determine practical significance with Cohen's d threshold
+            effect_size = self._calculate_cohens_d(baseline_values, novel_values)
+            practical_significance[metric] = {
+                'improvement_significant': abs(improvement) > 5.0,
+                'effect_size_significant': abs(effect_size) >= 0.5,  # Medium effect size
+                'combined_significance': abs(improvement) > 5.0 and abs(effect_size) >= 0.5
+            }
         
-        # Generate recommendation
-        significant_improvements = sum(1 for _, result in statistical_tests.items() 
-                                     if result.significant and improvements.get(_, 0) > 0)
+        # Apply multiple comparison correction
+        corrected_tests = self._apply_multiple_comparison_correction(
+            all_statistical_tests, correction_method
+        )
         
-        total_metrics = len(metrics)
-        confidence_score = significant_improvements / total_metrics if total_metrics > 0 else 0.0
-        
-        if confidence_score >= 0.7:
-            recommendation = "Strong evidence for novel method superiority"
-        elif confidence_score >= 0.5:
-            recommendation = "Moderate evidence for novel method improvement"
-        elif confidence_score >= 0.3:
-            recommendation = "Some evidence for novel method benefits"
-        else:
-            recommendation = "Insufficient evidence for novel method superiority"
+        # Generate comprehensive recommendation with Bayesian reasoning
+        recommendation_data = self._generate_evidence_based_recommendation(
+            improvements, corrected_tests, practical_significance
+        )
         
         return ComparativeAnalysis(
             baseline_method=baseline_results[0].method_name if baseline_results else "unknown",
             novel_method=novel_results[0].method_name if novel_results else "unknown",
             improvement_percentage=improvements,
-            statistical_significance=statistical_tests,
+            statistical_significance=corrected_tests,
             practical_significance=practical_significance,
-            recommendation=recommendation,
-            confidence_score=confidence_score
+            recommendation=recommendation_data['recommendation'],
+            confidence_score=recommendation_data['confidence_score']
+        )
+    
+    def perform_comparative_analysis(self, baseline_results: List[ExperimentResult],
+                                   novel_results: List[ExperimentResult],
+                                   metrics: List[str] = None) -> ComparativeAnalysis:
+        """Backward compatibility wrapper for existing code."""
+        return self.perform_comprehensive_comparative_analysis(
+            baseline_results, novel_results, metrics
         )
     
     def _perform_t_test(self, sample1: List[float], sample2: List[float]) -> StatisticalAnalysisResult:
-        """Perform independent t-test."""
+        """Perform Welch's t-test (unequal variances assumed)."""
         if len(sample1) < 2 or len(sample2) < 2:
             return StatisticalAnalysisResult(
                 test_type=StatisticalTest.T_TEST,
@@ -353,44 +417,37 @@ class StatisticalAnalyzer:
                 interpretation="Insufficient sample size"
             )
         
-        # Calculate means and standard deviations
+        # Calculate descriptive statistics
         mean1, mean2 = statistics.mean(sample1), statistics.mean(sample2)
-        std1, std2 = statistics.stdev(sample1), statistics.stdev(sample2)
+        var1 = statistics.variance(sample1) if len(sample1) > 1 else 0.0
+        var2 = statistics.variance(sample2) if len(sample2) > 1 else 0.0
         n1, n2 = len(sample1), len(sample2)
         
-        # Pooled standard error
-        pooled_se = ((std1**2 / n1) + (std2**2 / n2)) ** 0.5
+        # Welch's t-test calculations
+        se_diff = math.sqrt(var1/n1 + var2/n2) if (var1/n1 + var2/n2) > 0 else 1e-10
+        t_stat = (mean1 - mean2) / se_diff
         
-        if pooled_se == 0:
-            t_stat = 0.0
+        # Welch-Satterthwaite degrees of freedom
+        if var1 > 0 and var2 > 0:
+            num = (var1/n1 + var2/n2) ** 2
+            denom = (var1/n1)**2/(n1-1) + (var2/n2)**2/(n2-1)
+            df = num / denom if denom > 0 else n1 + n2 - 2
         else:
-            t_stat = (mean1 - mean2) / pooled_se
-        
-        # Degrees of freedom (Welch's approximation)
-        if std1 == 0 and std2 == 0:
             df = n1 + n2 - 2
-        else:
-            numerator = (std1**2 / n1 + std2**2 / n2) ** 2
-            denominator = (std1**2 / n1)**2 / (n1 - 1) + (std2**2 / n2)**2 / (n2 - 1)
-            df = numerator / denominator if denominator != 0 else n1 + n2 - 2
         
-        # Approximate p-value calculation (simplified)
-        # In real implementation, would use scipy.stats.t.cdf
-        p_value = min(1.0, abs(t_stat) * 0.1)  # Simplified approximation
+        # Improved p-value approximation using t-distribution properties
+        p_value = self._t_distribution_p_value(abs(t_stat), df)
         
         significant = p_value < self.significance_threshold
         
-        # Effect size (Cohen's d)
-        if std1 == 0 and std2 == 0:
-            effect_size = 0.0
-        else:
-            pooled_std = ((std1**2 + std2**2) / 2) ** 0.5
-            effect_size = abs(mean1 - mean2) / pooled_std if pooled_std != 0 else 0.0
+        # Cohen's d effect size
+        effect_size = self._calculate_cohens_d(sample1, sample2)
         
-        # Confidence interval (simplified)
-        margin_of_error = 1.96 * pooled_se  # 95% CI approximation
-        ci_lower = (mean1 - mean2) - margin_of_error
-        ci_upper = (mean1 - mean2) + margin_of_error
+        # Confidence interval for difference of means
+        t_critical = self._t_critical_value(0.05, df)  # 95% CI
+        margin_error = t_critical * se_diff
+        ci_lower = (mean1 - mean2) - margin_error
+        ci_upper = (mean1 - mean2) + margin_error
         
         return StatisticalAnalysisResult(
             test_type=StatisticalTest.T_TEST,
@@ -399,27 +456,579 @@ class StatisticalAnalyzer:
             significant=significant,
             confidence_interval=(ci_lower, ci_upper),
             effect_size=effect_size,
-            interpretation=self._interpret_effect_size(effect_size)
+            interpretation=self._interpret_effect_size(effect_size),
+            details={
+                'degrees_of_freedom': df,
+                'mean_difference': mean1 - mean2,
+                'standard_error': se_diff,
+                'group1_mean': mean1,
+                'group2_mean': mean2,
+                'group1_var': var1,
+                'group2_var': var2
+            }
+        )
+    
+    def _perform_mann_whitney_u_test(self, sample1: List[float], sample2: List[float]) -> StatisticalAnalysisResult:
+        """Perform Mann-Whitney U test (Wilcoxon rank-sum test)."""
+        if len(sample1) < 3 or len(sample2) < 3:
+            return StatisticalAnalysisResult(
+                test_type=StatisticalTest.MANN_WHITNEY_U,
+                statistic=0.0,
+                p_value=1.0,
+                significant=False,
+                confidence_interval=(0.0, 0.0),
+                effect_size=0.0,
+                interpretation="Insufficient sample size for Mann-Whitney U test"
+            )
+        
+        # Combine samples with group labels
+        n1, n2 = len(sample1), len(sample2)
+        combined = [(val, 1) for val in sample1] + [(val, 2) for val in sample2]
+        combined.sort(key=lambda x: x[0])
+        
+        # Calculate ranks (handle ties by averaging)
+        ranks = [0] * len(combined)
+        i = 0
+        while i < len(combined):
+            # Find all values equal to current value
+            j = i
+            while j < len(combined) and combined[j][0] == combined[i][0]:
+                j += 1
+            # Assign average rank to tied values
+            avg_rank = (i + j + 1) / 2  # +1 because ranks start at 1
+            for k in range(i, j):
+                ranks[k] = avg_rank
+            i = j
+        
+        # Sum ranks for each group
+        R1 = sum(ranks[i] for i in range(len(combined)) if combined[i][1] == 1)
+        R2 = sum(ranks[i] for i in range(len(combined)) if combined[i][1] == 2)
+        
+        # Calculate U statistics
+        U1 = R1 - n1 * (n1 + 1) / 2
+        U2 = R2 - n2 * (n2 + 1) / 2
+        U = min(U1, U2)
+        
+        # Normal approximation for p-value (valid for larger samples)
+        mu_u = n1 * n2 / 2
+        sigma_u = math.sqrt(n1 * n2 * (n1 + n2 + 1) / 12)
+        
+        if sigma_u > 0:
+            z_score = (U - mu_u) / sigma_u
+            p_value = 2 * (1 - self._standard_normal_cdf(abs(z_score)))
+        else:
+            p_value = 1.0
+            z_score = 0.0
+        
+        significant = p_value < self.significance_threshold
+        
+        # Effect size (rank biserial correlation)
+        effect_size = (U1 - U2) / (n1 * n2) if n1 * n2 > 0 else 0.0
+        
+        return StatisticalAnalysisResult(
+            test_type=StatisticalTest.MANN_WHITNEY_U,
+            statistic=U,
+            p_value=p_value,
+            significant=significant,
+            confidence_interval=(0.0, 0.0),  # CI calculation is complex for U test
+            effect_size=abs(effect_size),
+            interpretation=f"Rank-based effect size: {abs(effect_size):.3f}",
+            details={
+                'U1': U1,
+                'U2': U2,
+                'z_score': z_score,
+                'rank_sum_1': R1,
+                'rank_sum_2': R2
+            }
+        )
+    
+    def _perform_bootstrap_test(self, sample1: List[float], sample2: List[float], 
+                               n_bootstrap: int = 10000) -> StatisticalAnalysisResult:
+        """Perform bootstrap resampling test for difference in means."""
+        if len(sample1) < 3 or len(sample2) < 3:
+            return StatisticalAnalysisResult(
+                test_type=StatisticalTest.BOOTSTRAP_TEST,
+                statistic=0.0,
+                p_value=1.0,
+                significant=False,
+                confidence_interval=(0.0, 0.0),
+                effect_size=0.0,
+                interpretation="Insufficient sample size for bootstrap test"
+            )
+        
+        # Observed difference in means
+        observed_diff = statistics.mean(sample1) - statistics.mean(sample2)
+        
+        # Bootstrap resampling under null hypothesis (no difference)
+        combined = sample1 + sample2
+        n1, n2 = len(sample1), len(sample2)
+        bootstrap_diffs = []
+        
+        for _ in range(n_bootstrap):
+            # Resample with replacement
+            bootstrap_combined = [random.choice(combined) for _ in range(len(combined))]
+            bootstrap_sample1 = bootstrap_combined[:n1]
+            bootstrap_sample2 = bootstrap_combined[n1:]
+            
+            bootstrap_diff = statistics.mean(bootstrap_sample1) - statistics.mean(bootstrap_sample2)
+            bootstrap_diffs.append(bootstrap_diff)
+        
+        # Calculate p-value (two-tailed)
+        extreme_diffs = sum(1 for diff in bootstrap_diffs if abs(diff) >= abs(observed_diff))
+        p_value = extreme_diffs / n_bootstrap
+        
+        significant = p_value < self.significance_threshold
+        
+        # Bootstrap confidence interval for the difference
+        bootstrap_diffs.sort()
+        ci_lower_idx = int(0.025 * n_bootstrap)
+        ci_upper_idx = int(0.975 * n_bootstrap)
+        ci_lower = bootstrap_diffs[ci_lower_idx]
+        ci_upper = bootstrap_diffs[ci_upper_idx]
+        
+        effect_size = self._calculate_cohens_d(sample1, sample2)
+        
+        return StatisticalAnalysisResult(
+            test_type=StatisticalTest.BOOTSTRAP_TEST,
+            statistic=observed_diff,
+            p_value=p_value,
+            significant=significant,
+            confidence_interval=(ci_lower, ci_upper),
+            effect_size=effect_size,
+            interpretation=f"Bootstrap test with {n_bootstrap} resamples",
+            details={
+                'bootstrap_samples': n_bootstrap,
+                'extreme_samples': extreme_diffs,
+                'bootstrap_mean': statistics.mean(bootstrap_diffs),
+                'bootstrap_std': statistics.stdev(bootstrap_diffs) if len(bootstrap_diffs) > 1 else 0
+            }
+        )
+    
+    def _perform_bayesian_t_test(self, sample1: List[float], sample2: List[float]) -> StatisticalAnalysisResult:
+        """Perform Bayesian t-test using Bayes factors."""
+        if len(sample1) < 2 or len(sample2) < 2:
+            return StatisticalAnalysisResult(
+                test_type=StatisticalTest.BAYESIAN_T_TEST,
+                statistic=0.0,
+                p_value=1.0,
+                significant=False,
+                confidence_interval=(0.0, 0.0),
+                effect_size=0.0,
+                interpretation="Insufficient sample size for Bayesian t-test"
+            )
+        
+        # Calculate Bayes factor approximation (JZS Bayes factor)
+        t_stat = self._perform_t_test(sample1, sample2).statistic
+        n1, n2 = len(sample1), len(sample2)
+        n_total = n1 + n2
+        
+        # Simplified Bayes factor calculation (Rouder et al., 2009)
+        # This is an approximation - full calculation requires numerical integration
+        r_scale = 0.707  # Default scale for Cauchy prior
+        bf_01 = math.exp(-0.5 * t_stat**2) * math.sqrt((n_total * r_scale**2 + 1) / (n_total * r_scale**2))
+        bf_10 = 1 / bf_01 if bf_01 > 0 else float('inf')
+        
+        # Posterior probability (assuming equal priors)
+        posterior_h1 = bf_10 / (1 + bf_10)
+        posterior_h0 = 1 - posterior_h1
+        
+        # Bayesian "significance" based on Bayes factor strength
+        if bf_10 > 10:
+            interpretation = "Strong evidence for difference"
+            significant = True
+        elif bf_10 > 3:
+            interpretation = "Moderate evidence for difference"
+            significant = True
+        elif bf_01 > 10:
+            interpretation = "Strong evidence for no difference"
+            significant = False
+        elif bf_01 > 3:
+            interpretation = "Moderate evidence for no difference"
+            significant = False
+        else:
+            interpretation = "Anecdotal evidence - inconclusive"
+            significant = False
+        
+        effect_size = self._calculate_cohens_d(sample1, sample2)
+        
+        # Credible interval (approximation)
+        mean_diff = statistics.mean(sample1) - statistics.mean(sample2)
+        se_diff = math.sqrt(statistics.variance(sample1)/n1 + statistics.variance(sample2)/n2) \
+                  if n1 > 1 and n2 > 1 else 1e-10
+        
+        # 95% credible interval (normal approximation)
+        ci_lower = mean_diff - 1.96 * se_diff
+        ci_upper = mean_diff + 1.96 * se_diff
+        
+        return StatisticalAnalysisResult(
+            test_type=StatisticalTest.BAYESIAN_T_TEST,
+            statistic=bf_10,
+            p_value=1 - posterior_h1,  # Convert posterior to p-value-like metric
+            significant=significant,
+            confidence_interval=(ci_lower, ci_upper),
+            effect_size=effect_size,
+            interpretation=interpretation,
+            details={
+                'bayes_factor_10': bf_10,
+                'bayes_factor_01': bf_01,
+                'posterior_h1': posterior_h1,
+                'posterior_h0': posterior_h0,
+                'r_scale': r_scale
+            }
+        )
+    
+    def _perform_ks_test(self, sample1: List[float], sample2: List[float]) -> StatisticalAnalysisResult:
+        """Perform two-sample Kolmogorov-Smirnov test."""
+        if len(sample1) < 3 or len(sample2) < 3:
+            return StatisticalAnalysisResult(
+                test_type=StatisticalTest.KOLMOGOROV_SMIRNOV,
+                statistic=0.0,
+                p_value=1.0,
+                significant=False,
+                confidence_interval=(0.0, 0.0),
+                effect_size=0.0,
+                interpretation="Insufficient sample size for KS test"
+            )
+        
+        # Sort samples
+        sample1_sorted = sorted(sample1)
+        sample2_sorted = sorted(sample2)
+        
+        # Get all unique values
+        all_values = sorted(set(sample1 + sample2))
+        
+        n1, n2 = len(sample1), len(sample2)
+        max_diff = 0.0
+        
+        # Calculate empirical CDFs and find maximum difference
+        for value in all_values:
+            # Empirical CDF values
+            cdf1 = sum(1 for x in sample1_sorted if x <= value) / n1
+            cdf2 = sum(1 for x in sample2_sorted if x <= value) / n2
+            
+            diff = abs(cdf1 - cdf2)
+            max_diff = max(max_diff, diff)
+        
+        # Critical value approximation (asymptotic distribution)
+        critical_value = 1.36 * math.sqrt((n1 + n2) / (n1 * n2))
+        
+        # Approximate p-value using asymptotic distribution
+        if max_diff == 0:
+            p_value = 1.0
+        else:
+            # Kolmogorov distribution approximation
+            lambda_val = max_diff * math.sqrt(n1 * n2 / (n1 + n2))
+            p_value = 2 * math.exp(-2 * lambda_val**2)
+            p_value = min(p_value, 1.0)
+        
+        significant = p_value < self.significance_threshold
+        
+        # Effect size (magnitude of maximum difference)
+        effect_size = max_diff
+        
+        return StatisticalAnalysisResult(
+            test_type=StatisticalTest.KOLMOGOROV_SMIRNOV,
+            statistic=max_diff,
+            p_value=p_value,
+            significant=significant,
+            confidence_interval=(0.0, 0.0),
+            effect_size=effect_size,
+            interpretation=f"Maximum CDF difference: {max_diff:.3f}",
+            details={
+                'critical_value': critical_value,
+                'lambda': lambda_val if max_diff > 0 else 0,
+                'sample1_size': n1,
+                'sample2_size': n2
+            }
         )
     
     def _interpret_effect_size(self, effect_size: float) -> str:
-        """Interpret Cohen's d effect size."""
-        if effect_size < 0.2:
-            return "negligible effect"
-        elif effect_size < 0.5:
-            return "small effect"
-        elif effect_size < 0.8:
-            return "medium effect"
+        """Interpret Cohen's d effect size with more nuanced categories."""
+        abs_effect = abs(effect_size)
+        if abs_effect < 0.1:
+            return "negligible effect (< 0.1)"
+        elif abs_effect < 0.2:
+            return "very small effect (0.1-0.2)"
+        elif abs_effect < 0.5:
+            return "small effect (0.2-0.5)"
+        elif abs_effect < 0.8:
+            return "medium effect (0.5-0.8)"
+        elif abs_effect < 1.2:
+            return "large effect (0.8-1.2)"
+        elif abs_effect < 2.0:
+            return "very large effect (1.2-2.0)"
         else:
-            return "large effect"
+            return "huge effect (≥ 2.0)"
+    
+    def _calculate_cohens_d(self, sample1: List[float], sample2: List[float]) -> float:
+        """Calculate Cohen's d effect size."""
+        if len(sample1) < 2 or len(sample2) < 2:
+            return 0.0
+        
+        mean1, mean2 = statistics.mean(sample1), statistics.mean(sample2)
+        
+        # Calculate pooled standard deviation
+        n1, n2 = len(sample1), len(sample2)
+        var1 = statistics.variance(sample1) if n1 > 1 else 0.0
+        var2 = statistics.variance(sample2) if n2 > 1 else 0.0
+        
+        pooled_var = ((n1 - 1) * var1 + (n2 - 1) * var2) / (n1 + n2 - 2)
+        pooled_std = math.sqrt(pooled_var) if pooled_var > 0 else 1e-10
+        
+        return (mean1 - mean2) / pooled_std
+    
+    def _apply_multiple_comparison_correction(self, all_tests: Dict[str, Dict[str, StatisticalAnalysisResult]], 
+                                            correction: MultipleComparisonCorrection) -> Dict[str, Dict[str, StatisticalAnalysisResult]]:
+        """Apply multiple comparison correction to p-values."""
+        if correction == MultipleComparisonCorrection.NONE:
+            return all_tests
+        
+        # Collect all p-values
+        p_values = []
+        test_info = []
+        
+        for metric, tests in all_tests.items():
+            for test_name, result in tests.items():
+                p_values.append(result.p_value)
+                test_info.append((metric, test_name, result))
+        
+        if not p_values:
+            return all_tests
+        
+        # Apply correction
+        if correction == MultipleComparisonCorrection.BONFERRONI:
+            corrected_p = [min(1.0, p * len(p_values)) for p in p_values]
+        elif correction == MultipleComparisonCorrection.HOLM_BONFERRONI:
+            corrected_p = self._holm_bonferroni_correction(p_values)
+        elif correction == MultipleComparisonCorrection.BENJAMINI_HOCHBERG:
+            corrected_p = self._benjamini_hochberg_correction(p_values)
+        else:
+            corrected_p = p_values  # Default to no correction
+        
+        # Update results with corrected p-values
+        corrected_tests = {}
+        for i, (metric, test_name, original_result) in enumerate(test_info):
+            if metric not in corrected_tests:
+                corrected_tests[metric] = {}
+            
+            # Create new result with corrected p-value
+            corrected_result = StatisticalAnalysisResult(
+                test_type=original_result.test_type,
+                statistic=original_result.statistic,
+                p_value=corrected_p[i],
+                significant=corrected_p[i] < self.significance_threshold,
+                confidence_interval=original_result.confidence_interval,
+                effect_size=original_result.effect_size,
+                interpretation=original_result.interpretation,
+                details={
+                    **original_result.details,
+                    'original_p_value': original_result.p_value,
+                    'correction_method': correction.value,
+                    'corrected': True
+                }
+            )
+            
+            corrected_tests[metric][test_name] = corrected_result
+        
+        return corrected_tests
+    
+    def _benjamini_hochberg_correction(self, p_values: List[float]) -> List[float]:
+        """Apply Benjamini-Hochberg FDR correction."""
+        n = len(p_values)
+        if n == 0:
+            return []
+        
+        # Sort p-values with original indices
+        indexed_p = [(p, i) for i, p in enumerate(p_values)]
+        indexed_p.sort()
+        
+        # Calculate corrected p-values
+        corrected = [0] * n
+        
+        for rank, (p, original_idx) in enumerate(indexed_p):
+            bh_value = p * n / (rank + 1)
+            corrected[original_idx] = min(1.0, bh_value)
+        
+        # Ensure monotonicity (corrected p-values should be non-decreasing)
+        sorted_corrected = [corrected[indexed_p[i][1]] for i in range(n)]
+        for i in range(n-2, -1, -1):
+            if sorted_corrected[i] > sorted_corrected[i+1]:
+                sorted_corrected[i] = sorted_corrected[i+1]
+        
+        # Map back to original order
+        final_corrected = [0] * n
+        for i, (_, original_idx) in enumerate(indexed_p):
+            final_corrected[original_idx] = sorted_corrected[i]
+        
+        return final_corrected
+    
+    def _holm_bonferroni_correction(self, p_values: List[float]) -> List[float]:
+        """Apply Holm-Bonferroni correction."""
+        n = len(p_values)
+        if n == 0:
+            return []
+        
+        # Sort p-values with original indices
+        indexed_p = [(p, i) for i, p in enumerate(p_values)]
+        indexed_p.sort()
+        
+        corrected = [0] * n
+        
+        for rank, (p, original_idx) in enumerate(indexed_p):
+            holm_value = p * (n - rank)
+            corrected[original_idx] = min(1.0, holm_value)
+        
+        return corrected
+    
+    def _generate_evidence_based_recommendation(self, improvements: Dict[str, float], 
+                                              statistical_tests: Dict[str, Dict[str, StatisticalAnalysisResult]],
+                                              practical_significance: Dict[str, Dict[str, bool]]) -> Dict[str, Any]:
+        """Generate evidence-based recommendation using multiple criteria."""
+        evidence_scores = []
+        total_metrics = len(improvements)
+        
+        for metric in improvements.keys():
+            metric_score = 0.0
+            
+            # Statistical significance evidence (40% weight)
+            if metric in statistical_tests:
+                significant_tests = sum(1 for test_result in statistical_tests[metric].values() 
+                                      if test_result.significant)
+                total_tests = len(statistical_tests[metric])
+                if total_tests > 0:
+                    metric_score += 0.4 * (significant_tests / total_tests)
+            
+            # Effect size evidence (30% weight)
+            if metric in statistical_tests:
+                avg_effect_size = statistics.mean([
+                    abs(test_result.effect_size) 
+                    for test_result in statistical_tests[metric].values()
+                ])
+                # Convert effect size to score (capped at 1.0)
+                effect_score = min(1.0, avg_effect_size / 0.8)  # Large effect = 1.0
+                metric_score += 0.3 * effect_score
+            
+            # Practical significance evidence (30% weight)
+            if metric in practical_significance:
+                practical_score = sum(practical_significance[metric].values()) / len(practical_significance[metric])
+                metric_score += 0.3 * practical_score
+            
+            evidence_scores.append(metric_score)
+        
+        # Calculate overall confidence score
+        confidence_score = statistics.mean(evidence_scores) if evidence_scores else 0.0
+        
+        # Generate recommendation based on evidence strength
+        if confidence_score >= 0.8:
+            recommendation = "Strong evidence for novel method superiority - Recommend production deployment"
+            strength = "strong"
+        elif confidence_score >= 0.65:
+            recommendation = "Moderate to strong evidence - Recommend pilot testing"
+            strength = "moderate_to_strong"
+        elif confidence_score >= 0.5:
+            recommendation = "Moderate evidence - Consider limited deployment with monitoring"
+            strength = "moderate"
+        elif confidence_score >= 0.35:
+            recommendation = "Weak to moderate evidence - Recommend further research"
+            strength = "weak_to_moderate"
+        else:
+            recommendation = "Insufficient evidence - Continue development and testing"
+            strength = "insufficient"
+        
+        return {
+            'recommendation': recommendation,
+            'confidence_score': confidence_score,
+            'evidence_strength': strength,
+            'metric_scores': dict(zip(improvements.keys(), evidence_scores)),
+            'total_metrics_evaluated': total_metrics
+        }
     
     def calculate_statistical_power(self, effect_size: float, sample_size: int,
                                   alpha: float = 0.05) -> float:
-        """Calculate statistical power of test."""
-        # Simplified power calculation
-        # Real implementation would use proper statistical libraries
-        power = min(1.0, effect_size * (sample_size ** 0.5) * 0.1)
-        return max(0.0, power)
+        """Calculate statistical power using improved approximation."""
+        if sample_size < 2:
+            return 0.0
+        
+        # Cohen's power approximation for t-test
+        delta = abs(effect_size) * math.sqrt(sample_size / 2)
+        
+        # Use normal approximation for power calculation
+        z_alpha = self._z_critical_value(alpha)
+        z_beta = delta - z_alpha
+        
+        power = self._standard_normal_cdf(z_beta)
+        return max(0.0, min(1.0, power))
+    
+    def _t_distribution_p_value(self, t_stat: float, df: float) -> float:
+        """Approximate p-value for t-distribution (two-tailed)."""
+        if df <= 0:
+            return 1.0
+        
+        # For large df, t-distribution approaches standard normal
+        if df > 100:
+            return 2 * (1 - self._standard_normal_cdf(abs(t_stat)))
+        
+        # Approximation for smaller df using gamma function properties
+        # This is a simplified approximation - actual implementation would use
+        # more sophisticated numerical methods
+        x = t_stat**2 / (t_stat**2 + df)
+        p_one_tail = 0.5 * self._incomplete_beta_approx(x, 0.5, df/2)
+        return min(1.0, 2 * p_one_tail)
+    
+    def _t_critical_value(self, alpha: float, df: float) -> float:
+        """Approximate critical value for t-distribution."""
+        if df > 100:
+            return self._z_critical_value(alpha)
+        
+        # Rough approximation - in practice would use inverse t-distribution
+        z_alpha = self._z_critical_value(alpha)
+        correction = (z_alpha**3 + z_alpha) / (4 * df)
+        return z_alpha + correction
+    
+    def _z_critical_value(self, alpha: float) -> float:
+        """Critical value for standard normal distribution."""
+        # Common critical values
+        critical_values = {
+            0.10: 1.282,
+            0.05: 1.645,
+            0.02: 2.054,
+            0.01: 2.326
+        }
+        
+        if alpha in critical_values:
+            return critical_values[alpha]
+        
+        # Approximation for other values
+        return 1.645 if alpha <= 0.05 else 1.282
+    
+    def _standard_normal_cdf(self, z: float) -> float:
+        """Cumulative distribution function for standard normal."""
+        # Abramowitz & Stegun approximation
+        if z < 0:
+            return 1 - self._standard_normal_cdf(-z)
+        
+        # Constants for approximation
+        a1, a2, a3, a4, a5 = 0.254829592, -0.284496736, 1.421413741, -1.453152027, 1.061405429
+        p = 0.3275911
+        
+        t = 1 / (1 + p * z)
+        y = 1 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * math.exp(-z * z / 2)
+        
+        return y
+    
+    def _incomplete_beta_approx(self, x: float, a: float, b: float) -> float:
+        """Rough approximation of incomplete beta function."""
+        if x <= 0:
+            return 0.0
+        if x >= 1:
+            return 1.0
+        
+        # Very rough approximation - real implementation would use
+        # continued fractions or series expansion
+        if a == 0.5 and b > 1:
+            return 2 * math.sqrt(x) - x
+        
+        return x**a * (1-x)**b  # Simplified approximation
 
 
 class ExperimentRunner:
@@ -427,7 +1036,7 @@ class ExperimentRunner:
     
     def __init__(self):
         self.data_generator = ResearchDataGenerator()
-        self.statistical_analyzer = StatisticalAnalyzer()
+        self.statistical_analyzer = AdvancedStatisticalAnalyzer()
         self.results_cache: Dict[str, List[ExperimentResult]] = {}
         
     async def run_experiment(self, config: ExperimentConfig) -> Dict[str, Any]:
