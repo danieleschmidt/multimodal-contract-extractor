@@ -11,18 +11,16 @@ import hashlib
 import hmac
 import json
 import logging
-import os
 import secrets
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Union
+from typing import Any, Dict, List, Optional, Set
 
 import cryptography.fernet
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from pydantic import BaseModel, Field, SecretStr
@@ -32,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 class SecurityLevel(Enum):
     """Security levels for different operations."""
-    
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -41,7 +39,7 @@ class SecurityLevel(Enum):
 
 class ThreatLevel(Enum):
     """Threat levels for security monitoring."""
-    
+
     INFO = "info"
     LOW = "low"
     MEDIUM = "medium"
@@ -52,7 +50,7 @@ class ThreatLevel(Enum):
 @dataclass
 class SecurityEvent:
     """Security event for audit logging."""
-    
+
     event_id: str
     timestamp: float
     event_type: str
@@ -68,17 +66,17 @@ class SecurityEvent:
 
 class EncryptionManager:
     """Advanced encryption manager for secure data handling."""
-    
+
     def __init__(self):
         self.master_key: Optional[bytes] = None
         self.key_rotation_interval = 86400 * 30  # 30 days
         self.last_key_rotation = time.time()
         self.encryption_cache: Dict[str, bytes] = {}
-        
+
     def initialize_master_key(self, password: Optional[str] = None) -> None:
         """Initialize or load master key."""
         key_file = Path.home() / ".mce" / "master.key"
-        
+
         if key_file.exists() and password:
             # Load existing key
             self.master_key = self._load_master_key(key_file, password)
@@ -87,17 +85,17 @@ class EncryptionManager:
             self.master_key = self._generate_master_key()
             if password:
                 self._save_master_key(key_file, self.master_key, password)
-        
+
         logger.info("Master key initialized")
-    
+
     def _generate_master_key(self) -> bytes:
         """Generate a new master key."""
         return secrets.token_bytes(32)  # 256-bit key
-    
+
     def _save_master_key(self, key_file: Path, key: bytes, password: str) -> None:
         """Save master key encrypted with password."""
         key_file.parent.mkdir(parents=True, exist_ok=True)
-        
+
         # Derive key from password
         salt = secrets.token_bytes(16)
         kdf = PBKDF2HMAC(
@@ -107,28 +105,28 @@ class EncryptionManager:
             iterations=100000,
         )
         derived_key = kdf.derive(password.encode())
-        
+
         # Encrypt master key
         fernet = cryptography.fernet.Fernet(
             cryptography.fernet.base64.urlsafe_b64encode(derived_key)
         )
         encrypted_key = fernet.encrypt(key)
-        
+
         # Save with salt
         with key_file.open("wb") as f:
             f.write(salt + encrypted_key)
-        
+
         # Set restrictive permissions
         key_file.chmod(0o600)
-    
+
     def _load_master_key(self, key_file: Path, password: str) -> bytes:
         """Load and decrypt master key."""
         with key_file.open("rb") as f:
             data = f.read()
-        
+
         salt = data[:16]
         encrypted_key = data[16:]
-        
+
         # Derive key from password
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
@@ -137,18 +135,18 @@ class EncryptionManager:
             iterations=100000,
         )
         derived_key = kdf.derive(password.encode())
-        
+
         # Decrypt master key
         fernet = cryptography.fernet.Fernet(
             cryptography.fernet.base64.urlsafe_b64encode(derived_key)
         )
         return fernet.decrypt(encrypted_key)
-    
+
     def encrypt_data(self, data: bytes, context: str = "") -> Dict[str, Any]:
         """Encrypt data with context-specific encryption."""
         if not self.master_key:
             raise ValueError("Master key not initialized")
-        
+
         # Generate unique key for this encryption
         salt = secrets.token_bytes(16)
         kdf = PBKDF2HMAC(
@@ -158,30 +156,30 @@ class EncryptionManager:
             iterations=10000,
         )
         encryption_key = kdf.derive(self.master_key + context.encode())
-        
+
         # Generate IV
         iv = secrets.token_bytes(16)
-        
+
         # Encrypt data
         cipher = Cipher(
             algorithms.AES(encryption_key),
             modes.CBC(iv)
         )
         encryptor = cipher.encryptor()
-        
+
         # Add padding
         padding_length = 16 - (len(data) % 16)
         padded_data = data + bytes([padding_length]) * padding_length
-        
+
         encrypted_data = encryptor.update(padded_data) + encryptor.finalize()
-        
+
         # Create integrity hash
         integrity_hash = hmac.new(
             encryption_key[:16],
             encrypted_data,
             hashlib.sha256
         ).hexdigest()
-        
+
         return {
             "encrypted_data": encrypted_data.hex(),
             "salt": salt.hex(),
@@ -190,19 +188,19 @@ class EncryptionManager:
             "context": context,
             "timestamp": time.time()
         }
-    
+
     def decrypt_data(self, encrypted_package: Dict[str, Any]) -> bytes:
         """Decrypt data using encryption package."""
         if not self.master_key:
             raise ValueError("Master key not initialized")
-        
+
         # Extract components
         encrypted_data = bytes.fromhex(encrypted_package["encrypted_data"])
         salt = bytes.fromhex(encrypted_package["salt"])
         iv = bytes.fromhex(encrypted_package["iv"])
         stored_hash = encrypted_package["integrity_hash"]
         context = encrypted_package["context"]
-        
+
         # Derive decryption key
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
@@ -211,60 +209,60 @@ class EncryptionManager:
             iterations=10000,
         )
         encryption_key = kdf.derive(self.master_key + context.encode())
-        
+
         # Verify integrity
         computed_hash = hmac.new(
             encryption_key[:16],
             encrypted_data,
             hashlib.sha256
         ).hexdigest()
-        
+
         if not hmac.compare_digest(stored_hash, computed_hash):
             raise ValueError("Data integrity verification failed")
-        
+
         # Decrypt data
         cipher = Cipher(
             algorithms.AES(encryption_key),
             modes.CBC(iv)
         )
         decryptor = cipher.decryptor()
-        
+
         padded_data = decryptor.update(encrypted_data) + decryptor.finalize()
-        
+
         # Remove padding
         padding_length = padded_data[-1]
         return padded_data[:-padding_length]
-    
+
     def rotate_master_key(self, new_password: Optional[str] = None) -> None:
         """Rotate master key for enhanced security."""
         if time.time() - self.last_key_rotation < self.key_rotation_interval:
             logger.info("Key rotation not needed yet")
             return
-        
+
         old_key = self.master_key
         new_key = self._generate_master_key()
-        
+
         # TODO: Re-encrypt all cached data with new key
         self.master_key = new_key
         self.last_key_rotation = time.time()
         self.encryption_cache.clear()
-        
+
         if new_password:
             key_file = Path.home() / ".mce" / "master.key"
             self._save_master_key(key_file, new_key, new_password)
-        
+
         logger.info("Master key rotated successfully")
 
 
 class AuditLogger:
     """Comprehensive audit logging for security events."""
-    
+
     def __init__(self):
         self.audit_events: List[SecurityEvent] = []
         self.max_events_memory = 10000
         self.log_file = Path.home() / ".mce" / "audit.log"
         self.encryption_manager = EncryptionManager()
-        
+
     def log_security_event(
         self,
         event_type: str,
@@ -278,7 +276,7 @@ class AuditLogger:
     ) -> str:
         """Log a security event."""
         event_id = secrets.token_hex(16)
-        
+
         event = SecurityEvent(
             event_id=event_id,
             timestamp=time.time(),
@@ -292,22 +290,22 @@ class AuditLogger:
             details=details or {},
             risk_score=self._calculate_risk_score(event_type, severity, outcome)
         )
-        
+
         # Add to memory
         self.audit_events.append(event)
-        
+
         # Trim memory if needed
         if len(self.audit_events) > self.max_events_memory:
             self.audit_events = self.audit_events[-self.max_events_memory:]
-        
+
         # Write to secure audit log
         self._write_audit_log(event)
-        
+
         # Check for threat patterns
         self._analyze_threat_patterns(event)
-        
+
         return event_id
-    
+
     def _calculate_risk_score(
         self,
         event_type: str,
@@ -322,15 +320,15 @@ class AuditLogger:
             ThreatLevel.HIGH: 0.8,
             ThreatLevel.CRITICAL: 1.0
         }
-        
+
         base_score = base_scores.get(severity, 0.5)
-        
+
         # Adjust for outcome
         if outcome == "failure":
             base_score *= 1.5
         elif outcome == "blocked":
             base_score *= 0.8
-        
+
         # Adjust for event type
         high_risk_events = [
             "authentication_failure",
@@ -338,18 +336,18 @@ class AuditLogger:
             "data_breach",
             "malware_detected"
         ]
-        
+
         if event_type in high_risk_events:
             base_score *= 1.3
-        
+
         return min(1.0, base_score)
-    
+
     def _write_audit_log(self, event: SecurityEvent) -> None:
         """Write security event to encrypted audit log."""
         try:
             # Create audit log directory
             self.log_file.parent.mkdir(parents=True, exist_ok=True)
-            
+
             # Prepare event data
             event_data = {
                 "event_id": event.event_id,
@@ -367,7 +365,7 @@ class AuditLogger:
                 "details": event.details,
                 "risk_score": event.risk_score
             }
-            
+
             # Encrypt if encryption is available
             if self.encryption_manager.master_key:
                 encrypted_data = self.encryption_manager.encrypt_data(
@@ -377,24 +375,24 @@ class AuditLogger:
                 log_entry = f"ENCRYPTED:{json.dumps(encrypted_data)}\n"
             else:
                 log_entry = f"{json.dumps(event_data)}\n"
-            
+
             # Append to audit log with proper permissions
             with self.log_file.open("a") as f:
                 f.write(log_entry)
-            
+
             # Set restrictive permissions
             self.log_file.chmod(0o600)
-            
+
         except Exception as e:
             logger.error("Failed to write audit log: %s", e)
-    
+
     def _analyze_threat_patterns(self, event: SecurityEvent) -> None:
         """Analyze event for threat patterns."""
         recent_events = [
             e for e in self.audit_events
             if time.time() - e.timestamp < 300  # Last 5 minutes
         ]
-        
+
         # Check for brute force patterns
         if event.event_type == "authentication_failure":
             failures = [
@@ -402,7 +400,7 @@ class AuditLogger:
                 if e.event_type == "authentication_failure"
                 and e.user_id == event.user_id
             ]
-            
+
             if len(failures) >= 5:
                 self.log_security_event(
                     event_type="brute_force_detected",
@@ -417,7 +415,7 @@ class AuditLogger:
                         "time_window": "5_minutes"
                     }
                 )
-        
+
         # Check for suspicious IP patterns
         if event.source_ip:
             ip_events = [
@@ -425,7 +423,7 @@ class AuditLogger:
                 if e.source_ip == event.source_ip
                 and e.severity in [ThreatLevel.MEDIUM, ThreatLevel.HIGH]
             ]
-            
+
             if len(ip_events) >= 3:
                 self.log_security_event(
                     event_type="suspicious_ip_activity",
@@ -439,39 +437,39 @@ class AuditLogger:
                         "time_window": "5_minutes"
                     }
                 )
-    
+
     def get_security_summary(self) -> Dict[str, Any]:
         """Get security event summary."""
         if not self.audit_events:
             return {"total_events": 0}
-        
+
         # Recent events (last 24 hours)
         recent_threshold = time.time() - 86400
         recent_events = [
             e for e in self.audit_events
             if e.timestamp >= recent_threshold
         ]
-        
+
         # Count by severity
         severity_counts = {}
         for event in recent_events:
             severity_counts[event.severity.value] = (
                 severity_counts.get(event.severity.value, 0) + 1
             )
-        
+
         # Count by outcome
         outcome_counts = {}
         for event in recent_events:
             outcome_counts[event.outcome] = (
                 outcome_counts.get(event.outcome, 0) + 1
             )
-        
+
         # Calculate average risk score
         avg_risk_score = (
             sum(e.risk_score for e in recent_events) / len(recent_events)
             if recent_events else 0.0
         )
-        
+
         return {
             "total_events": len(self.audit_events),
             "recent_events_24h": len(recent_events),
@@ -487,7 +485,7 @@ class AuditLogger:
 
 class ThreatDetector:
     """Advanced threat detection system."""
-    
+
     def __init__(self):
         self.threat_patterns = {
             "sql_injection": [
@@ -509,12 +507,12 @@ class ThreatDetector:
         self.suspicious_file_extensions = {
             ".exe", ".bat", ".cmd", ".scr", ".vbs", ".js", ".jar"
         }
-        
+
     def scan_input(self, input_data: str, context: str = "") -> Dict[str, Any]:
         """Scan input for threat patterns."""
         threats_detected = []
         risk_score = 0.0
-        
+
         for threat_type, patterns in self.threat_patterns.items():
             for pattern in patterns:
                 import re
@@ -525,19 +523,19 @@ class ThreatDetector:
                         "context": context
                     })
                     risk_score += 0.3  # Each threat increases risk
-        
+
         return {
             "threats_detected": threats_detected,
             "risk_score": min(1.0, risk_score),
             "input_length": len(input_data),
             "scan_timestamp": time.time()
         }
-    
+
     def scan_file(self, file_path: Path) -> Dict[str, Any]:
         """Scan file for security threats."""
         threats = []
         risk_score = 0.0
-        
+
         # Check file extension
         if file_path.suffix.lower() in self.suspicious_file_extensions:
             threats.append({
@@ -545,7 +543,7 @@ class ThreatDetector:
                 "details": f"File extension {file_path.suffix} is potentially dangerous"
             })
             risk_score += 0.5
-        
+
         # Check file size
         try:
             file_size = file_path.stat().st_size
@@ -557,7 +555,7 @@ class ThreatDetector:
                 risk_score += 0.2
         except OSError:
             pass
-        
+
         return {
             "file_path": str(file_path),
             "threats_detected": threats,
@@ -568,7 +566,7 @@ class ThreatDetector:
 
 class ComplianceManager:
     """Compliance framework manager for various regulations."""
-    
+
     def __init__(self):
         self.compliance_frameworks = {
             "GDPR": {
@@ -600,7 +598,7 @@ class ComplianceManager:
             }
         }
         self.active_frameworks: Set[str] = set()
-        
+
     def enable_framework(self, framework: str) -> None:
         """Enable a compliance framework."""
         if framework in self.compliance_frameworks:
@@ -608,28 +606,28 @@ class ComplianceManager:
             logger.info("Enabled compliance framework: %s", framework)
         else:
             raise ValueError(f"Unknown compliance framework: {framework}")
-    
+
     def check_compliance(self, operation: str, data_context: Dict[str, Any]) -> Dict[str, Any]:
         """Check operation against active compliance frameworks."""
         compliance_results = {}
         overall_compliant = True
-        
+
         for framework in self.active_frameworks:
             framework_config = self.compliance_frameworks[framework]
             result = self._check_framework_compliance(
                 framework, framework_config, operation, data_context
             )
             compliance_results[framework] = result
-            
+
             if not result["compliant"]:
                 overall_compliant = False
-        
+
         return {
             "overall_compliant": overall_compliant,
             "framework_results": compliance_results,
             "recommendations": self._generate_compliance_recommendations(compliance_results)
         }
-    
+
     def _check_framework_compliance(
         self,
         framework: str,
@@ -639,34 +637,34 @@ class ComplianceManager:
     ) -> Dict[str, Any]:
         """Check compliance for a specific framework."""
         violations = []
-        
+
         # Check encryption requirement
         if config.get("requires_encryption") and not data_context.get("encrypted"):
             violations.append("Data must be encrypted")
-        
+
         # Check consent requirement
         if config.get("requires_consent") and not data_context.get("consent_obtained"):
             violations.append("User consent required")
-        
+
         # Check data retention
         if "data_age_days" in data_context:
             max_retention = config.get("data_retention_days", 365)
             if data_context["data_age_days"] > max_retention:
                 violations.append(f"Data exceeds retention period of {max_retention} days")
-        
+
         return {
             "compliant": len(violations) == 0,
             "violations": violations,
             "framework": framework
         }
-    
+
     def _generate_compliance_recommendations(
         self,
         results: Dict[str, Dict[str, Any]]
     ) -> List[str]:
         """Generate recommendations for compliance violations."""
         recommendations = []
-        
+
         for framework, result in results.items():
             if not result["compliant"]:
                 for violation in result["violations"]:
@@ -682,7 +680,7 @@ class ComplianceManager:
                         recommendations.append(
                             "Implement automated data retention policies"
                         )
-        
+
         return list(set(recommendations))  # Remove duplicates
 
 
@@ -727,7 +725,7 @@ def get_compliance_manager() -> ComplianceManager:
 
 class EnterpriseSecurityConfig(BaseModel):
     """Configuration for enterprise security features."""
-    
+
     enable_encryption: bool = True
     master_key_password: Optional[SecretStr] = None
     key_rotation_days: int = Field(default=30, ge=1, le=365)
@@ -738,7 +736,7 @@ class EnterpriseSecurityConfig(BaseModel):
     compliance_frameworks: List[str] = Field(default_factory=lambda: ["GDPR"])
     audit_retention_days: int = Field(default=2555, ge=30, le=3653)  # 7 years max
     max_file_size_mb: int = Field(default=100, ge=1, le=1000)
-    
+
     class Config:
         """Pydantic configuration."""
         json_encoders = {

@@ -383,10 +383,27 @@ class CacheControlMiddleware(BaseHTTPMiddleware):
 
         response.headers["Cache-Control"] = cache_control
 
-        # Add ETag for GET requests (simple implementation)
+        # Add ETag for GET requests (secure implementation)
         if request.method == "GET" and hasattr(response, 'body'):
             import hashlib
-            etag = hashlib.md5(response.body).hexdigest()[:16]
+            etag = hashlib.sha256(response.body).hexdigest()[:16]
             response.headers["ETag"] = f'"{etag}"'
 
         return response
+
+
+def setup_middleware(app):
+    """Setup middleware for the FastAPI application."""
+    # Add CORS middleware
+    app.add_middleware(CORSMiddleware)
+    
+    # Add rate limiting middleware
+    app.add_middleware(RateLimitMiddleware)
+    
+    # Add API key middleware  
+    app.add_middleware(APIKeyMiddleware)
+    
+    # Add response caching middleware
+    app.add_middleware(ResponseCacheMiddleware)
+    
+    return app

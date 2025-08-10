@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
-import pickle
 import time
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -77,8 +77,8 @@ class CacheManager:
                 return None
 
             # Check if cache is still valid (file hasn't changed)
-            with open(cache_file, 'rb') as f:
-                cached_data = pickle.load(f)
+            with open(cache_file, 'r', encoding='utf-8') as f:
+                cached_data = json.load(f)
 
             # Verify file hash matches
             if cached_data.get('file_hash') != file_hash:
@@ -87,8 +87,8 @@ class CacheManager:
 
             # Update access time
             cached_data['last_accessed'] = time.time()
-            with open(cache_file, 'wb') as f:
-                pickle.dump(cached_data, f)
+            with open(cache_file, 'w', encoding='utf-8') as f:
+                json.dump(cached_data, f, ensure_ascii=False, indent=2)
 
             logger.debug(f"OCR cache hit for {file_path.name}")
             return cached_data.get('result')
@@ -120,8 +120,8 @@ class CacheManager:
                 'last_accessed': time.time(),
             }
 
-            with open(cache_file, 'wb') as f:
-                pickle.dump(cached_data, f)
+            with open(cache_file, 'w', encoding='utf-8') as f:
+                json.dump(cached_data, f, ensure_ascii=False, indent=2)
 
             logger.debug(f"OCR result cached for {file_path.name}")
 
@@ -151,8 +151,8 @@ class CacheManager:
             if not cache_file.exists():
                 return None
 
-            with open(cache_file, 'rb') as f:
-                cached_data = pickle.load(f)
+            with open(cache_file, 'r', encoding='utf-8') as f:
+                cached_data = json.load(f)
 
             # Verify file hash matches
             if cached_data.get('file_hash') != file_hash:
@@ -161,8 +161,8 @@ class CacheManager:
 
             # Update access time
             cached_data['last_accessed'] = time.time()
-            with open(cache_file, 'wb') as f:
-                pickle.dump(cached_data, f)
+            with open(cache_file, 'w', encoding='utf-8') as f:
+                json.dump(cached_data, f, ensure_ascii=False, indent=2)
 
             logger.debug(f"Document processing cache hit for {file_path.name}")
             return cached_data.get('result')
@@ -194,8 +194,8 @@ class CacheManager:
                 'last_accessed': time.time(),
             }
 
-            with open(cache_file, 'wb') as f:
-                pickle.dump(cached_data, f)
+            with open(cache_file, 'w', encoding='utf-8') as f:
+                json.dump(cached_data, f, ensure_ascii=False, indent=2)
 
             logger.debug(f"Document processing result cached for {file_path.name}")
 
