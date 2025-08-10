@@ -154,7 +154,8 @@ class TemporalNeuromorphicProcessor:
         processing_time = time.perf_counter() - start_time
         
         # Calculate novel metrics
-        temporal_coherence = self._calculate_temporal_coherence(spike_patterns)\n        energy_efficiency = self._calculate_energy_efficiency(results)
+        temporal_coherence = self._calculate_temporal_coherence(spike_patterns)
+        energy_efficiency = self._calculate_energy_efficiency(results)
         adaptation_convergence = self._calculate_adaptation_convergence(adaptation_metrics)
         
         return {

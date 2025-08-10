@@ -8,13 +8,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import statistics
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, Union
-import numpy as np
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +28,7 @@ class OrchestratorMode(Enum):
 class ProcessorType(Enum):
     """Available processor types."""
     NEUROMORPHIC = "neuromorphic"
-    QUANTUM = "quantum"  
+    QUANTUM = "quantum"
     CLASSICAL = "classical"
     HYBRID = "hybrid"
 
@@ -39,7 +36,7 @@ class ProcessorType(Enum):
 @dataclass
 class ProcessorMetrics:
     """Performance metrics for a processor."""
-    
+
     processor_type: ProcessorType
     success_rate: float = 0.0
     average_time: float = 0.0
@@ -48,7 +45,7 @@ class ProcessorMetrics:
     reliability_score: float = 0.0
     cost_per_operation: float = 0.0
     last_updated: float = field(default_factory=time.time)
-    
+
     def overall_score(self) -> float:
         """Calculate overall performance score."""
         weights = {
@@ -58,9 +55,9 @@ class ProcessorMetrics:
             "reliability_score": 0.15,
             "speed": 0.2  # Inverse of processing time
         }
-        
+
         speed_score = max(0, 1.0 - (self.average_time / 30.0))  # Normalize to 30s max
-        
+
         score = (
             self.success_rate * weights["success_rate"] +
             self.accuracy_score * weights["accuracy_score"] +
@@ -68,14 +65,14 @@ class ProcessorMetrics:
             self.reliability_score * weights["reliability_score"] +
             speed_score * weights["speed"]
         )
-        
+
         return min(max(score, 0.0), 1.0)
 
 
 @dataclass
 class ProcessingTask:
     """Represents a processing task with requirements."""
-    
+
     task_id: str
     document: Any
     language_code: str = "en"
@@ -91,7 +88,7 @@ class ProcessingTask:
 @dataclass
 class ProcessingResult:
     """Result from hybrid processing."""
-    
+
     task_id: str
     success: bool
     processor_used: ProcessorType
@@ -106,14 +103,14 @@ class ProcessingResult:
 
 class ProcessorPool:
     """Pool of available processors with load balancing."""
-    
+
     def __init__(self):
         self.processors: Dict[ProcessorType, Any] = {}
         self.metrics: Dict[ProcessorType, ProcessorMetrics] = {}
         self.load_balancer = LoadBalancer()
         self.health_monitor = ProcessorHealthMonitor()
         self._initialize_processors()
-    
+
     def _initialize_processors(self):
         """Initialize available processors."""
         # Initialize metrics for all processor types
@@ -126,9 +123,9 @@ class ProcessorPool:
                 energy_efficiency=0.7,
                 reliability_score=0.8
             )
-        
+
         logger.info("Processor pool initialized with all processor types")
-    
+
     def get_processor(self, processor_type: ProcessorType):
         """Get processor instance (lazy loading)."""
         if processor_type not in self.processors:
@@ -153,102 +150,102 @@ class ProcessorPool:
             else:
                 logger.error(f"Unknown processor type: {processor_type}")
                 return None
-        
+
         return self.processors.get(processor_type)
-    
-    def update_metrics(self, processor_type: ProcessorType, 
-                      processing_time: float, success: bool, 
+
+    def update_metrics(self, processor_type: ProcessorType,
+                      processing_time: float, success: bool,
                       accuracy: float, energy_used: float = 0.0):
         """Update processor performance metrics."""
         if processor_type not in self.metrics:
             return
-        
+
         metrics = self.metrics[processor_type]
-        
+
         # Exponential moving average for metrics
         alpha = 0.1  # Learning rate
-        
+
         if success:
             metrics.success_rate = (1 - alpha) * metrics.success_rate + alpha * 1.0
             metrics.accuracy_score = (1 - alpha) * metrics.accuracy_score + alpha * accuracy
         else:
             metrics.success_rate = (1 - alpha) * metrics.success_rate + alpha * 0.0
-        
+
         metrics.average_time = (1 - alpha) * metrics.average_time + alpha * processing_time
-        
+
         if energy_used > 0:
             # Energy efficiency: higher is better (less energy per operation)
             efficiency = 1.0 / (1.0 + energy_used)
             metrics.energy_efficiency = (1 - alpha) * metrics.energy_efficiency + alpha * efficiency
-        
+
         metrics.last_updated = time.time()
-        
+
         logger.debug(f"Updated {processor_type.value} metrics: "
                     f"success={metrics.success_rate:.3f}, "
                     f"time={metrics.average_time:.3f}, "
                     f"accuracy={metrics.accuracy_score:.3f}")
-    
+
     def get_best_processor(self, requirements: ProcessingTask) -> Optional[ProcessorType]:
         """Select best processor based on requirements and current metrics."""
         available_processors = []
-        
+
         # Filter by preferred processors if specified
         if requirements.preferred_processors:
             candidate_types = requirements.preferred_processors
         else:
             candidate_types = list(ProcessorType)
-        
+
         # Check availability and health
         for proc_type in candidate_types:
             if self.health_monitor.is_healthy(proc_type):
                 processor = self.get_processor(proc_type)
                 if processor is not None:
                     available_processors.append(proc_type)
-        
+
         if not available_processors:
             logger.warning("No healthy processors available")
             return None
-        
+
         # Score processors based on requirements
         processor_scores = {}
         for proc_type in available_processors:
             score = self._score_processor(proc_type, requirements)
             processor_scores[proc_type] = score
-        
+
         # Select processor with highest score
         best_processor = max(processor_scores.items(), key=lambda x: x[1])
-        
+
         logger.info(f"Selected {best_processor[0].value} processor "
                    f"(score: {best_processor[1]:.3f}) for task {requirements.task_id}")
-        
+
         return best_processor[0]
-    
+
     def _score_processor(self, processor_type: ProcessorType, requirements: ProcessingTask) -> float:
         """Score processor for given requirements."""
         metrics = self.metrics.get(processor_type)
         if not metrics:
             return 0.0
-        
+
         score = metrics.overall_score()
-        
+
         # Apply requirement-specific adjustments
         # Accuracy requirement
         if metrics.accuracy_score < requirements.accuracy_requirement:
             score *= 0.5  # Heavy penalty for insufficient accuracy
-        
+
         # Time constraint
         if metrics.average_time > requirements.max_processing_time:
             score *= 0.7  # Penalty for slow processing
-        
+
         # Energy constraint
-        if (requirements.energy_constraint and 
+        if (requirements.energy_constraint and
             metrics.energy_efficiency < requirements.energy_constraint):
             score *= 0.8  # Penalty for high energy usage
-        
+
         # Priority boost for high-priority tasks
         if requirements.priority >= 4:
             score *= 1.1
-        
+
         # Processor-specific bonuses
         processor_bonuses = {
             ProcessorType.NEUROMORPHIC: 0.05,  # Bonus for pattern recognition
@@ -256,12 +253,12 @@ class ProcessorPool:
             ProcessorType.CLASSICAL: 0.0,      # Baseline
             ProcessorType.HYBRID: 0.15         # Bonus for versatility
         }
-        
+
         bonus = processor_bonuses.get(processor_type, 0.0)
         score += bonus
-        
+
         return min(score, 1.0)
-    
+
     def get_metrics_summary(self) -> Dict[str, Any]:
         """Get summary of all processor metrics."""
         summary = {}
@@ -280,7 +277,7 @@ class ProcessorPool:
 
 class LoadBalancer:
     """Intelligent load balancing for processor allocation."""
-    
+
     def __init__(self):
         self.current_loads: Dict[ProcessorType, int] = {}
         self.max_concurrent: Dict[ProcessorType, int] = {
@@ -290,13 +287,13 @@ class LoadBalancer:
             ProcessorType.HYBRID: 2
         }
         self.queue_depths: Dict[ProcessorType, int] = {}
-    
+
     def can_process(self, processor_type: ProcessorType) -> bool:
         """Check if processor can handle another task."""
         current_load = self.current_loads.get(processor_type, 0)
         max_load = self.max_concurrent.get(processor_type, 1)
         return current_load < max_load
-    
+
     def allocate_processor(self, processor_type: ProcessorType) -> bool:
         """Attempt to allocate processor resources."""
         if self.can_process(processor_type):
@@ -305,14 +302,14 @@ class LoadBalancer:
                         f"({self.current_loads[processor_type]}/{self.max_concurrent[processor_type]})")
             return True
         return False
-    
+
     def release_processor(self, processor_type: ProcessorType):
         """Release processor resources."""
         if processor_type in self.current_loads:
             self.current_loads[processor_type] = max(0, self.current_loads[processor_type] - 1)
             logger.debug(f"Released {processor_type.value} processor "
                         f"({self.current_loads[processor_type]}/{self.max_concurrent[processor_type]})")
-    
+
     def get_load_status(self) -> Dict[str, Any]:
         """Get current load status."""
         return {
@@ -327,24 +324,24 @@ class LoadBalancer:
 
 class ProcessorHealthMonitor:
     """Monitors processor health and availability."""
-    
+
     def __init__(self):
         self.health_status: Dict[ProcessorType, bool] = {}
         self.last_health_check: Dict[ProcessorType, float] = {}
         self.health_check_interval = 60.0  # 1 minute
-    
+
     def is_healthy(self, processor_type: ProcessorType) -> bool:
         """Check if processor is healthy."""
         current_time = time.time()
         last_check = self.last_health_check.get(processor_type, 0)
-        
+
         # Perform health check if needed
         if current_time - last_check > self.health_check_interval:
             self._perform_health_check(processor_type)
             self.last_health_check[processor_type] = current_time
-        
+
         return self.health_status.get(processor_type, True)  # Default to healthy
-    
+
     def _perform_health_check(self, processor_type: ProcessorType):
         """Perform health check on processor."""
         try:
@@ -372,7 +369,7 @@ class ProcessorHealthMonitor:
 
 class HybridOrchestrator:
     """Main orchestrator for hybrid processing strategies."""
-    
+
     def __init__(self, mode: OrchestratorMode = OrchestratorMode.AUTO_SELECT):
         self.mode = mode
         self.processor_pool = ProcessorPool()
@@ -385,9 +382,9 @@ class HybridOrchestrator:
             "average_processing_time": 0.0,
             "processor_usage": {pt.value: 0 for pt in ProcessorType}
         }
-        
+
         logger.info(f"Hybrid orchestrator initialized with mode: {mode.value}")
-    
+
     async def process_document(self, document, language_code: str = "en",
                               priority: int = 1, **kwargs) -> ProcessingResult:
         """Process single document using optimal strategy."""
@@ -402,18 +399,18 @@ class HybridOrchestrator:
             preferred_processors=kwargs.get("preferred_processors", []),
             metadata=kwargs
         )
-        
+
         return await self._execute_task(task)
-    
+
     async def process_batch(self, tasks: List[ProcessingTask]) -> List[ProcessingResult]:
         """Process multiple documents in batch."""
         logger.info(f"Processing batch of {len(tasks)} tasks")
-        
+
         # Sort tasks by priority
         sorted_tasks = sorted(tasks, key=lambda t: t.priority, reverse=True)
-        
+
         results = []
-        
+
         if self.mode == OrchestratorMode.PARALLEL_ENSEMBLE:
             # Process tasks in parallel where possible
             results = await self._process_parallel_ensemble(sorted_tasks)
@@ -427,9 +424,9 @@ class HybridOrchestrator:
             batch_tasks = []
             for task in sorted_tasks:
                 batch_tasks.append(self._execute_task(task))
-            
+
             results = await asyncio.gather(*batch_tasks, return_exceptions=True)
-            
+
             # Handle exceptions
             for i, result in enumerate(results):
                 if isinstance(result, Exception):
@@ -444,22 +441,22 @@ class HybridOrchestrator:
                         energy_consumed=0.0,
                         error_message=str(result)
                     )
-        
+
         return results
-    
+
     async def _execute_task(self, task: ProcessingTask) -> ProcessingResult:
         """Execute a single processing task."""
         start_time = time.perf_counter()
         self.active_tasks[task.task_id] = task
-        
+
         logger.info(f"Executing task {task.task_id} with priority {task.priority}")
-        
+
         try:
             # Select best processor
             processor_type = self.processor_pool.get_best_processor(task)
             if not processor_type:
                 raise Exception("No available processors")
-            
+
             # Allocate processor resources
             if not self.processor_pool.load_balancer.allocate_processor(processor_type):
                 # Try fallback processor
@@ -467,31 +464,31 @@ class HybridOrchestrator:
                 if not processor_type:
                     raise Exception("All processors are busy")
                 self.processor_pool.load_balancer.allocate_processor(processor_type)
-            
+
             try:
                 # Process document
                 result = await self._process_with_processor(task, processor_type)
-                
+
                 # Update metrics
                 processing_time = time.perf_counter() - start_time
                 self.processor_pool.update_metrics(
-                    processor_type, processing_time, result.success, 
+                    processor_type, processing_time, result.success,
                     result.confidence_score, result.energy_consumed
                 )
-                
+
                 # Update orchestration stats
                 self._update_orchestration_stats(processor_type, processing_time, result.success)
-                
+
                 return result
-                
+
             finally:
                 # Release processor resources
                 self.processor_pool.load_balancer.release_processor(processor_type)
-                
+
         except Exception as e:
             logger.error(f"Task {task.task_id} failed: {e}")
             processing_time = time.perf_counter() - start_time
-            
+
             return ProcessingResult(
                 task_id=task.task_id,
                 success=False,
@@ -506,19 +503,19 @@ class HybridOrchestrator:
             # Clean up
             if task.task_id in self.active_tasks:
                 del self.active_tasks[task.task_id]
-    
-    async def _process_with_processor(self, task: ProcessingTask, 
+
+    async def _process_with_processor(self, task: ProcessingTask,
                                     processor_type: ProcessorType) -> ProcessingResult:
         """Process task with specific processor type."""
         start_time = time.perf_counter()
-        
+
         try:
             if processor_type == ProcessorType.NEUROMORPHIC:
                 from .neuromorphic_processing import process_document_with_neuromorphics
                 neuro_result = await process_document_with_neuromorphics(
                     task.document, task.language_code
                 )
-                
+
                 clauses = []
                 for clause in neuro_result.detected_clauses:
                     clauses.append({
@@ -528,7 +525,7 @@ class HybridOrchestrator:
                         "confidence": clause.confidence,
                         "page": clause.page
                     })
-                
+
                 return ProcessingResult(
                     task_id=task.task_id,
                     success=True,
@@ -539,13 +536,15 @@ class HybridOrchestrator:
                     energy_consumed=neuro_result.energy_consumption,
                     metadata={"total_spikes": neuro_result.total_spikes}
                 )
-                
+
             elif processor_type == ProcessorType.QUANTUM:
-                from .quantum_enhanced_extraction import process_document_with_quantum_enhancement
+                from .quantum_enhanced_extraction import (
+                    process_document_with_quantum_enhancement,
+                )
                 quantum_result = await process_document_with_quantum_enhancement(
                     task.document, task.language_code
                 )
-                
+
                 clauses = []
                 for clause in quantum_result.detected_clauses:
                     clauses.append({
@@ -556,7 +555,7 @@ class HybridOrchestrator:
                         "page": clause.page,
                         "quantum_fidelity": clause.quantum_fidelity
                     })
-                
+
                 return ProcessingResult(
                     task_id=task.task_id,
                     success=True,
@@ -570,14 +569,14 @@ class HybridOrchestrator:
                         "quantum_advantage": quantum_result.quantum_advantage_score
                     }
                 )
-                
+
             elif processor_type == ProcessorType.CLASSICAL:
                 from . import detect_clauses
-                
+
                 # Simulate classical processing
                 await asyncio.sleep(0.1)  # Simulate processing time
                 clauses = detect_clauses(task.document, language_code=task.language_code)
-                
+
                 clauses_data = []
                 for clause in clauses:
                     clauses_data.append({
@@ -587,9 +586,9 @@ class HybridOrchestrator:
                         "confidence": clause.confidence,
                         "page": clause.page
                     })
-                
+
                 processing_time = time.perf_counter() - start_time
-                
+
                 return ProcessingResult(
                     task_id=task.task_id,
                     success=True,
@@ -600,14 +599,14 @@ class HybridOrchestrator:
                     energy_consumed=1.0,  # Baseline energy
                     metadata={"method": "classical"}
                 )
-                
+
             else:
                 raise Exception(f"Unsupported processor type: {processor_type}")
-                
+
         except Exception as e:
             processing_time = time.perf_counter() - start_time
             logger.error(f"Processing failed with {processor_type.value}: {e}")
-            
+
             return ProcessingResult(
                 task_id=task.task_id,
                 success=False,
@@ -618,7 +617,7 @@ class HybridOrchestrator:
                 energy_consumed=0.0,
                 error_message=str(e)
             )
-    
+
     async def _select_fallback_processor(self, task: ProcessingTask) -> Optional[ProcessorType]:
         """Select fallback processor when primary is unavailable."""
         fallback_order = [
@@ -626,31 +625,31 @@ class HybridOrchestrator:
             ProcessorType.NEUROMORPHIC,
             ProcessorType.QUANTUM
         ]
-        
+
         for processor_type in fallback_order:
             if (self.processor_pool.load_balancer.can_process(processor_type) and
                 self.processor_pool.health_monitor.is_healthy(processor_type)):
                 logger.info(f"Selected fallback processor: {processor_type.value}")
                 return processor_type
-        
+
         return None
-    
+
     async def _process_parallel_ensemble(self, tasks: List[ProcessingTask]) -> List[ProcessingResult]:
         """Process tasks using parallel ensemble approach."""
         logger.info("Using parallel ensemble processing")
-        
+
         # Group tasks by estimated processing requirements
         high_priority = [t for t in tasks if t.priority >= 4]
         normal_priority = [t for t in tasks if t.priority < 4]
-        
+
         results = []
-        
+
         # Process high priority tasks first
         if high_priority:
             high_priority_tasks = [self._execute_task(task) for task in high_priority]
             high_priority_results = await asyncio.gather(*high_priority_tasks, return_exceptions=True)
             results.extend(high_priority_results)
-        
+
         # Process normal priority tasks in parallel
         if normal_priority:
             # Limit concurrent tasks to avoid overload
@@ -660,24 +659,24 @@ class HybridOrchestrator:
                 batch_tasks = [self._execute_task(task) for task in batch]
                 batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
                 results.extend(batch_results)
-        
+
         return results
-    
+
     async def _execute_task_with_fallback(self, task: ProcessingTask) -> ProcessingResult:
         """Execute task with fallback strategy."""
         fallback_processors = [
             ProcessorType.QUANTUM,
-            ProcessorType.NEUROMORPHIC, 
+            ProcessorType.NEUROMORPHIC,
             ProcessorType.CLASSICAL
         ]
-        
+
         last_error = None
-        
+
         for processor_type in fallback_processors:
             try:
                 if (self.processor_pool.health_monitor.is_healthy(processor_type) and
                     self.processor_pool.load_balancer.allocate_processor(processor_type)):
-                    
+
                     try:
                         result = await self._process_with_processor(task, processor_type)
                         if result.success:
@@ -686,12 +685,12 @@ class HybridOrchestrator:
                             last_error = result.error_message
                     finally:
                         self.processor_pool.load_balancer.release_processor(processor_type)
-                        
+
             except Exception as e:
                 last_error = str(e)
                 logger.warning(f"Fallback attempt with {processor_type.value} failed: {e}")
                 continue
-        
+
         # All fallback attempts failed
         return ProcessingResult(
             task_id=task.task_id,
@@ -703,66 +702,66 @@ class HybridOrchestrator:
             energy_consumed=0.0,
             error_message=f"All fallback attempts failed. Last error: {last_error}"
         )
-    
-    def _update_orchestration_stats(self, processor_type: ProcessorType, 
+
+    def _update_orchestration_stats(self, processor_type: ProcessorType,
                                   processing_time: float, success: bool):
         """Update orchestration statistics."""
         self.orchestration_stats["total_tasks"] += 1
-        
+
         if success:
             self.orchestration_stats["successful_tasks"] += 1
-        
+
         # Update average processing time
         total_tasks = self.orchestration_stats["total_tasks"]
         current_avg = self.orchestration_stats["average_processing_time"]
         self.orchestration_stats["average_processing_time"] = (
             (current_avg * (total_tasks - 1) + processing_time) / total_tasks
         )
-        
+
         # Update processor usage
         self.orchestration_stats["processor_usage"][processor_type.value] += 1
-    
+
     def get_orchestration_statistics(self) -> Dict[str, Any]:
         """Get comprehensive orchestration statistics."""
         stats = self.orchestration_stats.copy()
-        
+
         # Calculate success rate
         if stats["total_tasks"] > 0:
             stats["success_rate"] = stats["successful_tasks"] / stats["total_tasks"]
         else:
             stats["success_rate"] = 0.0
-        
+
         # Add processor metrics
         stats["processor_metrics"] = self.processor_pool.get_metrics_summary()
-        
+
         # Add load balancing status
         stats["load_balancing"] = self.processor_pool.load_balancer.get_load_status()
-        
+
         # Add active task count
         stats["active_tasks"] = len(self.active_tasks)
-        
+
         return stats
-    
+
     def optimize_configuration(self):
         """Optimize orchestrator configuration based on performance history."""
         metrics_summary = self.processor_pool.get_metrics_summary()
-        
+
         # Find best performing processor
         best_processor = None
         best_score = 0.0
-        
+
         for proc_type_str, metrics in metrics_summary.items():
             if metrics["overall_score"] > best_score:
                 best_score = metrics["overall_score"]
                 best_processor = proc_type_str
-        
+
         if best_processor:
             logger.info(f"Best performing processor: {best_processor} (score: {best_score:.3f})")
-            
+
             # Adjust load balancer limits based on performance
             proc_type = ProcessorType(best_processor)
             current_limit = self.processor_pool.load_balancer.max_concurrent.get(proc_type, 1)
-            
+
             if best_score > 0.8 and current_limit < 5:
                 # Increase capacity for high-performing processors
                 self.processor_pool.load_balancer.max_concurrent[proc_type] = current_limit + 1
@@ -787,14 +786,14 @@ async def process_document_hybrid(document, language_code: str = "en", **kwargs)
     return await orchestrator.process_document(document, language_code, **kwargs)
 
 
-async def process_batch_hybrid(documents: List[Any], language_code: str = "en", 
+async def process_batch_hybrid(documents: List[Any], language_code: str = "en",
                               priorities: Optional[List[int]] = None, **kwargs) -> List[ProcessingResult]:
     """Process multiple documents using hybrid orchestration."""
     orchestrator = get_orchestrator()
-    
+
     if priorities is None:
         priorities = [1] * len(documents)
-    
+
     tasks = []
     for i, document in enumerate(documents):
         task = ProcessingTask(
@@ -805,5 +804,5 @@ async def process_batch_hybrid(documents: List[Any], language_code: str = "en",
             **kwargs
         )
         tasks.append(task)
-    
+
     return await orchestrator.process_batch(tasks)

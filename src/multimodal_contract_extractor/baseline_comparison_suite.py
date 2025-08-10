@@ -8,16 +8,16 @@ comparative evaluation against novel neuromorphic and quantum algorithms.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
+import re
 import statistics
 import time
-import re
-from typing import Any, Dict, List, Optional, Tuple, Union
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
+
 import numpy as np
-import hashlib
-import json
 
 logger = logging.getLogger(__name__)
 
@@ -61,17 +61,17 @@ class ComprehensiveBaselineComparator:
     This class provides state-of-the-art implementations of traditional approaches
     to enable rigorous comparative evaluation against novel methods.
     """
-    
+
     def __init__(self, random_seed: int = 42):
         self.random_seed = random_seed
         np.random.seed(random_seed)
-        
+
         self.baseline_configs = self._initialize_baseline_configs()
         self.performance_cache: Dict[str, Dict[str, Any]] = {}
-        
+
         # Precomputed patterns and models for realistic simulation
         self._initialize_baseline_models()
-    
+
     def _initialize_baseline_configs(self) -> Dict[str, BaselineMethodConfig]:
         """Initialize comprehensive baseline method configurations."""
         return {
@@ -99,7 +99,7 @@ class ComprehensiveBaselineComparator:
                 limitations=["Independence assumption", "Poor with correlated features"],
                 citation_info="McCallum & Nigam (1998). A Comparison of Event Models for Naive Bayes Text Classification"
             ),
-            
+
             "svm_linear": BaselineMethodConfig(
                 method_name="svm_linear",
                 category=BaselineCategory.TRADITIONAL_ML,
@@ -123,7 +123,7 @@ class ComprehensiveBaselineComparator:
                 limitations=["Slow on large datasets", "No probabilistic output"],
                 citation_info="Joachims (1998). Text Categorization with Support Vector Machines"
             ),
-            
+
             "random_forest": BaselineMethodConfig(
                 method_name="random_forest",
                 category=BaselineCategory.TRADITIONAL_ML,
@@ -147,7 +147,7 @@ class ComprehensiveBaselineComparator:
                 limitations=["Can overfit", "Black box model"],
                 citation_info="Breiman (2001). Random Forests. Machine Learning, 45(1), 5-32"
             ),
-            
+
             # Rule-Based Systems
             "regex_expert_system": BaselineMethodConfig(
                 method_name="regex_expert_system",
@@ -172,7 +172,7 @@ class ComprehensiveBaselineComparator:
                 limitations=["Low recall", "Brittle to variations", "Manual effort intensive"],
                 citation_info="Friedl (2006). Mastering Regular Expressions, 3rd Edition"
             ),
-            
+
             "keyword_density": BaselineMethodConfig(
                 method_name="keyword_density",
                 category=BaselineCategory.RULE_BASED,
@@ -196,7 +196,7 @@ class ComprehensiveBaselineComparator:
                 limitations=["Many false positives", "Context-insensitive"],
                 citation_info="Salton & Buckley (1988). Term-weighting approaches in automatic text retrieval"
             ),
-            
+
             # Statistical NLP
             "tfidf_cosine": BaselineMethodConfig(
                 method_name="tfidf_cosine",
@@ -221,7 +221,7 @@ class ComprehensiveBaselineComparator:
                 limitations=["Ignores word order", "Sparse representations"],
                 citation_info="Salton & McGill (1983). Introduction to Modern Information Retrieval"
             ),
-            
+
             "lda_topic_modeling": BaselineMethodConfig(
                 method_name="lda_topic_modeling",
                 category=BaselineCategory.STATISTICAL_NLP,
@@ -245,7 +245,7 @@ class ComprehensiveBaselineComparator:
                 limitations=["Requires topic number specification", "Computational intensive"],
                 citation_info="Blei et al. (2003). Latent Dirichlet Allocation. JMLR, 3, 993-1022"
             ),
-            
+
             # Deep Learning (Simplified)
             "lstm_sequence": BaselineMethodConfig(
                 method_name="lstm_sequence",
@@ -270,7 +270,7 @@ class ComprehensiveBaselineComparator:
                 limitations=["Requires large datasets", "Computationally expensive"],
                 citation_info="Hochreiter & Schmidhuber (1997). Long Short-Term Memory. Neural Computation"
             ),
-            
+
             "bert_base": BaselineMethodConfig(
                 method_name="bert_base",
                 category=BaselineCategory.DEEP_LEARNING,
@@ -295,7 +295,7 @@ class ComprehensiveBaselineComparator:
                 citation_info="Devlin et al. (2018). BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding"
             )
         }
-    
+
     def _initialize_baseline_models(self) -> None:
         """Initialize precomputed models and patterns for realistic simulation."""
         # Contract clause patterns for rule-based methods
@@ -323,7 +323,7 @@ class ComprehensiveBaselineComparator:
                 r"\b(?:maintain|preserve|keep)\s+(?:confidentiality|secrecy)\b"
             ]
         }
-        
+
         # TF-IDF vocabulary simulation
         self.tfidf_vocabulary = {
             'agreement': 0.85, 'contract': 0.82, 'party': 0.78, 'shall': 0.92,
@@ -331,7 +331,7 @@ class ComprehensiveBaselineComparator:
             'liability': 0.35, 'payment': 0.41, 'termination': 0.33, 'breach': 0.28,
             'confidential': 0.25, 'proprietary': 0.22, 'indemnify': 0.18
         }
-        
+
         # Topic modeling simulation (LDA topics)
         self.lda_topics = {
             0: {'termination': 0.15, 'end': 0.12, 'notice': 0.10, 'breach': 0.08},
@@ -339,25 +339,25 @@ class ComprehensiveBaselineComparator:
             2: {'liability': 0.16, 'damages': 0.13, 'responsible': 0.11, 'loss': 0.08},
             3: {'confidential': 0.17, 'disclosure': 0.14, 'proprietary': 0.12, 'secret': 0.09}
         }
-    
-    async def run_baseline_method(self, method_name: str, documents: List[Dict[str, Any]], 
+
+    async def run_baseline_method(self, method_name: str, documents: List[Dict[str, Any]],
                                 config: Dict[str, Any] = None) -> Dict[str, Any]:
         """Run specified baseline method on documents."""
         if method_name not in self.baseline_configs:
             raise ValueError(f"Unknown baseline method: {method_name}")
-        
+
         baseline_config = self.baseline_configs[method_name]
-        
+
         # Check cache
         cache_key = self._generate_cache_key(method_name, documents, config)
         if cache_key in self.performance_cache:
             cached_result = self.performance_cache[cache_key].copy()
             cached_result['metadata']['from_cache'] = True
             return cached_result
-        
+
         # Run the appropriate method
         start_time = time.perf_counter()
-        
+
         if baseline_config.category == BaselineCategory.TRADITIONAL_ML:
             result = await self._run_traditional_ml_method(method_name, documents, baseline_config)
         elif baseline_config.category == BaselineCategory.RULE_BASED:
@@ -368,32 +368,32 @@ class ComprehensiveBaselineComparator:
             result = await self._run_deep_learning_method(method_name, documents, baseline_config)
         else:
             raise ValueError(f"Unsupported baseline category: {baseline_config.category}")
-        
+
         # Add timing information
         processing_time = time.perf_counter() - start_time
         result['processing_time'] = processing_time
         result['metadata']['baseline_config'] = baseline_config.method_name
         result['metadata']['category'] = baseline_config.category.value
-        
+
         # Cache result
         self.performance_cache[cache_key] = result.copy()
-        
+
         return result
-    
-    async def _run_traditional_ml_method(self, method_name: str, documents: List[Dict[str, Any]], 
+
+    async def _run_traditional_ml_method(self, method_name: str, documents: List[Dict[str, Any]],
                                        config: BaselineMethodConfig) -> Dict[str, Any]:
         """Run traditional machine learning baseline method."""
         # Simulate processing time based on complexity
         processing_delay = config.computational_requirements["processing_time_factor"] * 0.02
         await asyncio.sleep(processing_delay)
-        
+
         # Extract document features for realistic performance simulation
         doc_features = self._extract_document_features(documents)
         complexity_factor = self._calculate_complexity_factor(doc_features)
-        
+
         # Generate realistic performance based on method characteristics
         perf_range = config.expected_performance_range
-        
+
         if method_name == "naive_bayes":
             return self._simulate_naive_bayes_performance(perf_range, complexity_factor, doc_features)
         elif method_name == "svm_linear":
@@ -402,73 +402,73 @@ class ComprehensiveBaselineComparator:
             return self._simulate_random_forest_performance(perf_range, complexity_factor, doc_features)
         else:
             return self._simulate_generic_performance(perf_range, complexity_factor)
-    
-    async def _run_rule_based_method(self, method_name: str, documents: List[Dict[str, Any]], 
+
+    async def _run_rule_based_method(self, method_name: str, documents: List[Dict[str, Any]],
                                    config: BaselineMethodConfig) -> Dict[str, Any]:
         """Run rule-based baseline method."""
         processing_delay = config.computational_requirements["processing_time_factor"] * 0.01
         await asyncio.sleep(processing_delay)
-        
+
         doc_features = self._extract_document_features(documents)
         complexity_factor = self._calculate_complexity_factor(doc_features)
-        
+
         perf_range = config.expected_performance_range
-        
+
         if method_name == "regex_expert_system":
             return await self._simulate_regex_expert_performance(perf_range, doc_features, documents)
         elif method_name == "keyword_density":
             return await self._simulate_keyword_density_performance(perf_range, doc_features, documents)
         else:
             return self._simulate_generic_performance(perf_range, complexity_factor)
-    
-    async def _run_statistical_nlp_method(self, method_name: str, documents: List[Dict[str, Any]], 
+
+    async def _run_statistical_nlp_method(self, method_name: str, documents: List[Dict[str, Any]],
                                         config: BaselineMethodConfig) -> Dict[str, Any]:
         """Run statistical NLP baseline method."""
         processing_delay = config.computational_requirements["processing_time_factor"] * 0.03
         await asyncio.sleep(processing_delay)
-        
+
         doc_features = self._extract_document_features(documents)
         complexity_factor = self._calculate_complexity_factor(doc_features)
-        
+
         perf_range = config.expected_performance_range
-        
+
         if method_name == "tfidf_cosine":
             return await self._simulate_tfidf_performance(perf_range, doc_features, documents)
         elif method_name == "lda_topic_modeling":
             return await self._simulate_lda_performance(perf_range, doc_features, documents)
         else:
             return self._simulate_generic_performance(perf_range, complexity_factor)
-    
-    async def _run_deep_learning_method(self, method_name: str, documents: List[Dict[str, Any]], 
+
+    async def _run_deep_learning_method(self, method_name: str, documents: List[Dict[str, Any]],
                                       config: BaselineMethodConfig) -> Dict[str, Any]:
         """Run deep learning baseline method."""
         processing_delay = config.computational_requirements["processing_time_factor"] * 0.05
         await asyncio.sleep(processing_delay)
-        
+
         doc_features = self._extract_document_features(documents)
         complexity_factor = self._calculate_complexity_factor(doc_features)
-        
+
         perf_range = config.expected_performance_range
-        
+
         if method_name == "lstm_sequence":
             return self._simulate_lstm_performance(perf_range, complexity_factor, doc_features)
         elif method_name == "bert_base":
             return self._simulate_bert_performance(perf_range, complexity_factor, doc_features)
         else:
             return self._simulate_generic_performance(perf_range, complexity_factor)
-    
+
     def _extract_document_features(self, documents: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Extract realistic document features for performance simulation."""
         if not documents:
             return {"avg_length": 0, "complexity": "simple", "doc_types": [], "clause_density": 0}
-        
+
         doc_types = [doc.get('document_type', 'unknown') for doc in documents]
         complexities = [doc.get('complexity', 'simple') for doc in documents]
-        
+
         # Simulate document length and clause density
         avg_length = np.mean([len(str(doc.get('ground_truth_clauses', []))) for doc in documents])
         clause_density = np.mean([len(doc.get('ground_truth_clauses', [])) for doc in documents])
-        
+
         return {
             "avg_length": avg_length,
             "complexity": max(set(complexities), key=complexities.count),
@@ -476,7 +476,7 @@ class ComprehensiveBaselineComparator:
             "clause_density": clause_density,
             "num_documents": len(documents)
         }
-    
+
     def _calculate_complexity_factor(self, doc_features: Dict[str, Any]) -> float:
         """Calculate complexity factor affecting baseline performance."""
         complexity_map = {
@@ -485,17 +485,17 @@ class ComprehensiveBaselineComparator:
             "complex": 0.70,
             "very_complex": 0.55
         }
-        
+
         base_factor = complexity_map.get(doc_features["complexity"], 0.8)
-        
+
         # Adjust based on document features
         length_penalty = max(0.5, 1.0 - (doc_features["avg_length"] - 100) / 1000)
         density_penalty = max(0.6, 1.0 - (doc_features["clause_density"] - 3) / 10)
-        
+
         return base_factor * length_penalty * density_penalty
-    
-    def _simulate_naive_bayes_performance(self, perf_range: Dict[str, Tuple[float, float]], 
-                                        complexity_factor: float, 
+
+    def _simulate_naive_bayes_performance(self, perf_range: Dict[str, Tuple[float, float]],
+                                        complexity_factor: float,
                                         doc_features: Dict[str, Any]) -> Dict[str, Any]:
         """Simulate Naive Bayes performance with realistic characteristics."""
         # Naive Bayes tends to do well with simple documents but struggles with complex dependencies
@@ -503,7 +503,7 @@ class ComprehensiveBaselineComparator:
             performance_modifier = 1.1
         else:
             performance_modifier = 0.85
-        
+
         return {
             "accuracy": self._sample_from_range(perf_range["accuracy"], complexity_factor * performance_modifier),
             "precision": self._sample_from_range(perf_range["precision"], complexity_factor * 1.05),  # NB often has good precision
@@ -524,14 +524,14 @@ class ComprehensiveBaselineComparator:
                 "complexity_factor_applied": complexity_factor * performance_modifier
             }
         }
-    
-    def _simulate_svm_performance(self, perf_range: Dict[str, Tuple[float, float]], 
-                                complexity_factor: float, 
+
+    def _simulate_svm_performance(self, perf_range: Dict[str, Tuple[float, float]],
+                                complexity_factor: float,
                                 doc_features: Dict[str, Any]) -> Dict[str, Any]:
         """Simulate SVM performance with realistic characteristics."""
         # SVM tends to generalize well but can be sensitive to feature scaling
         generalization_factor = 1.05 if doc_features["num_documents"] > 50 else 0.95
-        
+
         return {
             "accuracy": self._sample_from_range(perf_range["accuracy"], complexity_factor * generalization_factor),
             "precision": self._sample_from_range(perf_range["precision"], complexity_factor * 1.03),
@@ -552,14 +552,14 @@ class ComprehensiveBaselineComparator:
                 "generalization_factor_applied": generalization_factor
             }
         }
-    
-    def _simulate_random_forest_performance(self, perf_range: Dict[str, Tuple[float, float]], 
-                                          complexity_factor: float, 
+
+    def _simulate_random_forest_performance(self, perf_range: Dict[str, Tuple[float, float]],
+                                          complexity_factor: float,
                                           doc_features: Dict[str, Any]) -> Dict[str, Any]:
         """Simulate Random Forest performance with realistic characteristics."""
         # Random Forest is robust and handles different data types well
         robustness_factor = 1.02 if doc_features["complexity"] in ["moderate", "complex"] else 0.98
-        
+
         return {
             "accuracy": self._sample_from_range(perf_range["accuracy"], complexity_factor * robustness_factor),
             "precision": self._sample_from_range(perf_range["precision"], complexity_factor * 1.01),
@@ -581,36 +581,36 @@ class ComprehensiveBaselineComparator:
                 "robustness_factor_applied": robustness_factor
             }
         }
-    
-    async def _simulate_regex_expert_performance(self, perf_range: Dict[str, Tuple[float, float]], 
-                                               doc_features: Dict[str, Any], 
+
+    async def _simulate_regex_expert_performance(self, perf_range: Dict[str, Tuple[float, float]],
+                                               doc_features: Dict[str, Any],
                                                documents: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Simulate regex expert system performance with pattern analysis."""
         # Analyze how well patterns match the documents
         pattern_matches = 0
         total_clauses = 0
-        
+
         for doc in documents:
             clauses = doc.get('ground_truth_clauses', [])
             total_clauses += len(clauses)
-            
+
             for clause in clauses:
                 clause_text = clause.get('text', '').lower()
                 clause_type = clause.get('type', 'unknown')
-                
+
                 # Check if our patterns would match this clause
                 if clause_type in self.contract_patterns:
                     for pattern in self.contract_patterns[clause_type]:
                         if re.search(pattern, clause_text, re.IGNORECASE):
                             pattern_matches += 1
                             break
-        
+
         pattern_coverage = pattern_matches / total_clauses if total_clauses > 0 else 0.5
-        
+
         # Regex systems have high precision but often low recall
         precision_boost = min(1.3, 1.0 + pattern_coverage * 0.5)
         recall_penalty = max(0.6, pattern_coverage)
-        
+
         return {
             "accuracy": self._sample_from_range(perf_range["accuracy"], pattern_coverage),
             "precision": self._sample_from_range(perf_range["precision"], precision_boost),
@@ -633,17 +633,17 @@ class ComprehensiveBaselineComparator:
                 "total_clauses_analyzed": total_clauses
             }
         }
-    
-    async def _simulate_keyword_density_performance(self, perf_range: Dict[str, Tuple[float, float]], 
-                                                  doc_features: Dict[str, Any], 
+
+    async def _simulate_keyword_density_performance(self, perf_range: Dict[str, Tuple[float, float]],
+                                                  doc_features: Dict[str, Any],
                                                   documents: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Simulate keyword density analysis performance."""
         # Keyword methods often have good recall but poor precision
         keyword_effectiveness = min(1.0, doc_features["clause_density"] / 5.0)  # Normalize by expected density
-        
+
         recall_boost = min(1.2, 1.0 + keyword_effectiveness * 0.3)
         precision_penalty = max(0.7, 1.0 - keyword_effectiveness * 0.2)
-        
+
         return {
             "accuracy": self._sample_from_range(perf_range["accuracy"], keyword_effectiveness),
             "precision": self._sample_from_range(perf_range["precision"], precision_penalty),
@@ -665,15 +665,15 @@ class ComprehensiveBaselineComparator:
                 "keyword_effectiveness": keyword_effectiveness
             }
         }
-    
-    async def _simulate_tfidf_performance(self, perf_range: Dict[str, Tuple[float, float]], 
-                                        doc_features: Dict[str, Any], 
+
+    async def _simulate_tfidf_performance(self, perf_range: Dict[str, Tuple[float, float]],
+                                        doc_features: Dict[str, Any],
                                         documents: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Simulate TF-IDF cosine similarity performance."""
         # TF-IDF performs well with moderate vocabulary overlap
         vocab_score = self._calculate_vocabulary_overlap(documents)
         tfidf_effectiveness = min(1.1, vocab_score * 1.3)
-        
+
         return {
             "accuracy": self._sample_from_range(perf_range["accuracy"], tfidf_effectiveness),
             "precision": self._sample_from_range(perf_range["precision"], tfidf_effectiveness * 1.02),
@@ -695,17 +695,17 @@ class ComprehensiveBaselineComparator:
                 "vocab_score": vocab_score
             }
         }
-    
-    async def _simulate_lda_performance(self, perf_range: Dict[str, Tuple[float, float]], 
-                                      doc_features: Dict[str, Any], 
+
+    async def _simulate_lda_performance(self, perf_range: Dict[str, Tuple[float, float]],
+                                      doc_features: Dict[str, Any],
                                       documents: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Simulate LDA topic modeling performance."""
         # LDA works better with larger document collections and clear topics
         topic_coherence = min(1.15, doc_features["num_documents"] / 50.0)  # Scales with document count
         complexity_bonus = 1.1 if doc_features["complexity"] in ["moderate", "complex"] else 0.95
-        
+
         lda_effectiveness = topic_coherence * complexity_bonus
-        
+
         return {
             "accuracy": self._sample_from_range(perf_range["accuracy"], lda_effectiveness),
             "precision": self._sample_from_range(perf_range["precision"], lda_effectiveness * 1.03),
@@ -727,17 +727,17 @@ class ComprehensiveBaselineComparator:
                 "topic_coherence": topic_coherence
             }
         }
-    
-    def _simulate_lstm_performance(self, perf_range: Dict[str, Tuple[float, float]], 
-                                 complexity_factor: float, 
+
+    def _simulate_lstm_performance(self, perf_range: Dict[str, Tuple[float, float]],
+                                 complexity_factor: float,
                                  doc_features: Dict[str, Any]) -> Dict[str, Any]:
         """Simulate LSTM sequence model performance."""
         # LSTM performs well with sequential data and sufficient training data
         sequence_advantage = 1.08 if doc_features["num_documents"] > 30 else 0.92
         complexity_handling = min(1.1, 0.9 + doc_features["clause_density"] * 0.05)
-        
+
         lstm_effectiveness = complexity_factor * sequence_advantage * complexity_handling
-        
+
         return {
             "accuracy": self._sample_from_range(perf_range["accuracy"], lstm_effectiveness),
             "precision": self._sample_from_range(perf_range["precision"], lstm_effectiveness * 1.02),
@@ -759,18 +759,18 @@ class ComprehensiveBaselineComparator:
                 "sequence_advantage": sequence_advantage
             }
         }
-    
-    def _simulate_bert_performance(self, perf_range: Dict[str, Tuple[float, float]], 
-                                 complexity_factor: float, 
+
+    def _simulate_bert_performance(self, perf_range: Dict[str, Tuple[float, float]],
+                                 complexity_factor: float,
                                  doc_features: Dict[str, Any]) -> Dict[str, Any]:
         """Simulate BERT transformer performance."""
         # BERT typically achieves high performance but with diminishing returns on simple tasks
         bert_advantage = min(1.2, 1.0 + doc_features["clause_density"] * 0.03)
         if doc_features["complexity"] == "simple":
             bert_advantage *= 0.95  # Overkill for simple tasks
-        
+
         bert_effectiveness = complexity_factor * bert_advantage
-        
+
         return {
             "accuracy": self._sample_from_range(perf_range["accuracy"], bert_effectiveness),
             "precision": self._sample_from_range(perf_range["precision"], bert_effectiveness * 1.01),
@@ -792,47 +792,47 @@ class ComprehensiveBaselineComparator:
                 "bert_advantage": bert_advantage
             }
         }
-    
+
     def _calculate_vocabulary_overlap(self, documents: List[Dict[str, Any]]) -> float:
         """Calculate vocabulary overlap with TF-IDF terms."""
         if not documents:
             return 0.5
-        
+
         # Extract text from documents and calculate overlap with our vocabulary
         all_text = ""
         for doc in documents:
             clauses = doc.get('ground_truth_clauses', [])
             for clause in clauses:
                 all_text += " " + clause.get('text', '').lower()
-        
+
         overlap_score = 0.0
         vocab_terms = list(self.tfidf_vocabulary.keys())
-        
+
         for term in vocab_terms:
             if term in all_text:
                 overlap_score += self.tfidf_vocabulary[term]
-        
+
         # Normalize by vocabulary size
         return min(1.0, overlap_score / len(vocab_terms))
-    
+
     def _sample_from_range(self, value_range: Tuple[float, float], modifier: float = 1.0) -> float:
         """Sample a realistic value from the given range with optional modifier."""
         min_val, max_val = value_range
-        
+
         # Use beta distribution for more realistic sampling (concentrates around middle)
         alpha, beta = 2.0, 2.0  # Parameters for beta distribution
         random_factor = np.random.beta(alpha, beta)
-        
+
         # Scale to range
         base_value = min_val + (max_val - min_val) * random_factor
-        
+
         # Apply modifier
         modified_value = base_value * modifier
-        
+
         # Clamp to reasonable bounds (allow some overflow for realism)
         return max(0.0, min(modified_value, max_val * 1.1))
-    
-    def _simulate_generic_performance(self, perf_range: Dict[str, Tuple[float, float]], 
+
+    def _simulate_generic_performance(self, perf_range: Dict[str, Tuple[float, float]],
                                     complexity_factor: float) -> Dict[str, Any]:
         """Generate generic baseline performance."""
         return {
@@ -846,20 +846,20 @@ class ComprehensiveBaselineComparator:
             "custom_metrics": {},
             "metadata": {"method": "generic_baseline", "baseline": True}
         }
-    
-    def _generate_cache_key(self, method_name: str, documents: List[Dict[str, Any]], 
+
+    def _generate_cache_key(self, method_name: str, documents: List[Dict[str, Any]],
                           config: Dict[str, Any] = None) -> str:
         """Generate cache key for baseline results."""
         # Create hash of documents and config for caching
         doc_hash = hashlib.md5(str(len(documents)).encode()).hexdigest()[:8]
         config_hash = hashlib.md5(str(config).encode()).hexdigest()[:8] if config else "default"
-        
+
         return f"{method_name}_{doc_hash}_{config_hash}"
-    
+
     def get_all_baseline_methods(self) -> List[str]:
         """Get list of all available baseline methods."""
         return list(self.baseline_configs.keys())
-    
+
     def get_baseline_categories(self) -> Dict[str, List[str]]:
         """Get baseline methods organized by category."""
         categories = {}
@@ -869,13 +869,13 @@ class ComprehensiveBaselineComparator:
                 categories[category] = []
             categories[category].append(method_name)
         return categories
-    
+
     def get_baseline_info(self, method_name: str) -> BaselineMethodConfig:
         """Get detailed information about a baseline method."""
         if method_name not in self.baseline_configs:
             raise ValueError(f"Unknown baseline method: {method_name}")
         return self.baseline_configs[method_name]
-    
+
     def get_computational_requirements_summary(self) -> Dict[str, Dict[str, float]]:
         """Get summary of computational requirements for all baselines."""
         summary = {}
@@ -898,13 +898,13 @@ def get_baseline_comparator() -> ComprehensiveBaselineComparator:
 
 
 async def run_comprehensive_baseline_comparison(
-    documents: List[Dict[str, Any]], 
+    documents: List[Dict[str, Any]],
     baseline_methods: List[str] = None,
     include_all_categories: bool = True
 ) -> Dict[str, Dict[str, Any]]:
     """Run comprehensive comparison across multiple baseline methods."""
     comparator = get_baseline_comparator()
-    
+
     if baseline_methods is None:
         if include_all_categories:
             baseline_methods = comparator.get_all_baseline_methods()
@@ -916,7 +916,7 @@ async def run_comprehensive_baseline_comparison(
                 "tfidf_cosine", "lda_topic_modeling",  # Statistical NLP
                 "lstm_sequence", "bert_base"  # Deep Learning
             ]
-    
+
     results = {}
     for method in baseline_methods:
         try:
@@ -926,7 +926,7 @@ async def run_comprehensive_baseline_comparison(
         except Exception as e:
             logger.error(f"Failed to run baseline method {method}: {e}")
             results[method] = {"error": str(e), "success": False}
-    
+
     return results
 
 
@@ -939,7 +939,7 @@ def generate_baseline_comparison_report(results: Dict[str, Dict[str, Any]]) -> s
         f"**Evaluation Date:** {time.strftime('%Y-%m-%d %H:%M:%S')}",
         ""
     ]
-    
+
     # Performance summary table
     report_lines.extend([
         "## Performance Summary",
@@ -947,7 +947,7 @@ def generate_baseline_comparison_report(results: Dict[str, Dict[str, Any]]) -> s
         "| Method | Category | Accuracy | F1-Score | Energy | Memory |",
         "|--------|----------|----------|----------|--------|--------|"
     ])
-    
+
     for method_name, result in results.items():
         if result.get("success", True) and "error" not in result:
             category = result.get("metadata", {}).get("category", "unknown")
@@ -955,28 +955,28 @@ def generate_baseline_comparison_report(results: Dict[str, Dict[str, Any]]) -> s
             f1_score = result.get("f1_score", 0.0)
             energy = result.get("energy_consumption", 0.0)
             memory = result.get("memory_usage", 0.0)
-            
+
             report_lines.append(
                 f"| {method_name} | {category} | {accuracy:.3f} | {f1_score:.3f} | {energy:.1f} | {memory:.0f} |"
             )
-    
+
     # Category analysis
     report_lines.extend([
         "",
         "## Category Analysis",
         ""
     ])
-    
+
     comparator = get_baseline_comparator()
     categories = comparator.get_baseline_categories()
-    
+
     for category, methods in categories.items():
         category_results = [results[m] for m in methods if m in results and results[m].get("success", True)]
-        
+
         if category_results:
             avg_accuracy = statistics.mean([r.get("accuracy", 0) for r in category_results])
             avg_energy = statistics.mean([r.get("energy_consumption", 0) for r in category_results])
-            
+
             report_lines.extend([
                 f"### {category.replace('_', ' ').title()}",
                 f"- **Average Accuracy:** {avg_accuracy:.3f}",
@@ -984,7 +984,7 @@ def generate_baseline_comparison_report(results: Dict[str, Dict[str, Any]]) -> s
                 f"- **Methods:** {', '.join(methods)}",
                 ""
             ])
-    
+
     # Recommendations
     report_lines.extend([
         "## Recommendations",
@@ -992,27 +992,27 @@ def generate_baseline_comparison_report(results: Dict[str, Dict[str, Any]]) -> s
         "Based on the baseline comparison results:",
         ""
     ])
-    
+
     # Find best performing methods
     successful_results = {k: v for k, v in results.items() if v.get("success", True) and "error" not in v}
     if successful_results:
         best_accuracy = max(successful_results.items(), key=lambda x: x[1].get("accuracy", 0))
         best_efficiency = min(successful_results.items(), key=lambda x: x[1].get("energy_consumption", float('inf')))
-        
+
         report_lines.extend([
             f"- **Best Accuracy:** {best_accuracy[0]} ({best_accuracy[1].get('accuracy', 0):.3f})",
             f"- **Most Efficient:** {best_efficiency[0]} ({best_efficiency[1].get('energy_consumption', 0):.2f} energy units)",
             "",
             "Novel methods should demonstrate statistically significant improvements over these baselines."
         ])
-    
+
     return "\n".join(report_lines)
 
 
 # Export key components
 __all__ = [
     'ComprehensiveBaselineComparator',
-    'BaselineMethodConfig', 
+    'BaselineMethodConfig',
     'BaselineCategory',
     'ProcessingComplexity',
     'get_baseline_comparator',

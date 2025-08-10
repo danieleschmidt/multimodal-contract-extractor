@@ -9,9 +9,16 @@ from typing import TYPE_CHECKING, Any
 
 from .adaptive_processing import process_with_adaptive_pipeline
 from .advanced_classification import classify_clause_advanced, identify_contract_type
+from .advanced_error_handling import (
+    ContractProcessingError,
+    ErrorSeverity,
+    with_error_handling,
+)
 from .clause_detection import detect_clauses
+from .comprehensive_validation import ValidationLevel, validate_extraction_result
 from .config import get_config
 from .document import Document, load_document, stream_document
+from .enterprise_security import ThreatLevel, get_audit_logger, get_threat_detector
 from .metrics import (
     PROCESSING_TIME,
     record_clauses_detected,
@@ -19,27 +26,11 @@ from .metrics import (
     record_pages_processed,
 )
 from .neuromorphic_engine import analyze_with_neuromorphic_computing
-from .quantum_analysis import analyze_with_quantum_computing
-from .advanced_error_handling import (
-    with_error_handling, 
-    ErrorSeverity, 
-    get_error_manager,
-    ContractProcessingError
-)
-from .enterprise_security import (
-    get_audit_logger,
-    get_threat_detector,
-    ThreatLevel
-)
-from .comprehensive_validation import (
-    validate_extraction_result,
-    ValidationLevel
-)
 from .performance_optimization import (
+    OptimizationStrategy,
     optimize_performance,
-    get_performance_optimizer,
-    OptimizationStrategy
 )
+from .quantum_analysis import analyze_with_quantum_computing
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -103,11 +94,11 @@ def extract_from_document(file_path: Path, *,
     # Record processing time with Prometheus histogram
     with PROCESSING_TIME.time():
         start_time = time.perf_counter()
-        
+
         # Initialize security and audit logging
         audit_logger = get_audit_logger() if enable_security_scanning else None
         threat_detector = get_threat_detector() if enable_security_scanning else None
-        
+
         try:
             # Security scanning
             if enable_security_scanning:
@@ -119,7 +110,7 @@ def extract_from_document(file_path: Path, *,
                         action="extract_from_document",
                         outcome="started"
                     )
-                
+
                 if threat_detector:
                     # Scan file for threats
                     threat_scan = threat_detector.scan_file(file_path)
@@ -135,7 +126,7 @@ def extract_from_document(file_path: Path, *,
                             )
                         logger.warning("High-risk file detected: %s", threat_scan)
                         # Continue processing but log the risk
-            
+
             logger.info("Starting extraction for %s", file_path.name)
 
             # Adaptive document loading: use streaming for large files to optimize memory usage
@@ -197,7 +188,7 @@ def extract_from_document(file_path: Path, *,
                     import asyncio
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
-                    
+
                     neuromorphic_result = loop.run_until_complete(
                         analyze_with_neuromorphic_computing(
                             result["document_info"],
@@ -205,22 +196,22 @@ def extract_from_document(file_path: Path, *,
                         )
                     )
                     result["metadata"]["neuromorphic_analysis"] = neuromorphic_result
-                    logger.info("Neuromorphic analysis completed with %d neural spikes", 
+                    logger.info("Neuromorphic analysis completed with %d neural spikes",
                               neuromorphic_result.get("total_spikes", 0))
-                    
+
                     loop.close()
                 except Exception as e:
                     logger.warning("Neuromorphic analysis failed: %s", e)
                     result["metadata"]["neuromorphic_analysis"] = {"error": str(e)}
 
-            # Perform quantum analysis if enabled  
+            # Perform quantum analysis if enabled
             if enable_quantum_analysis:
                 try:
                     if 'loop' not in locals():
                         import asyncio
                         loop = asyncio.new_event_loop()
                         asyncio.set_event_loop(loop)
-                    
+
                     quantum_result = loop.run_until_complete(
                         analyze_with_quantum_computing(
                             result["clauses"],
@@ -229,9 +220,9 @@ def extract_from_document(file_path: Path, *,
                         )
                     )
                     result["metadata"]["quantum_analysis"] = quantum_result
-                    logger.info("Quantum analysis completed with %.3f confidence", 
+                    logger.info("Quantum analysis completed with %.3f confidence",
                               quantum_result.get("quantum_confidence", 0.0))
-                    
+
                     if 'loop' in locals():
                         loop.close()
                 except Exception as e:
@@ -252,14 +243,14 @@ def extract_from_document(file_path: Path, *,
                     "critical_count": len(validation_report.critical_issues),
                     "execution_time": validation_report.execution_time
                 }
-                
+
                 if not validation_report.is_valid:
                     logger.warning(
                         "Validation issues found: %d errors, %d critical",
                         len(validation_report.failed_issues),
                         len(validation_report.critical_issues)
                     )
-                    
+
                     if audit_logger:
                         audit_logger.log_security_event(
                             event_type="validation_issues_found",
@@ -272,10 +263,10 @@ def extract_from_document(file_path: Path, *,
                                 "critical_count": len(validation_report.critical_issues)
                             }
                         )
-                
-                logger.info("Validation completed with %.1f%% success rate", 
+
+                logger.info("Validation completed with %.1f%% success rate",
                           validation_report.success_rate * 100)
-                          
+
             except Exception as e:
                 logger.error("Validation failed: %s", e)
                 result["metadata"]["validation"] = {"error": str(e)}
@@ -311,7 +302,7 @@ def extract_from_document(file_path: Path, *,
         except Exception as e:
             # Record failed processing
             record_document_processed("error")
-            
+
             # Security audit log for failure
             if audit_logger:
                 audit_logger.log_security_event(
@@ -322,13 +313,13 @@ def extract_from_document(file_path: Path, *,
                     outcome="failure",
                     details={"error": str(e), "error_type": type(e).__name__}
                 )
-            
+
             logger.exception("Extraction failed for %s: %s", file_path.name, e)
-            
+
             # Wrap in ContractProcessingError for better error handling
             if not isinstance(e, ContractProcessingError):
                 raise ContractProcessingError(
-                    f"Document extraction failed: {str(e)}", 
+                    f"Document extraction failed: {str(e)}",
                     ErrorSeverity.HIGH
                 ) from e
             raise

@@ -13,7 +13,18 @@ from .advanced_classification import (
     identify_contract_type,
     is_specialized_contract_type,
 )
+from .advanced_error_handling import (
+    ErrorRecoveryManager,
+    ErrorSeverity,
+    get_error_manager,
+    with_error_handling,
+)
 from .clause_detection import Clause, detect_clauses
+from .comprehensive_validation import (
+    ValidationLevel,
+    ValidationReport,
+    validate_extraction_result,
+)
 from .config import (
     Config,
     ConfigValidationError,
@@ -21,13 +32,42 @@ from .config import (
     load_config,
     reload_config,
 )
+from .distributed_computing import (
+    ClusterCoordinator,
+    DistributedConfig,
+    get_distributed_processor,
+)
 from .document import Document, DocumentPage, load_document, stream_document
+from .enterprise_security import (
+    EnterpriseSecurityConfig,
+    get_audit_logger,
+    get_compliance_manager,
+    get_encryption_manager,
+)
 from .extraction import extract_from_document
 from .language_detection import (
     detect_document_language,
     get_language_config,
     get_supported_languages,
     is_language_supported,
+)
+from .neuromorphic_engine import (
+    NeuromorphicConfig,
+    NeuromorphicProcessor,
+    analyze_with_neuromorphic_computing,
+    get_neuromorphic_processor,
+)
+from .performance_optimization import (
+    OptimizationStrategy,
+    PerformanceConfig,
+    get_performance_optimizer,
+    optimize_performance,
+)
+from .quantum_analysis import (
+    QuantumConfig,
+    QuantumProcessor,
+    analyze_with_quantum_computing,
+    get_quantum_processor,
 )
 from .security import (
     SecurityError,
@@ -56,46 +96,6 @@ from .websocket_server import (
     WebSocketManager,
     start_websocket_server,
     websocket_manager,
-)
-from .neuromorphic_engine import (
-    analyze_with_neuromorphic_computing,
-    get_neuromorphic_processor,
-    NeuromorphicConfig,
-    NeuromorphicProcessor,
-)
-from .quantum_analysis import (
-    analyze_with_quantum_computing,
-    get_quantum_processor,
-    QuantumConfig,
-    QuantumProcessor,
-)
-from .advanced_error_handling import (
-    ErrorRecoveryManager,
-    ErrorSeverity,
-    get_error_manager,
-    with_error_handling,
-)
-from .enterprise_security import (
-    get_audit_logger,
-    get_encryption_manager,
-    get_compliance_manager,
-    EnterpriseSecurityConfig,
-)
-from .comprehensive_validation import (
-    validate_extraction_result,
-    ValidationLevel,
-    ValidationReport,
-)
-from .performance_optimization import (
-    get_performance_optimizer,
-    optimize_performance,
-    PerformanceConfig,
-    OptimizationStrategy,
-)
-from .distributed_computing import (
-    get_distributed_processor,
-    DistributedConfig,
-    ClusterCoordinator,
 )
 
 __all__ = [

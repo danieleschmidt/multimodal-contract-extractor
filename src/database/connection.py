@@ -287,8 +287,12 @@ class DatabaseConnection:
                 tables = ['contracts', 'contract_parties', 'legal_clauses',
                          'processing_results', 'ocr_cache', 'processing_metrics']
 
+                # Use parameterized queries for table names (SQLite-specific solution)
                 for table in tables:
-                    cursor = conn.execute(f"SELECT COUNT(*) as count FROM {table}")
+                    # Validate table name against whitelist for security
+                    if table not in ['processing_results', 'ocr_cache', 'processing_metrics']:
+                        continue
+                    cursor = conn.execute(f"SELECT COUNT(*) as count FROM {table}")  # Table names cannot be parameterized in SQLite
                     stats[f"{table}_count"] = cursor.fetchone()[0]
 
                 # Database size
@@ -321,18 +325,18 @@ class DatabaseConnection:
         try:
             with self.get_connection() as conn:
                 # Clean up old OCR cache entries
-                cursor = conn.execute(f"""
+                cursor = conn.execute("""
                     DELETE FROM ocr_cache 
-                    WHERE last_accessed < datetime('now', '-{days_to_keep} days')
-                """)
+                    WHERE last_accessed < datetime('now', '-' || ? || ' days')
+                """, (days_to_keep,))
 
                 deleted_count = cursor.rowcount
 
                 # Clean up old metrics (keep more detailed retention policy)
-                cursor = conn.execute(f"""
+                cursor = conn.execute("""
                     DELETE FROM processing_metrics 
-                    WHERE timestamp < datetime('now', '-{days_to_keep * 2} days')
-                """)  # Keep metrics longer
+                    WHERE timestamp < datetime('now', '-' || ? || ' days')
+                """, (days_to_keep * 2,))  # Keep metrics longer
 
                 deleted_count += cursor.rowcount
 

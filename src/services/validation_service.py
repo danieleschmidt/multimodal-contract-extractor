@@ -6,7 +6,6 @@ import logging
 import mimetypes
 import os
 from pathlib import Path
-from typing import List, Optional, Set
 
 from PIL import Image
 
@@ -19,11 +18,11 @@ class ValidationService:
     """Service for validating input documents before processing."""
 
     # Supported file types and extensions
-    SUPPORTED_EXTENSIONS: Set[str] = {
+    SUPPORTED_EXTENSIONS: set[str] = {
         '.pdf', '.png', '.jpg', '.jpeg', '.tiff', '.tif', '.bmp'
     }
 
-    SUPPORTED_MIME_TYPES: Set[str] = {
+    SUPPORTED_MIME_TYPES: set[str] = {
         'application/pdf',
         'image/png', 'image/jpeg', 'image/tiff', 'image/bmp'
     }
@@ -36,10 +35,10 @@ class ValidationService:
     MIN_FILE_SIZE_BYTES: int = 100  # Minimum viable file size
     MAX_PAGES: int = 500  # Maximum pages to process
 
-    def __init__(self, max_file_size_mb: Optional[int] = None):
+    def __init__(self, max_file_size_mb: int | None = None):
         """
         Initialize validation service.
-        
+
         Args:
             max_file_size_mb: Override default maximum file size
         """
@@ -50,10 +49,10 @@ class ValidationService:
     def validate_document(self, file_path: Path) -> ValidationResult:
         """
         Perform comprehensive validation of a document file.
-        
+
         Args:
             file_path: Path to the document to validate
-            
+
         Returns:
             ValidationResult with validation status and details
         """
@@ -380,7 +379,7 @@ class ValidationService:
             result.add_error(f"Output path validation failed: {str(e)}")
             return result
 
-    def get_validation_summary(self, results: List[ValidationResult]) -> Dict[str, any]:
+    def get_validation_summary(self, results: list[ValidationResult]) -> dict[str, any]:
         """Generate a summary of multiple validation results."""
         if not results:
             return {"total": 0, "valid": 0, "invalid": 0, "warnings": 0}

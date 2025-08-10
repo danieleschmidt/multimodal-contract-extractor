@@ -248,7 +248,7 @@ class Contract:
                 financial_terms['currencies'].update(currencies)
 
                 # Extract payment terms
-                if hasattr(clause, 'type') and 'payment' in clause.type:
+                if hasattr(clause, 'type') and 'payment' in str(clause.type).lower():
                     financial_terms['payment_terms'].append({
                         'clause_id': getattr(clause, 'id', None),
                         'text': clause.text,
