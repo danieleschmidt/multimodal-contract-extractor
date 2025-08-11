@@ -31,11 +31,29 @@ from .performance_optimization import (
     optimize_performance,
 )
 from .quantum_analysis import analyze_with_quantum_computing
+from .robust_monitoring import operation_wrapper
+from .enhanced_security_gen2 import audit_logger as gen2_audit_logger, validate_and_process_file
+from .robust_validation import validate_extraction_comprehensive, handle_processing_error
+from .high_performance_gen3 import get_cache_manager
+from .auto_scaling_gen3 import get_load_balancer
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+
+def extract_clauses(document: Document, **kwargs) -> list[Clause]:
+    """Extract clauses from a document.
+    
+    Args:
+        document: The document to extract clauses from
+        **kwargs: Additional keyword arguments
+        
+    Returns:
+        List of extracted clauses
+    """
+    return detect_clauses(document, **kwargs)
 
 
 @optimize_performance(
@@ -98,9 +116,45 @@ def extract_from_document(file_path: Path, *,
         # Initialize security and audit logging
         audit_logger = get_audit_logger() if enable_security_scanning else None
         threat_detector = get_threat_detector() if enable_security_scanning else None
+        
+        # Generation 3: Initialize performance optimization
+        cache_manager = get_cache_manager()
+        load_balancer = get_load_balancer()
+        
+        # Create cache key for this processing request
+        processing_settings = {
+            'language_code': language_code,
+            'enable_advanced_classification': enable_advanced_classification,
+            'enable_adaptive_processing': enable_adaptive_processing,
+            'enable_neuromorphic_analysis': enable_neuromorphic_analysis,
+            'enable_quantum_analysis': enable_quantum_analysis,
+            'validation_level': validation_level.value
+        }
+        cache_key = cache_manager.get_cache_key(file_path, processing_settings)
+        
+        # Check cache first
+        cached_result = cache_manager.get(cache_key)
+        if cached_result:
+            logger.info("Cache hit for %s, returning cached result", file_path.name)
+            return cached_result
 
         try:
-            # Security scanning
+            # Generation 2 Enhanced Security Validation
+            if enable_security_scanning:
+                security_validation = validate_and_process_file(file_path)
+                if not security_validation.get('allowed', True):
+                    raise ContractProcessingError(
+                        f"Security validation failed: {security_validation['security_issues']}",
+                        ErrorSeverity.CRITICAL
+                    )
+                    
+                gen2_audit_logger.log_file_access(
+                    file_path=str(file_path),
+                    action="pre_processing_validation",
+                    outcome="success"
+                )
+                
+            # Legacy security scanning
             if enable_security_scanning:
                 if audit_logger:
                     audit_logger.log_security_event(
@@ -297,11 +351,62 @@ def extract_from_document(file_path: Path, *,
                 processing_time,
             )
 
+            # Generation 2: Comprehensive Validation
+            validation_report = validate_extraction_comprehensive(result)
+            
+            if not validation_report.valid:
+                logger.warning("Extraction validation issues found: %d errors, %d warnings", 
+                             validation_report.errors_count, validation_report.warnings_count)
+                
+                # Add validation details to result
+                result['validation_report'] = {
+                    'valid': validation_report.valid,
+                    'errors_count': validation_report.errors_count,
+                    'warnings_count': validation_report.warnings_count,
+                    'issues': [
+                        {
+                            'severity': issue.severity.value,
+                            'message': issue.message,
+                            'field': issue.field,
+                            'suggestion': issue.suggestion
+                        }
+                        for issue in validation_report.issues
+                    ]
+                }
+                
+                # For critical validation failures, raise error
+                if validation_report.critical_count > 0:
+                    raise ContractProcessingError(
+                        f"Critical validation errors found: {validation_report.critical_count}",
+                        ErrorSeverity.CRITICAL
+                    )
+
+            # Generation 3: Cache successful results
+            cache_manager.put(cache_key, result)
+            cache_stats = cache_manager.get_stats()
+            logger.info("Cached result for %s (hit rate: %.1f%%)", 
+                       file_path.name, cache_stats['hit_rate'] * 100)
+
             return result
 
         except Exception as e:
             # Record failed processing
             record_document_processed("error")
+            
+            # Generation 2: Enhanced Error Handling
+            error_context = {
+                'file_path': str(file_path),
+                'file_size': file_path.stat().st_size if file_path.exists() else 0,
+                'processing_stage': 'extraction',
+                'settings': {
+                    'language_code': language_code,
+                    'enable_advanced_classification': enable_advanced_classification,
+                    'enable_adaptive_processing': enable_adaptive_processing
+                }
+            }
+            
+            error_report = handle_processing_error(e, error_context)
+            logger.error("Enhanced error report: %s", error_report)
 
             # Security audit log for failure
             if audit_logger:
@@ -313,6 +418,13 @@ def extract_from_document(file_path: Path, *,
                     outcome="failure",
                     details={"error": str(e), "error_type": type(e).__name__}
                 )
+                
+            # Generation 2 audit logging
+            gen2_audit_logger.log_processing_event(
+                document_type=file_path.suffix,
+                processing_time=time.perf_counter() - start_time,
+                success=False
+            )
 
             logger.exception("Extraction failed for %s: %s", file_path.name, e)
 

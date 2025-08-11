@@ -44,7 +44,7 @@ from .enterprise_security import (
     get_compliance_manager,
     get_encryption_manager,
 )
-from .extraction import extract_from_document
+from .extraction import extract_clauses, extract_from_document
 from .language_detection import (
     detect_document_language,
     get_language_config,
@@ -89,6 +89,7 @@ from .serialization import (
     serialize_with_validation,
     validate_extraction_result,
 )
+from .version import get_api_version, get_version
 from .websocket_server import (
     CollaborationMessage,
     ProcessingProgressTracker,
@@ -110,6 +111,7 @@ __all__ = [
     "__version__",
     "detect_clauses",
     "detect_document_language",
+    "extract_clauses",
     "extract_from_document",
     "get_config",
     "get_language_config",
@@ -171,4 +173,6 @@ __all__ = [
     "get_distributed_processor",
     "DistributedConfig",
     "ClusterCoordinator",
+    "get_version",
+    "get_api_version",
 ]
