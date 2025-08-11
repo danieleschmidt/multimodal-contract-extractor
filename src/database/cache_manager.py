@@ -77,7 +77,7 @@ class CacheManager:
                 return None
 
             # Check if cache is still valid (file hasn't changed)
-            with open(cache_file, 'r', encoding='utf-8') as f:
+            with open(cache_file, encoding='utf-8') as f:
                 cached_data = json.load(f)
 
             # Verify file hash matches
@@ -151,7 +151,7 @@ class CacheManager:
             if not cache_file.exists():
                 return None
 
-            with open(cache_file, 'r', encoding='utf-8') as f:
+            with open(cache_file, encoding='utf-8') as f:
                 cached_data = json.load(f)
 
             # Verify file hash matches

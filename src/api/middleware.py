@@ -396,14 +396,14 @@ def setup_middleware(app):
     """Setup middleware for the FastAPI application."""
     # Add CORS middleware
     app.add_middleware(CORSMiddleware)
-    
+
     # Add rate limiting middleware
     app.add_middleware(RateLimitMiddleware)
-    
-    # Add API key middleware  
+
+    # Add API key middleware
     app.add_middleware(APIKeyMiddleware)
-    
+
     # Add response caching middleware
     app.add_middleware(ResponseCacheMiddleware)
-    
+
     return app

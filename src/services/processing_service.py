@@ -10,7 +10,6 @@ from typing import Any, Dict, Optional
 
 from ..models.contract import Contract
 from ..models.processing import ProcessingResult, ProcessingStage, ProcessingStatus
-from ..multimodal_contract_extractor.extraction import extract_from_document
 from .validation_service import ValidationService
 
 logger = logging.getLogger(__name__)
@@ -179,7 +178,7 @@ class ProcessingService:
             if not extracted_text:
                 result.add_error(
                     stage=ProcessingStage.OCR_EXTRACTION,
-                    error_type="ExtractionError", 
+                    error_type="ExtractionError",
                     message="No text could be extracted from document",
                     recoverable=False
                 )
@@ -211,8 +210,8 @@ class ProcessingService:
 
         try:
             # Use the direct extraction function for clause detection
-            from ..multimodal_contract_extractor.document import load_document
             from ..multimodal_contract_extractor.clause_detection import detect_clauses
+            from ..multimodal_contract_extractor.document import load_document
             document = load_document(file_path)
             clauses = detect_clauses(document) if document else []
 
