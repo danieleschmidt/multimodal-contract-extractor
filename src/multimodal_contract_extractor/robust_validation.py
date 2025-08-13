@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import json
 import logging
-import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -29,7 +27,11 @@ class ValidationIssue:
     field: str = ""
     value: Any = None
     suggestion: str = ""
-    timestamp: datetime = field(default_factory=lambda: datetime(2025, 1, 1))
+    timestamp: datetime = None
+
+    def __post_init__(self):
+        if self.timestamp is None:
+            self.timestamp = datetime.now(timezone.utc)
 
 @dataclass
 class ValidationReport:
@@ -39,9 +41,13 @@ class ValidationReport:
     warnings_count: int = 0
     errors_count: int = 0
     critical_count: int = 0
-    timestamp: datetime = field(default_factory=lambda: datetime(2025, 1, 1))
-    
-    def add_issue(self, severity: ValidationSeverity, message: str, 
+    timestamp: datetime = None
+
+    def __post_init__(self):
+        if self.timestamp is None:
+            self.timestamp = datetime.now(timezone.utc)
+
+    def add_issue(self, severity: ValidationSeverity, message: str,
                   field: str = "", value: Any = None, suggestion: str = "") -> None:
         """Add validation issue to report."""
         issue = ValidationIssue(
@@ -52,7 +58,7 @@ class ValidationReport:
             suggestion=suggestion
         )
         self.issues.append(issue)
-        
+
         if severity == ValidationSeverity.WARNING:
             self.warnings_count += 1
         elif severity == ValidationSeverity.ERROR:
@@ -64,29 +70,29 @@ class ValidationReport:
 
 class ExtractionResultValidator:
     """Robust validation for extraction results."""
-    
+
     def __init__(self):
         self.config = get_config()
-        
+
     def validate_extraction_result(self, result: dict[str, Any]) -> ValidationReport:
         """Comprehensive validation of extraction results."""
         report = ValidationReport(valid=True)
-        
+
         # Validate required top-level fields
         self._validate_document_info(result.get('document_info', {}), report)
         self._validate_parties(result.get('parties', []), report)
         self._validate_clauses(result.get('clauses', []), report)
         self._validate_metadata(result.get('metadata', {}), report)
-        
+
         # Cross-validation checks
         self._validate_consistency(result, report)
-        
+
         return report
-        
+
     def _validate_document_info(self, doc_info: dict[str, Any], report: ValidationReport) -> None:
         """Validate document information section."""
         required_fields = ['filename', 'pages', 'processing_time', 'overall_confidence']
-        
+
         for field in required_fields:
             if field not in doc_info:
                 report.add_issue(
@@ -95,9 +101,9 @@ class ExtractionResultValidator:
                     field=f"document_info.{field}"
                 )
                 continue
-                
+
             value = doc_info[field]
-            
+
             # Field-specific validations
             if field == 'pages' and not isinstance(value, int) or value <= 0:
                 report.add_issue(
@@ -107,7 +113,7 @@ class ExtractionResultValidator:
                     value=value,
                     suggestion="Ensure page count is a positive integer"
                 )
-                
+
             elif field == 'processing_time' and (not isinstance(value, (int, float)) or value < 0):
                 report.add_issue(
                     ValidationSeverity.ERROR,
@@ -115,7 +121,7 @@ class ExtractionResultValidator:
                     field=f"document_info.{field}",
                     value=value
                 )
-                
+
             elif field == 'overall_confidence':
                 if not isinstance(value, (int, float)) or not 0 <= value <= 1:
                     report.add_issue(
@@ -133,7 +139,7 @@ class ExtractionResultValidator:
                         value=value,
                         suggestion="Consider manual review for low confidence results"
                     )
-                    
+
     def _validate_parties(self, parties: list[dict[str, Any]], report: ValidationReport) -> None:
         """Validate parties section."""
         if not isinstance(parties, list):
@@ -143,7 +149,7 @@ class ExtractionResultValidator:
                 field="parties"
             )
             return
-            
+
         if len(parties) < 2:
             report.add_issue(
                 ValidationSeverity.WARNING,
@@ -151,9 +157,9 @@ class ExtractionResultValidator:
                 field="parties",
                 suggestion="Verify if all contract parties were properly identified"
             )
-            
+
         required_party_fields = ['role', 'name']
-        
+
         for i, party in enumerate(parties):
             if not isinstance(party, dict):
                 report.add_issue(
@@ -162,7 +168,7 @@ class ExtractionResultValidator:
                     field=f"parties[{i}]"
                 )
                 continue
-                
+
             for field in required_party_fields:
                 if field not in party or not party[field]:
                     report.add_issue(
@@ -170,7 +176,7 @@ class ExtractionResultValidator:
                         f"Missing required field in party {i}: {field}",
                         field=f"parties[{i}].{field}"
                     )
-                    
+
             # Validate party name format
             if 'name' in party and party['name']:
                 name = party['name']
@@ -181,7 +187,7 @@ class ExtractionResultValidator:
                         field=f"parties[{i}].name",
                         value=name
                     )
-                    
+
     def _validate_clauses(self, clauses: list[dict[str, Any]], report: ValidationReport) -> None:
         """Validate clauses section."""
         if not isinstance(clauses, list):
@@ -191,7 +197,7 @@ class ExtractionResultValidator:
                 field="clauses"
             )
             return
-            
+
         if len(clauses) == 0:
             report.add_issue(
                 ValidationSeverity.WARNING,
@@ -199,10 +205,10 @@ class ExtractionResultValidator:
                 field="clauses",
                 suggestion="Verify document contains extractable clauses or adjust extraction parameters"
             )
-            
+
         required_clause_fields = ['id', 'type', 'text', 'confidence']
         clause_ids = set()
-        
+
         for i, clause in enumerate(clauses):
             if not isinstance(clause, dict):
                 report.add_issue(
@@ -211,7 +217,7 @@ class ExtractionResultValidator:
                     field=f"clauses[{i}]"
                 )
                 continue
-                
+
             # Check required fields
             for field in required_clause_fields:
                 if field not in clause:
@@ -220,7 +226,7 @@ class ExtractionResultValidator:
                         f"Missing required field in clause {i}: {field}",
                         field=f"clauses[{i}].{field}"
                     )
-                    
+
             # Validate clause ID uniqueness
             if 'id' in clause:
                 clause_id = clause['id']
@@ -233,7 +239,7 @@ class ExtractionResultValidator:
                     )
                 else:
                     clause_ids.add(clause_id)
-                    
+
             # Validate confidence score
             if 'confidence' in clause:
                 confidence = clause['confidence']
@@ -252,7 +258,7 @@ class ExtractionResultValidator:
                         value=confidence,
                         suggestion="Consider manual review for low confidence clauses"
                     )
-                    
+
             # Validate text content
             if 'text' in clause:
                 text = clause['text']
@@ -269,7 +275,7 @@ class ExtractionResultValidator:
                         field=f"clauses[{i}].text",
                         value=text
                     )
-                    
+
     def _validate_metadata(self, metadata: dict[str, Any], report: ValidationReport) -> None:
         """Validate metadata section."""
         if not isinstance(metadata, dict):
@@ -279,10 +285,10 @@ class ExtractionResultValidator:
                 field="metadata"
             )
             return
-            
+
         # Check for required metadata fields
         required_metadata = ['extraction_timestamp', 'model_version']
-        
+
         for field in required_metadata:
             if field not in metadata:
                 report.add_issue(
@@ -291,23 +297,23 @@ class ExtractionResultValidator:
                     field=f"metadata.{field}",
                     suggestion=f"Include {field} for better traceability"
                 )
-                
+
     def _validate_consistency(self, result: dict[str, Any], report: ValidationReport) -> None:
         """Validate internal consistency across sections."""
         # Check if confidence scores are consistent
         doc_confidence = result.get('document_info', {}).get('overall_confidence')
         clauses = result.get('clauses', [])
-        
+
         if doc_confidence is not None and clauses:
             clause_confidences = [
-                c.get('confidence', 0) for c in clauses 
+                c.get('confidence', 0) for c in clauses
                 if isinstance(c, dict) and 'confidence' in c
             ]
-            
+
             if clause_confidences:
                 avg_clause_confidence = sum(clause_confidences) / len(clause_confidences)
                 confidence_diff = abs(doc_confidence - avg_clause_confidence)
-                
+
                 if confidence_diff > 0.2:
                     report.add_issue(
                         ValidationSeverity.WARNING,
@@ -319,36 +325,36 @@ class ExtractionResultValidator:
 
 class RobustErrorHandler:
     """Comprehensive error handling and recovery."""
-    
+
     def __init__(self):
         self.config = get_config()
         self.error_counts: dict[str, int] = {}
-        
+
     def handle_extraction_error(self, error: Exception, context: dict[str, Any]) -> dict[str, Any]:
         """Handle extraction errors with detailed reporting."""
         error_type = type(error).__name__
         self.error_counts[error_type] = self.error_counts.get(error_type, 0) + 1
-        
+
         error_report = {
             'error_type': error_type,
             'error_message': str(error),
             'error_count': self.error_counts[error_type],
             'context': context,
-            'timestamp': lambda: datetime(2025, 1, 1)().isoformat(),
+            'timestamp': datetime.now(timezone.utc).isoformat(),
             'recovery_suggestions': self._get_recovery_suggestions(error_type)
         }
-        
+
         logger.error("Extraction error: %s", error_report)
-        
+
         # Attempt error recovery
         if self._should_retry(error_type):
             error_report['retry_recommended'] = True
             error_report['retry_delay_seconds'] = self._get_retry_delay(error_type)
         else:
             error_report['retry_recommended'] = False
-            
+
         return error_report
-        
+
     def _get_recovery_suggestions(self, error_type: str) -> list[str]:
         """Get context-specific recovery suggestions."""
         suggestions_map = {
@@ -378,9 +384,9 @@ class RobustErrorHandler:
                 "Consider processing file in smaller chunks"
             ]
         }
-        
+
         return suggestions_map.get(error_type, ["Review error details and system logs"])
-        
+
     def _should_retry(self, error_type: str) -> bool:
         """Determine if error type should be retried."""
         retryable_errors = {
@@ -388,7 +394,7 @@ class RobustErrorHandler:
             'ResourceBusyError', 'ServiceUnavailableError'
         }
         return error_type in retryable_errors
-        
+
     def _get_retry_delay(self, error_type: str) -> float:
         """Get recommended retry delay for error type."""
         delay_map = {
