@@ -383,6 +383,11 @@ class TempFileManager:
 
 
 
+def process_uploaded_file(uploaded_file) -> dict:
+    """Process an uploaded file (alias for process_upload_with_cleanup)."""
+    return process_upload_with_cleanup(uploaded_file)
+
+
 def process_upload_with_cleanup(uploaded_file) -> dict:
     """Process an uploaded file with proper temporary file cleanup.
 

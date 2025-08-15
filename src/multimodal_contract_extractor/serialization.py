@@ -469,6 +469,12 @@ def get_format_info() -> Dict[str, Dict[str, Any]]:
     }
 
 
+def save_results(result: ExtractionResult, file_path: str, format: str = None, *,
+                pretty: bool = True, validate: bool = True) -> tuple[bool, Optional[str]]:
+    """Save extraction result to a file (alias for export_to_file)."""
+    return export_to_file(result, file_path, format, pretty=pretty, validate=validate)
+
+
 def export_to_file(result: ExtractionResult, file_path: str, format: str = None, *,
                   pretty: bool = True, validate: bool = True) -> tuple[bool, Optional[str]]:
     """Export extraction result to a file.
