@@ -77,12 +77,19 @@ class TestAPIContracts:
         for key, expected_type in schema.items():
             assert key in data, f"Missing required field: {key}"
 
-            if expected_type in (dict, list):
+            if isinstance(expected_type, dict):
+                # Nested schema validation
+                assert isinstance(data[key], dict), \
+                    f"Field {key} should be dict, got {type(data[key]).__name__}"
+                self._validate_schema(data[key], expected_type)
+            elif isinstance(expected_type, type):
+                # Simple type validation
                 assert isinstance(data[key], expected_type), \
                     f"Field {key} should be {expected_type.__name__}, got {type(data[key]).__name__}"
             else:
-                assert isinstance(data[key], expected_type), \
-                    f"Field {key} should be {expected_type.__name__}, got {type(data[key]).__name__}"
+                # Handle other schema patterns
+                assert type(data[key]).__name__ == str(expected_type), \
+                    f"Field {key} should be {expected_type}, got {type(data[key]).__name__}"
 
 
 class TestServiceContracts:
