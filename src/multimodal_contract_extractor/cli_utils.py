@@ -104,3 +104,35 @@ def build_output_path(base: str | None, fmt: str) -> Path:
         path = Path(f"result.{fmt}")
 
     return path.parent / sanitize_filename(path.name)
+
+
+def process_single_document(file_path: str, output_path: str = None, output_format: str = "json", format: str = None) -> dict:
+    """Process a single document and return extraction results.
+    
+    Args:
+        file_path: Path to the document to process
+        output_path: Optional output file path
+        output_format: Output format (json, xml, csv, yaml, toml)
+        format: Alias for output_format (for compatibility)
+        
+    Returns:
+        Dictionary containing extraction results
+    """
+    from . import load_document, extract_from_document, save_results
+    from .extraction import ExtractionResult
+    
+    # Use format if provided (for compatibility)
+    if format is not None:
+        output_format = format
+    
+    # Load and process document
+    document = load_document(file_path)
+    result = extract_from_document(document)
+    
+    # Save results if output path specified
+    if output_path:
+        save_results(result, output_path, output_format)
+    
+    # Return as dictionary
+    from dataclasses import asdict
+    return asdict(result)
