@@ -1,0 +1,20 @@
+Collecting cryptography
+  Using cached cryptography-45.0.6-cp311-abi3-manylinux_2_34_x86_64.whl.metadata (5.7 kB)
+Collecting cffi>=1.14 (from cryptography)
+  Using cached cffi-1.17.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (1.5 kB)
+Collecting pycparser (from cffi>=1.14->cryptography)
+  Using cached pycparser-2.22-py3-none-any.whl.metadata (943 bytes)
+Using cached cryptography-45.0.6-cp311-abi3-manylinux_2_34_x86_64.whl (4.5 MB)
+Using cached cffi-1.17.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (479 kB)
+Using cached pycparser-2.22-py3-none-any.whl (117 kB)
+Installing collected packages: pycparser, cffi, cryptography
+  Attempting uninstall: pycparser
+    Found existing installation: pycparser 2.22
+    Uninstalling pycparser-2.22:
+      Successfully uninstalled pycparser-2.22
+  Attempting uninstall: cffi
+    Found existing installation: cffi 1.17.1
+    Uninstalling cffi-1.17.1:
+      Successfully uninstalled cffi-1.17.1
+  Attempting uninstall: cryptography
+    Found existing installation: cryptography 41.0.7

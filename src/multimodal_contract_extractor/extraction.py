@@ -441,7 +441,7 @@ def extract_from_document(file_path: Path, *,
 
 
 def _build_extraction_result(
-    document: Document, clauses: list, processing_time: float
+    document: Document, clauses: list, processing_time: float, enable_advanced_classification: bool = True
 ) -> dict[str, Any]:
     """Build the structured extraction result.
 

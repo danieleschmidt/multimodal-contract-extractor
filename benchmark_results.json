@@ -7,35 +7,49 @@
       "max": 0.0
     },
     "memory_total_gb": 3.85,
-    "memory_available_gb": 3.31,
-    "disk_usage_percent": 15.9,
-    "python_version": "Python 5.9.8"
+    "memory_available_gb": 3.3,
+    "disk_usage_percent": 18.8,
+    "python_version": "Python 6.1.1"
   },
   "neuromorphic_benchmark": {
-    "error": "No module named 'pdf2image'",
-    "success": false
+    "neuron_operation_avg_us": 2.1054569992884353,
+    "layer_processing_avg_ms": 0.11939412000174343,
+    "processor_init_time_ms": 0.4168320000417225,
+    "memory_per_neuron_bytes": 1024,
+    "success": true
   },
   "quantum_benchmark": {
-    "error": "No module named 'pdf2image'",
-    "success": false
+    "qubit_operation_avg_us": 6.7903810017924116,
+    "circuit_processing_avg_ms": 0.041121030000113024,
+    "processor_init_time_ms": 0.057339000022693654,
+    "qubits_per_mb": 1024,
+    "success": true
   },
   "validation_benchmark": {
-    "error": "No module named 'pdf2image'",
-    "success": false
+    "validation_avg_ms": 0.05070649999197485,
+    "validation_rules_count": 7,
+    "success": true
   },
   "orchestrator_benchmark": {
-    "error": "No module named 'pdf2image'",
-    "success": false
+    "pool_operation_avg_us": 22.1146000023964,
+    "load_balancer_avg_us": 4.124095000861416,
+    "processor_types_count": 4,
+    "success": true
   },
   "memory_benchmark": {
-    "error": "No module named 'pdf2image'",
-    "success": false
+    "initial_memory_mb": 66.69,
+    "neuromorphic_base_mb": 0.0,
+    "quantum_base_mb": 0.0,
+    "large_neuromorphic_mb": 0.0,
+    "large_quantum_mb": 0.0,
+    "total_memory_mb": 66.69,
+    "success": true
   },
   "concurrent_benchmark": {
-    "sequential_time_ms": 101.72,
-    "concurrent_time_ms": 32.42,
-    "speedup_factor": 3.14,
-    "parallel_efficiency": 78.4,
+    "sequential_time_ms": 101.57,
+    "concurrent_time_ms": 32.01,
+    "speedup_factor": 3.17,
+    "parallel_efficiency": 79.3,
     "success": true
   }
 }
