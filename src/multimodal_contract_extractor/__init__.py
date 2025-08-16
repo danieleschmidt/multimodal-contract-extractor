@@ -100,6 +100,33 @@ from .websocket_server import (
     websocket_manager,
 )
 
+# Advanced Research Components (Generation 4+)
+from .multimodal_transformer import (
+    MultimodalLegalTransformer,
+    LegalDocumentAnalyzer,
+    create_legal_document_analyzer,
+    SpatialPosition,
+    DocumentElement,
+)
+from .variational_quantum_encoder import (
+    QuantumLegalAnalyzer,
+    create_quantum_legal_analyzer,
+    VariationalQuantumClassifier,
+    QuantumFeatureMap,
+)
+from .meta_learning_engine import (
+    LegalMetaLearningFramework,
+    create_meta_learning_framework,
+    LegalDomain,
+    MetaLearningConfig,
+)
+from .research_publication_framework import (
+    ResearchPublicationFramework,
+    create_research_framework,
+    PublicationVenue,
+    ExperimentType,
+)
+
 __all__ = [
     "Clause",
     "Config",
@@ -177,4 +204,22 @@ __all__ = [
     "ClusterCoordinator",
     "get_version",
     "get_api_version",
+    # Advanced Research Components
+    "MultimodalLegalTransformer",
+    "LegalDocumentAnalyzer",
+    "create_legal_document_analyzer",
+    "SpatialPosition", 
+    "DocumentElement",
+    "QuantumLegalAnalyzer",
+    "create_quantum_legal_analyzer",
+    "VariationalQuantumClassifier",
+    "QuantumFeatureMap",
+    "LegalMetaLearningFramework",
+    "create_meta_learning_framework",
+    "LegalDomain",
+    "MetaLearningConfig",
+    "ResearchPublicationFramework",
+    "create_research_framework",
+    "PublicationVenue",
+    "ExperimentType",
 ]
