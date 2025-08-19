@@ -24,16 +24,13 @@ Research Contributions:
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import math
-import statistics
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -105,18 +102,18 @@ class ExperimentResult:
 
 class BenchmarkDataset:
     """Benchmark dataset for legal AI research."""
-    
+
     def __init__(self, name: str, description: str, size: int):
         self.name = name
         self.description = description
         self.size = size
         self.ground_truth = {}
         self.metadata = {}
-        
+
     def add_ground_truth(self, sample_id: str, labels: Dict[str, Any]):
         """Add ground truth labels for a sample."""
         self.ground_truth[sample_id] = labels
-    
+
     def get_baseline_metrics(self) -> Dict[str, float]:
         """Get baseline performance metrics."""
         return {
@@ -126,74 +123,74 @@ class BenchmarkDataset:
             "majority_class_accuracy": self._compute_majority_class_accuracy(),
             "dataset_balance": self._compute_dataset_balance()
         }
-    
+
     def _compute_majority_class_accuracy(self) -> float:
         """Compute majority class baseline accuracy."""
         if not self.ground_truth:
             return 0.0
-        
+
         class_counts = {}
         for labels in self.ground_truth.values():
             class_label = labels.get("class", 0)
             class_counts[class_label] = class_counts.get(class_label, 0) + 1
-        
+
         max_count = max(class_counts.values()) if class_counts else 0
         return max_count / len(self.ground_truth)
-    
+
     def _compute_dataset_balance(self) -> float:
         """Compute dataset balance metric (1.0 = perfectly balanced)."""
         if not self.ground_truth:
             return 1.0
-        
+
         class_counts = {}
         for labels in self.ground_truth.values():
             class_label = labels.get("class", 0)
             class_counts[class_label] = class_counts.get(class_label, 0) + 1
-        
+
         if not class_counts:
             return 1.0
-        
+
         counts = list(class_counts.values())
         min_count = min(counts)
         max_count = max(counts)
-        
+
         return min_count / max_count if max_count > 0 else 1.0
 
 
 class StatisticalAnalyzer:
     """Statistical analysis for research validation."""
-    
+
     @staticmethod
     def t_test(group1: List[float], group2: List[float]) -> StatisticalResult:
         """Perform independent samples t-test."""
         n1, n2 = len(group1), len(group2)
         mean1, mean2 = np.mean(group1), np.mean(group2)
         var1, var2 = np.var(group1, ddof=1), np.var(group2, ddof=1)
-        
+
         # Pooled standard error
         pooled_se = math.sqrt((var1 / n1) + (var2 / n2))
-        
+
         # T-statistic
         t_stat = (mean1 - mean2) / pooled_se if pooled_se > 0 else 0.0
-        
+
         # Degrees of freedom (Welch's approximation)
         df = ((var1/n1 + var2/n2)**2) / ((var1/n1)**2/(n1-1) + (var2/n2)**2/(n2-1))
-        
+
         # P-value (simplified - in practice use scipy.stats)
         p_value = 2 * (1 - StatisticalAnalyzer._t_cdf(abs(t_stat), df))
-        
+
         # Effect size (Cohen's d)
         pooled_std = math.sqrt(((n1-1)*var1 + (n2-1)*var2) / (n1+n2-2))
         cohens_d = (mean1 - mean2) / pooled_std if pooled_std > 0 else 0.0
-        
+
         # Confidence interval
         margin_of_error = StatisticalAnalyzer._t_critical(0.025, df) * pooled_se
         ci_lower = (mean1 - mean2) - margin_of_error
         ci_upper = (mean1 - mean2) + margin_of_error
-        
+
         # Statistical power (simplified)
         statistical_power = 0.8 if abs(cohens_d) > 0.5 else 0.6
-        
+
         return StatisticalResult(
             test_statistic=t_stat,
             p_value=p_value,
@@ -203,24 +200,24 @@ class StatisticalAnalyzer:
             significance_achieved=p_value < 0.05,
             interpretation=StatisticalAnalyzer._interpret_t_test(t_stat, p_value, cohens_d)
         )
-    
+
     @staticmethod
     def _t_cdf(t: float, df: float) -> float:
         """Simplified t-distribution CDF approximation."""
         # Simplified approximation - in practice use scipy.stats
         return 0.5 + 0.5 * math.erf(t / math.sqrt(2))
-    
+
     @staticmethod
     def _t_critical(alpha: float, df: float) -> float:
         """Get critical t-value (simplified approximation)."""
         # Simplified - in practice use scipy.stats
         return 1.96 if df > 30 else 2.0
-    
+
     @staticmethod
     def _interpret_t_test(t_stat: float, p_value: float, effect_size: float) -> str:
         """Interpret t-test results."""
         significance = "significant" if p_value < 0.05 else "not significant"
-        
+
         if abs(effect_size) < 0.2:
             magnitude = "negligible"
         elif abs(effect_size) < 0.5:
@@ -229,39 +226,39 @@ class StatisticalAnalyzer:
             magnitude = "medium"
         else:
             magnitude = "large"
-        
+
         return f"The difference is {significance} (p={p_value:.3f}) with {magnitude} effect size (d={effect_size:.3f})"
-    
+
     @staticmethod
     def anova(groups: List[List[float]]) -> StatisticalResult:
         """Perform one-way ANOVA."""
         # Simplified ANOVA implementation
         all_values = [val for group in groups for val in group]
         grand_mean = np.mean(all_values)
-        
+
         # Between-group sum of squares
         ss_between = sum(len(group) * (np.mean(group) - grand_mean)**2 for group in groups)
-        
+
         # Within-group sum of squares
         ss_within = sum(sum((val - np.mean(group))**2 for val in group) for group in groups)
-        
+
         # Degrees of freedom
         df_between = len(groups) - 1
         df_within = len(all_values) - len(groups)
-        
+
         # Mean squares
         ms_between = ss_between / df_between if df_between > 0 else 0
         ms_within = ss_within / df_within if df_within > 0 else 0
-        
+
         # F-statistic
         f_stat = ms_between / ms_within if ms_within > 0 else 0
-        
+
         # P-value (simplified)
         p_value = 0.01 if f_stat > 3.0 else 0.1  # Simplified approximation
-        
+
         # Effect size (eta-squared)
         eta_squared = ss_between / (ss_between + ss_within) if (ss_between + ss_within) > 0 else 0
-        
+
         return StatisticalResult(
             test_statistic=f_stat,
             p_value=p_value,
@@ -275,27 +272,27 @@ class StatisticalAnalyzer:
 
 class ReproducibilityValidator:
     """Validator for research reproducibility."""
-    
+
     def __init__(self):
         self.seed_values = [42, 123, 456, 789, 999]  # Multiple random seeds
         self.tolerance = 1e-6
-        
+
     def validate_deterministic_reproduction(
-        self, 
+        self,
         experiment_function,
         num_runs: int = 5
     ) -> Dict[str, float]:
         """Validate that experiments produce deterministic results."""
         results = []
-        
+
         for run in range(num_runs):
             # Set deterministic conditions
             np.random.seed(self.seed_values[run % len(self.seed_values)])
-            
+
             # Run experiment
             result = experiment_function()
             results.append(result)
-        
+
         # Analyze reproducibility
         if all(isinstance(r, (int, float)) for r in results):
             variance = np.var(results)
@@ -304,14 +301,14 @@ class ReproducibilityValidator:
             # For complex results, check consistency
             reproducible = all(self._results_equal(results[0], r) for r in results[1:])
             variance = 0.0
-        
+
         return {
             "reproducible": reproducible,
             "variance_across_runs": variance,
             "num_runs_tested": num_runs,
             "consistency_score": 1.0 if reproducible else 0.0
         }
-    
+
     def _results_equal(self, result1: Any, result2: Any) -> bool:
         """Check if two results are equal within tolerance."""
         if isinstance(result1, dict) and isinstance(result2, dict):
@@ -327,12 +324,12 @@ class ReproducibilityValidator:
             return abs(result1 - result2) < self.tolerance
         else:
             return result1 == result2
-    
+
     def validate_cross_platform_reproduction(self) -> Dict[str, Any]:
         """Validate reproduction across different platforms."""
         # Simulate cross-platform validation
         platforms = ["linux", "windows", "macos"]
-        
+
         reproduction_results = {}
         for platform in platforms:
             # Simulate platform-specific results
@@ -342,7 +339,7 @@ class ReproducibilityValidator:
                 "result_consistency": 0.99,
                 "performance_variance": 0.05
             }
-        
+
         return {
             "platforms_tested": platforms,
             "cross_platform_consistency": 0.98,
@@ -352,30 +349,30 @@ class ReproducibilityValidator:
 
 class PerformanceProfiler:
     """Performance profiling for computational analysis."""
-    
+
     def __init__(self):
         self.timing_data = {}
         self.memory_data = {}
-        
+
     def profile_algorithm(self, algorithm_function, *args, **kwargs) -> Dict[str, Any]:
         """Profile algorithm performance."""
         # Time measurement
         start_time = time.time()
         result = algorithm_function(*args, **kwargs)
         end_time = time.time()
-        
+
         execution_time = end_time - start_time
-        
+
         # Memory measurement (simplified)
         estimated_memory = self._estimate_memory_usage(result)
-        
+
         return {
             "execution_time_seconds": execution_time,
             "estimated_memory_mb": estimated_memory,
             "result": result,
             "algorithm_complexity": self._analyze_complexity(execution_time, len(args))
         }
-    
+
     def _estimate_memory_usage(self, result: Any) -> float:
         """Estimate memory usage (simplified)."""
         if isinstance(result, np.ndarray):
@@ -386,14 +383,14 @@ class PerformanceProfiler:
             return len(result) * 64 / (1024 * 1024)  # Simplified estimate
         else:
             return 0.01  # Default small size
-    
+
     def _analyze_complexity(self, execution_time: float, input_size: int) -> str:
         """Analyze algorithmic complexity."""
         if input_size <= 1:
             return "O(1)"
-        
+
         ratio = execution_time / (input_size * math.log(input_size))
-        
+
         if ratio < 1e-6:
             return "O(log n)"
         elif ratio < 1e-5:
@@ -408,14 +405,14 @@ class PerformanceProfiler:
 
 class PaperGenerator:
     """Automated academic paper generation."""
-    
+
     def __init__(self):
         self.sections = {}
         self.references = []
         self.figures = []
-        
+
     def generate_research_paper(
-        self, 
+        self,
         experiments: List[ExperimentResult],
         venue: PublicationVenue,
         title: str
@@ -434,16 +431,16 @@ class PaperGenerator:
             "references": self._generate_references(venue),
             "appendix": self._generate_appendix(experiments)
         }
-        
+
         return paper
-    
+
     def _generate_abstract(self, experiments: List[ExperimentResult]) -> str:
         """Generate paper abstract."""
         significant_results = [
-            exp for exp in experiments 
+            exp for exp in experiments
             if exp.statistical_analysis.significance_achieved
         ]
-        
+
         return f"""
         We present novel approaches to legal document understanding using advanced machine learning techniques.
         Our contributions include multimodal transformers, quantum-enhanced feature encoding, and meta-learning
@@ -454,7 +451,7 @@ class PaperGenerator:
         with quantum advantage demonstrated in feature similarity computation and meta-learning
         enabling rapid adaptation to new legal domains with minimal training data.
         """
-    
+
     def _generate_introduction(self, venue: PublicationVenue) -> str:
         """Generate introduction section."""
         if venue == PublicationVenue.NEURIPS:
@@ -465,7 +462,7 @@ class PaperGenerator:
             focus = "machine learning algorithms and theoretical foundations"
         else:
             focus = "artificial intelligence and automated reasoning"
-        
+
         return f"""
         Legal document understanding represents a challenging domain for artificial intelligence,
         requiring sophisticated reasoning about textual content, visual layout, and semantic
@@ -478,7 +475,7 @@ class PaperGenerator:
         4. Comprehensive experimental validation with statistical significance testing
         5. Open-source benchmarks and reproducible research framework
         """
-    
+
     def _generate_related_work(self, venue: PublicationVenue) -> str:
         """Generate related work section."""
         return """
@@ -494,7 +491,7 @@ class PaperGenerator:
         Our work bridges these gaps by introducing novel architectures specifically designed
         for legal document understanding with theoretical guarantees and empirical validation.
         """
-    
+
     def _generate_methodology(self, experiments: List[ExperimentResult]) -> str:
         """Generate methodology section."""
         return """
@@ -512,11 +509,11 @@ class PaperGenerator:
         Each component is validated through controlled experiments with statistical significance
         testing and reproducibility guarantees.
         """
-    
+
     def _generate_experimental_setup(self, experiments: List[ExperimentResult]) -> str:
         """Generate experimental setup section."""
         total_samples = sum(exp.design.sample_size for exp in experiments)
-        
+
         return f"""
         We conducted {len(experiments)} experiments across different legal domains with
         a total of {total_samples} samples. Each experiment follows rigorous statistical
@@ -528,18 +525,18 @@ class PaperGenerator:
         meaningful effects. Cross-validation is used to prevent overfitting, and
         comprehensive ablation studies validate the contribution of each component.
         """
-    
+
     def _generate_results(self, experiments: List[ExperimentResult]) -> str:
         """Generate results section."""
         significant_results = [
-            exp for exp in experiments 
+            exp for exp in experiments
             if exp.statistical_analysis.significance_achieved
         ]
-        
+
         avg_effect_size = np.mean([
             exp.statistical_analysis.effect_size for exp in significant_results
         ]) if significant_results else 0.0
-        
+
         return f"""
         Our experiments demonstrate significant improvements across multiple metrics:
         
@@ -552,7 +549,7 @@ class PaperGenerator:
         Reproducibility validation confirms consistent results across multiple runs and platforms.
         Statistical power analysis indicates adequate sample sizes for all claims.
         """
-    
+
     def _generate_discussion(self, experiments: List[ExperimentResult]) -> str:
         """Generate discussion section."""
         return """
@@ -570,7 +567,7 @@ class PaperGenerator:
         Limitations include computational requirements for quantum simulation and the need for
         domain expertise in designing legal feature representations.
         """
-    
+
     def _generate_conclusion(self, experiments: List[ExperimentResult]) -> str:
         """Generate conclusion section."""
         return """
@@ -586,7 +583,7 @@ class PaperGenerator:
         The open-source release of our benchmarks and code ensures reproducibility and
         enables continued research in this important domain.
         """
-    
+
     def _generate_references(self, venue: PublicationVenue) -> List[str]:
         """Generate relevant references."""
         return [
@@ -596,7 +593,7 @@ class PaperGenerator:
             "Devlin, J., et al. (2019). BERT: Pre-training of deep bidirectional transformers. NAACL.",
             "Biamonte, J., et al. (2017). Quantum machine learning. Nature."
         ]
-    
+
     def _generate_appendix(self, experiments: List[ExperimentResult]) -> str:
         """Generate appendix with detailed results."""
         return """
@@ -616,7 +613,7 @@ class ResearchPublicationFramework:
     experimental design to paper generation, ensuring statistical rigor,
     reproducibility, and publication-ready results.
     """
-    
+
     def __init__(self):
         self.experiments = []
         self.benchmarks = {}
@@ -624,19 +621,19 @@ class ResearchPublicationFramework:
         self.reproducibility_validator = ReproducibilityValidator()
         self.performance_profiler = PerformanceProfiler()
         self.paper_generator = PaperGenerator()
-        
+
         logger.info("Initialized ResearchPublicationFramework")
-    
+
     def create_benchmark_dataset(
-        self, 
-        name: str, 
-        description: str, 
+        self,
+        name: str,
+        description: str,
         size: int
     ) -> BenchmarkDataset:
         """Create a benchmark dataset for evaluation."""
         dataset = BenchmarkDataset(name, description, size)
         self.benchmarks[name] = dataset
-        
+
         # Add synthetic ground truth for demonstration
         for i in range(size):
             sample_id = f"sample_{i}"
@@ -646,11 +643,11 @@ class ResearchPublicationFramework:
                 "complexity": np.random.uniform(0.0, 1.0)
             }
             dataset.add_ground_truth(sample_id, labels)
-        
+
         return dataset
-    
+
     async def conduct_experiment(
-        self, 
+        self,
         design: ExperimentalDesign,
         algorithm_function,
         baseline_function,
@@ -658,35 +655,35 @@ class ResearchPublicationFramework:
     ) -> ExperimentResult:
         """Conduct a complete research experiment."""
         logger.info(f"Conducting experiment: {design.experiment_type.value}")
-        
+
         if dataset_name not in self.benchmarks:
             raise ValueError(f"Benchmark dataset '{dataset_name}' not found")
-        
+
         dataset = self.benchmarks[dataset_name]
-        
+
         # Generate experimental data
         raw_data = await self._collect_experimental_data(
             design, algorithm_function, baseline_function, dataset
         )
-        
+
         # Process results
         processed_results = self._process_experimental_data(raw_data)
-        
+
         # Statistical analysis
         algorithm_results = raw_data["algorithm_performance"]
         baseline_results = raw_data["baseline_performance"]
         statistical_analysis = self.statistical_analyzer.t_test(algorithm_results, baseline_results)
-        
+
         # Reproducibility validation
         reproducibility_metrics = self.reproducibility_validator.validate_deterministic_reproduction(
             lambda: algorithm_function(dataset), num_runs=5
         )
-        
+
         # Performance profiling
         performance_profile = self.performance_profiler.profile_algorithm(
             algorithm_function, dataset
         )
-        
+
         # Create experiment result
         experiment_result = ExperimentResult(
             experiment_id=f"{design.experiment_type.value}_{int(time.time())}",
@@ -701,12 +698,12 @@ class ResearchPublicationFramework:
                 "complexity": performance_profile["algorithm_complexity"]
             }
         )
-        
+
         self.experiments.append(experiment_result)
         logger.info(f"Experiment completed with p-value: {statistical_analysis.p_value:.4f}")
-        
+
         return experiment_result
-    
+
     async def _collect_experimental_data(
         self,
         design: ExperimentalDesign,
@@ -717,39 +714,39 @@ class ResearchPublicationFramework:
         """Collect experimental data with proper controls."""
         algorithm_results = []
         baseline_results = []
-        
+
         # Simulate multiple runs for statistical power
         for run in range(design.sample_size):
             # Set random seed for reproducibility
             np.random.seed(42 + run)
-            
+
             # Generate synthetic performance metrics
             algorithm_perf = np.random.normal(0.85, 0.1)  # Algorithm performance
             baseline_perf = np.random.normal(0.75, 0.1)   # Baseline performance
-            
+
             # Add experimental noise
             algorithm_perf += np.random.normal(0, 0.02)
             baseline_perf += np.random.normal(0, 0.02)
-            
+
             # Ensure valid ranges
             algorithm_perf = max(0.0, min(1.0, algorithm_perf))
             baseline_perf = max(0.0, min(1.0, baseline_perf))
-            
+
             algorithm_results.append(algorithm_perf)
             baseline_results.append(baseline_perf)
-        
+
         return {
             "algorithm_performance": algorithm_results,
             "baseline_performance": baseline_results,
             "sample_size": design.sample_size,
             "experimental_conditions": design.control_conditions
         }
-    
+
     def _process_experimental_data(self, raw_data: Dict[str, List[float]]) -> Dict[str, float]:
         """Process raw experimental data into summary metrics."""
         algorithm_perf = raw_data["algorithm_performance"]
         baseline_perf = raw_data["baseline_performance"]
-        
+
         return {
             "algorithm_mean": np.mean(algorithm_perf),
             "algorithm_std": np.std(algorithm_perf),
@@ -758,33 +755,33 @@ class ResearchPublicationFramework:
             "improvement": np.mean(algorithm_perf) - np.mean(baseline_perf),
             "relative_improvement": (np.mean(algorithm_perf) - np.mean(baseline_perf)) / np.mean(baseline_perf)
         }
-    
+
     async def generate_publication(
-        self, 
+        self,
         venue: PublicationVenue,
         title: str,
         experiments_filter: Optional[List[ExperimentType]] = None
     ) -> Dict[str, Any]:
         """Generate complete publication package."""
         logger.info(f"Generating publication for {venue.value}")
-        
+
         # Filter experiments if specified
         if experiments_filter:
             filtered_experiments = [
-                exp for exp in self.experiments 
+                exp for exp in self.experiments
                 if exp.design.experiment_type in experiments_filter
             ]
         else:
             filtered_experiments = self.experiments
-        
+
         if not filtered_experiments:
             raise ValueError("No experiments available for publication")
-        
+
         # Generate paper content
         paper_content = self.paper_generator.generate_research_paper(
             filtered_experiments, venue, title
         )
-        
+
         # Compile comprehensive results
         publication_package = {
             "paper_content": paper_content,
@@ -808,17 +805,17 @@ class ResearchPublicationFramework:
             "funding_information": "Research supported by Terragon Labs",
             "publication_checklist": self._generate_publication_checklist(venue)
         }
-        
+
         logger.info("Publication package generated successfully")
         return publication_package
-    
+
     def _generate_statistical_summary(self, experiments: List[ExperimentResult]) -> Dict[str, Any]:
         """Generate statistical summary across experiments."""
         significant_experiments = [
-            exp for exp in experiments 
+            exp for exp in experiments
             if exp.statistical_analysis.significance_achieved
         ]
-        
+
         return {
             "total_experiments": len(experiments),
             "significant_results": len(significant_experiments),
@@ -833,14 +830,14 @@ class ResearchPublicationFramework:
                 exp.statistical_analysis.statistical_power for exp in experiments
             ])
         }
-    
+
     def _generate_reproducibility_report(self, experiments: List[ExperimentResult]) -> Dict[str, Any]:
         """Generate reproducibility report."""
         reproducible_experiments = [
-            exp for exp in experiments 
+            exp for exp in experiments
             if exp.reproducibility_metrics["reproducible"]
         ]
-        
+
         return {
             "reproducible_experiments": len(reproducible_experiments),
             "reproducibility_rate": len(reproducible_experiments) / len(experiments),
@@ -851,7 +848,7 @@ class ResearchPublicationFramework:
             "version_control": "Git with tagged releases",
             "environment_specification": "requirements.txt and Docker container"
         }
-    
+
     def _generate_computational_report(self, experiments: List[ExperimentResult]) -> Dict[str, Any]:
         """Generate computational requirements report."""
         return {
@@ -869,7 +866,7 @@ class ResearchPublicationFramework:
             },
             "scalability_analysis": "O(n log n) for most algorithms"
         }
-    
+
     def _generate_ethics_statement(self) -> str:
         """Generate ethics statement for publication."""
         return """
@@ -880,7 +877,7 @@ class ResearchPublicationFramework:
         include improved efficiency in legal document processing, which could reduce
         costs and improve access to legal services.
         """
-    
+
     def _generate_publication_checklist(self, venue: PublicationVenue) -> Dict[str, bool]:
         """Generate publication checklist for venue requirements."""
         return {
@@ -910,14 +907,14 @@ async def demonstrate_research_pipeline():
     """Demonstrate complete research publication pipeline."""
     # Create research framework
     framework = create_research_framework()
-    
+
     # Create benchmark dataset
     legal_benchmark = framework.create_benchmark_dataset(
         name="LegalDocuments-v1",
         description="Comprehensive legal document classification benchmark",
         size=1000
     )
-    
+
     # Define experimental designs
     experiments_to_run = [
         ExperimentalDesign(
@@ -945,29 +942,29 @@ async def demonstrate_research_pipeline():
             sample_size=75
         )
     ]
-    
+
     # Conduct experiments
     experiment_results = []
     for design in experiments_to_run:
         # Dummy algorithm and baseline functions
         def algorithm_func(dataset): return np.random.uniform(0.8, 0.95)
         def baseline_func(dataset): return np.random.uniform(0.7, 0.85)
-        
+
         result = await framework.conduct_experiment(
             design, algorithm_func, baseline_func, "LegalDocuments-v1"
         )
         experiment_results.append(result)
-    
+
     # Generate publication for NeurIPS
     publication = await framework.generate_publication(
         venue=PublicationVenue.NEURIPS,
         title="Multimodal Transformers with Quantum Enhancement for Legal Document Understanding"
     )
-    
+
     logger.info("Research pipeline demonstration completed")
     logger.info(f"Generated {len(experiment_results)} experiments")
     logger.info(f"Statistical significance achieved in {len([e for e in experiment_results if e.statistical_analysis.significance_achieved])} experiments")
-    
+
     return publication
 
 

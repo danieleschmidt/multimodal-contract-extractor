@@ -9,9 +9,7 @@ distributed contract extraction system.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
-import math
 import statistics
 import threading
 import time
@@ -19,12 +17,9 @@ import uuid
 from collections import defaultdict, deque
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple, Callable, Union
-import concurrent.futures
+from typing import Any, Callable, Dict, List, Optional
 
-import numpy as np
 import psutil
 
 logger = logging.getLogger(__name__)
@@ -165,33 +160,33 @@ class PerformanceBaseline:
 
 class MetricCollector:
     """Real-time metric collection system."""
-    
+
     def __init__(self, collection_interval: float = 1.0):
         self.collection_interval = collection_interval
         self.is_collecting = False
-        
+
         # Metric storage
         self.metrics: Dict[str, deque] = defaultdict(lambda: deque(maxlen=10000))
         self.latest_metrics: Dict[str, PerformanceMetric] = {}
-        
+
         # System monitoring
         self.system_metrics_enabled = True
         self.application_metrics_enabled = True
-        
+
         # Prometheus integration
         if HAS_PROMETHEUS:
             self.prometheus_registry = prometheus_client.CollectorRegistry()
             self.prometheus_metrics = {}
             self._setup_prometheus_metrics()
-        
+
         self.lock = threading.RLock()
         self.collection_task: Optional[asyncio.Task] = None
-    
+
     def _setup_prometheus_metrics(self) -> None:
         """Setup Prometheus metrics."""
         if not HAS_PROMETHEUS:
             return
-        
+
         try:
             # Create Prometheus metrics
             self.prometheus_metrics = {
@@ -222,32 +217,32 @@ class MetricCollector:
             }
         except Exception as e:
             logger.error(f"Failed to setup Prometheus metrics: {e}")
-    
+
     async def start_collection(self) -> None:
         """Start metric collection."""
         if self.is_collecting:
             return
-        
+
         self.is_collecting = True
         self.collection_task = asyncio.create_task(self._collection_loop())
         logger.info("Started metric collection")
-    
+
     async def stop_collection(self) -> None:
         """Stop metric collection."""
         if not self.is_collecting:
             return
-        
+
         self.is_collecting = False
-        
+
         if self.collection_task:
             self.collection_task.cancel()
             try:
                 await self.collection_task
             except asyncio.CancelledError:
                 pass
-        
+
         logger.info("Stopped metric collection")
-    
+
     async def _collection_loop(self) -> None:
         """Main collection loop."""
         while self.is_collecting:
@@ -257,21 +252,21 @@ class MetricCollector:
                     self._collect_application_metrics(),
                     return_exceptions=True
                 )
-                
+
                 await asyncio.sleep(self.collection_interval)
-                
+
             except Exception as e:
                 logger.error(f"Metric collection error: {e}")
                 await asyncio.sleep(self.collection_interval)
-    
+
     async def _collect_system_metrics(self) -> None:
         """Collect system-level metrics."""
         if not self.system_metrics_enabled:
             return
-        
+
         try:
             current_time = time.time()
-            
+
             # CPU metrics
             cpu_percent = psutil.cpu_percent(interval=None)
             cpu_metric = PerformanceMetric(
@@ -283,7 +278,7 @@ class MetricCollector:
                 operation="cpu_monitoring"
             )
             await self.record_metric(cpu_metric)
-            
+
             # Memory metrics
             memory = psutil.virtual_memory()
             memory_metric = PerformanceMetric(
@@ -295,7 +290,7 @@ class MetricCollector:
                 operation="memory_monitoring"
             )
             await self.record_metric(memory_metric)
-            
+
             # Network I/O metrics
             network_io = psutil.net_io_counters()
             if hasattr(network_io, 'bytes_sent') and hasattr(network_io, 'bytes_recv'):
@@ -310,7 +305,7 @@ class MetricCollector:
                     operation="network_monitoring"
                 )
                 await self.record_metric(network_metric)
-            
+
             # Disk I/O metrics
             disk_io = psutil.disk_io_counters()
             if disk_io:
@@ -325,21 +320,21 @@ class MetricCollector:
                     operation="disk_monitoring"
                 )
                 await self.record_metric(disk_metric)
-            
+
         except Exception as e:
             logger.error(f"System metric collection failed: {e}")
-    
+
     async def _collect_application_metrics(self) -> None:
         """Collect application-specific metrics."""
         if not self.application_metrics_enabled:
             return
-        
+
         try:
             current_time = time.time()
-            
+
             # Simulate application metrics collection
             # In practice, these would come from the actual application
-            
+
             # Queue depth metric (simulated)
             queue_depth = len(asyncio.all_tasks()) if hasattr(asyncio, 'all_tasks') else 0
             queue_metric = PerformanceMetric(
@@ -351,7 +346,7 @@ class MetricCollector:
                 operation="queue_monitoring"
             )
             await self.record_metric(queue_metric)
-            
+
             # Concurrent requests (simulated)
             concurrent_requests = min(queue_depth, 100)  # Cap at 100
             concurrent_metric = PerformanceMetric(
@@ -363,10 +358,10 @@ class MetricCollector:
                 operation="concurrency_monitoring"
             )
             await self.record_metric(concurrent_metric)
-            
+
         except Exception as e:
             logger.error(f"Application metric collection failed: {e}")
-    
+
     async def record_metric(self, metric: PerformanceMetric) -> None:
         """Record a performance metric."""
         try:
@@ -375,14 +370,14 @@ class MetricCollector:
                 metric_key = f"{metric.component}:{metric.metric_type.value}:{metric.operation}"
                 self.metrics[metric_key].append(metric)
                 self.latest_metrics[metric_key] = metric
-            
+
             # Update Prometheus metrics if available
             if HAS_PROMETHEUS and hasattr(self, 'prometheus_metrics'):
                 await self._update_prometheus_metric(metric)
-            
+
         except Exception as e:
             logger.error(f"Failed to record metric: {e}")
-    
+
     async def _update_prometheus_metric(self, metric: PerformanceMetric) -> None:
         """Update Prometheus metric."""
         try:
@@ -391,45 +386,45 @@ class MetricCollector:
                 'operation': metric.operation,
                 **metric.labels
             }
-            
+
             if metric.metric_type == PerformanceMetricType.LATENCY:
                 if 'latency' in self.prometheus_metrics:
                     self.prometheus_metrics['latency'].labels(**labels).observe(metric.value)
-            
+
             elif metric.metric_type == PerformanceMetricType.THROUGHPUT:
                 if 'throughput' in self.prometheus_metrics:
                     self.prometheus_metrics['throughput'].labels(status='success', **labels).inc(metric.value)
-            
-            elif metric.metric_type in [PerformanceMetricType.CPU_UTILIZATION, 
+
+            elif metric.metric_type in [PerformanceMetricType.CPU_UTILIZATION,
                                        PerformanceMetricType.MEMORY_UTILIZATION]:
                 if 'resource_utilization' in self.prometheus_metrics:
                     resource_type = 'cpu' if metric.metric_type == PerformanceMetricType.CPU_UTILIZATION else 'memory'
                     self.prometheus_metrics['resource_utilization'].labels(
-                        resource_type=resource_type, 
+                        resource_type=resource_type,
                         component=metric.component
                     ).set(metric.value)
-            
+
         except Exception as e:
             logger.error(f"Prometheus metric update failed: {e}")
-    
+
     def get_metrics(self, metric_key: str, since: Optional[float] = None, limit: Optional[int] = None) -> List[PerformanceMetric]:
         """Get metrics for a specific key."""
         with self.lock:
             if metric_key not in self.metrics:
                 return []
-            
+
             metrics = list(self.metrics[metric_key])
-            
+
             # Filter by timestamp if specified
             if since:
                 metrics = [m for m in metrics if m.timestamp >= since]
-            
+
             # Apply limit if specified
             if limit:
                 metrics = metrics[-limit:]
-            
+
             return metrics
-    
+
     def get_latest_metric(self, metric_key: str) -> Optional[PerformanceMetric]:
         """Get the latest metric value."""
         with self.lock:
@@ -438,7 +433,7 @@ class MetricCollector:
 
 class BottleneckDetector:
     """Intelligent bottleneck detection system."""
-    
+
     def __init__(self, metric_collector: MetricCollector):
         self.metric_collector = metric_collector
         self.detection_rules: Dict[BottleneckType, Callable] = {
@@ -449,10 +444,10 @@ class BottleneckDetector:
             BottleneckType.CACHE_BOUND: self._detect_cache_bottleneck,
             BottleneckType.CONCURRENCY_BOUND: self._detect_concurrency_bottleneck,
         }
-        
+
         self.detected_bottlenecks: deque = deque(maxlen=100)
         self.active_bottlenecks: Dict[str, BottleneckDetection] = {}
-        
+
         self.detection_thresholds = {
             'cpu_high': 85.0,
             'memory_high': 90.0,
@@ -462,34 +457,34 @@ class BottleneckDetector:
             'latency_high': 5.0,
             'error_rate_high': 0.05  # 5%
         }
-        
+
         self.lock = threading.RLock()
-    
+
     async def detect_bottlenecks(self) -> List[BottleneckDetection]:
         """Detect current bottlenecks."""
         detections = []
-        
+
         try:
             # Run all detection rules
             detection_tasks = [
                 asyncio.create_task(self._run_detection_rule(bottleneck_type, rule))
                 for bottleneck_type, rule in self.detection_rules.items()
             ]
-            
+
             results = await asyncio.gather(*detection_tasks, return_exceptions=True)
-            
+
             for result in results:
                 if isinstance(result, BottleneckDetection):
                     detections.append(result)
                 elif isinstance(result, Exception):
                     logger.error(f"Bottleneck detection error: {result}")
-            
+
             # Update active bottlenecks
             with self.lock:
                 for detection in detections:
                     self.detected_bottlenecks.append(detection)
                     self.active_bottlenecks[detection.detection_id] = detection
-                
+
                 # Clean up resolved bottlenecks (simplified logic)
                 current_time = time.time()
                 expired_keys = [
@@ -498,12 +493,12 @@ class BottleneckDetector:
                 ]
                 for key in expired_keys:
                     del self.active_bottlenecks[key]
-            
+
         except Exception as e:
             logger.error(f"Bottleneck detection failed: {e}")
-        
+
         return detections
-    
+
     async def _run_detection_rule(self, bottleneck_type: BottleneckType, rule: Callable) -> Optional[BottleneckDetection]:
         """Run a specific detection rule."""
         try:
@@ -511,7 +506,7 @@ class BottleneckDetector:
         except Exception as e:
             logger.error(f"Detection rule {bottleneck_type} failed: {e}")
             return None
-    
+
     async def _detect_cpu_bottleneck(self) -> Optional[BottleneckDetection]:
         """Detect CPU bottlenecks."""
         try:
@@ -521,21 +516,21 @@ class BottleneckDetector:
                 since=time.time() - 300,  # Last 5 minutes
                 limit=100
             )
-            
+
             if len(cpu_metrics) < 10:
                 return None
-            
+
             # Analyze CPU utilization
             cpu_values = [m.value for m in cpu_metrics]
             avg_cpu = statistics.mean(cpu_values)
             max_cpu = max(cpu_values)
-            
+
             # Check for sustained high CPU usage
             if avg_cpu > self.detection_thresholds['cpu_high'] and max_cpu > 95.0:
                 # Calculate confidence based on consistency
                 high_cpu_count = sum(1 for v in cpu_values if v > self.detection_thresholds['cpu_high'])
                 confidence = high_cpu_count / len(cpu_values)
-                
+
                 if confidence > 0.7:  # 70% of samples show high CPU
                     return BottleneckDetection(
                         detection_id=f"cpu_bottleneck_{int(time.time())}",
@@ -553,12 +548,12 @@ class BottleneckDetector:
                             "threshold": self.detection_thresholds['cpu_high']
                         }
                     )
-            
+
         except Exception as e:
             logger.error(f"CPU bottleneck detection failed: {e}")
-        
+
         return None
-    
+
     async def _detect_memory_bottleneck(self) -> Optional[BottleneckDetection]:
         """Detect memory bottlenecks."""
         try:
@@ -568,17 +563,17 @@ class BottleneckDetector:
                 since=time.time() - 300,
                 limit=100
             )
-            
+
             if len(memory_metrics) < 10:
                 return None
-            
+
             memory_values = [m.value for m in memory_metrics]
             avg_memory = statistics.mean(memory_values)
             max_memory = max(memory_values)
-            
+
             if avg_memory > self.detection_thresholds['memory_high']:
                 confidence = sum(1 for v in memory_values if v > self.detection_thresholds['memory_high']) / len(memory_values)
-                
+
                 if confidence > 0.6:
                     return BottleneckDetection(
                         detection_id=f"memory_bottleneck_{int(time.time())}",
@@ -594,12 +589,12 @@ class BottleneckDetector:
                             "threshold": self.detection_thresholds['memory_high']
                         }
                     )
-            
+
         except Exception as e:
             logger.error(f"Memory bottleneck detection failed: {e}")
-        
+
         return None
-    
+
     async def _detect_io_bottleneck(self) -> Optional[BottleneckDetection]:
         """Detect I/O bottlenecks."""
         try:
@@ -609,14 +604,14 @@ class BottleneckDetector:
                 since=time.time() - 300,
                 limit=100
             )
-            
+
             if len(disk_metrics) < 10:
                 return None
-            
+
             disk_values = [m.value for m in disk_metrics]
             avg_disk_io = statistics.mean(disk_values)
             max_disk_io = max(disk_values)
-            
+
             # Simple I/O bottleneck detection based on high sustained I/O
             if avg_disk_io > self.detection_thresholds['io_high']:
                 return BottleneckDetection(
@@ -632,12 +627,12 @@ class BottleneckDetector:
                         "max_disk_io": max_disk_io
                     }
                 )
-            
+
         except Exception as e:
             logger.error(f"I/O bottleneck detection failed: {e}")
-        
+
         return None
-    
+
     async def _detect_network_bottleneck(self) -> Optional[BottleneckDetection]:
         """Detect network bottlenecks."""
         try:
@@ -646,13 +641,13 @@ class BottleneckDetector:
                 since=time.time() - 300,
                 limit=100
             )
-            
+
             if len(network_metrics) < 10:
                 return None
-            
+
             network_values = [m.value for m in network_metrics]
             avg_network_io = statistics.mean(network_values)
-            
+
             if avg_network_io > self.detection_thresholds['network_high']:
                 return BottleneckDetection(
                     detection_id=f"network_bottleneck_{int(time.time())}",
@@ -666,30 +661,30 @@ class BottleneckDetector:
                         "avg_network_io": avg_network_io
                     }
                 )
-            
+
         except Exception as e:
             logger.error(f"Network bottleneck detection failed: {e}")
-        
+
         return None
-    
+
     async def _detect_cache_bottleneck(self) -> Optional[BottleneckDetection]:
         """Detect cache-related bottlenecks."""
         try:
             # This would typically analyze cache hit rates, cache miss penalties, etc.
             # For now, simulate cache bottleneck detection
-            
+
             # In a real implementation, you would check:
             # - Cache hit rates below acceptable thresholds
             # - High cache miss penalties
             # - Memory pressure affecting cache efficiency
-            
+
             return None  # Placeholder
-            
+
         except Exception as e:
             logger.error(f"Cache bottleneck detection failed: {e}")
-        
+
         return None
-    
+
     async def _detect_concurrency_bottleneck(self) -> Optional[BottleneckDetection]:
         """Detect concurrency bottlenecks."""
         try:
@@ -699,19 +694,19 @@ class BottleneckDetector:
                 since=time.time() - 300,
                 limit=100
             )
-            
+
             concurrent_metrics = self.metric_collector.get_metrics(
                 "application:concurrent_requests:concurrency_monitoring",
                 since=time.time() - 300,
                 limit=100
             )
-            
+
             if len(queue_metrics) < 5 or len(concurrent_metrics) < 5:
                 return None
-            
+
             avg_queue_depth = statistics.mean([m.value for m in queue_metrics])
             avg_concurrent = statistics.mean([m.value for m in concurrent_metrics])
-            
+
             # Detect if queue is consistently high
             if avg_queue_depth > self.detection_thresholds['queue_high']:
                 return BottleneckDetection(
@@ -728,12 +723,12 @@ class BottleneckDetector:
                         "queue_threshold": self.detection_thresholds['queue_high']
                     }
                 )
-            
+
         except Exception as e:
             logger.error(f"Concurrency bottleneck detection failed: {e}")
-        
+
         return None
-    
+
     def get_active_bottlenecks(self) -> List[BottleneckDetection]:
         """Get currently active bottlenecks."""
         with self.lock:
@@ -742,7 +737,7 @@ class BottleneckDetector:
 
 class PerformanceOptimizer:
     """Performance optimization recommendation engine."""
-    
+
     def __init__(self, bottleneck_detector: BottleneckDetector):
         self.bottleneck_detector = bottleneck_detector
         self.optimization_strategies: Dict[BottleneckType, List[OptimizationStrategy]] = {
@@ -772,49 +767,49 @@ class PerformanceOptimizer:
                 OptimizationStrategy.ENABLE_COMPRESSION
             ]
         }
-        
+
         self.recommendations: deque = deque(maxlen=100)
-    
+
     async def generate_recommendations(self) -> List[OptimizationRecommendation]:
         """Generate optimization recommendations based on detected bottlenecks."""
         recommendations = []
-        
+
         try:
             active_bottlenecks = self.bottleneck_detector.get_active_bottlenecks()
-            
+
             for bottleneck in active_bottlenecks:
                 bottleneck_recommendations = await self._generate_bottleneck_recommendations(bottleneck)
                 recommendations.extend(bottleneck_recommendations)
-            
+
             # Sort by priority score
             recommendations.sort(key=lambda x: x.priority_score, reverse=True)
-            
+
             # Store recommendations
             for rec in recommendations:
                 self.recommendations.append(rec)
-            
+
         except Exception as e:
             logger.error(f"Recommendation generation failed: {e}")
-        
+
         return recommendations
-    
+
     async def _generate_bottleneck_recommendations(self, bottleneck: BottleneckDetection) -> List[OptimizationRecommendation]:
         """Generate recommendations for a specific bottleneck."""
         recommendations = []
-        
+
         try:
             strategies = self.optimization_strategies.get(bottleneck.bottleneck_type, [])
-            
+
             for strategy in strategies:
                 rec = await self._create_recommendation(bottleneck, strategy)
                 if rec:
                     recommendations.append(rec)
-            
+
         except Exception as e:
             logger.error(f"Bottleneck recommendation generation failed: {e}")
-        
+
         return recommendations
-    
+
     async def _create_recommendation(self, bottleneck: BottleneckDetection, strategy: OptimizationStrategy) -> Optional[OptimizationRecommendation]:
         """Create a specific optimization recommendation."""
         try:
@@ -825,9 +820,9 @@ class PerformanceOptimizer:
                 AlertSeverity.MEDIUM: 0.6,
                 AlertSeverity.LOW: 0.4
             }
-            
+
             priority_score = (bottleneck.confidence * severity_multiplier.get(bottleneck.severity, 0.5) * 100)
-            
+
             # Strategy-specific recommendation details
             if strategy == OptimizationStrategy.SCALE_HORIZONTALLY:
                 return OptimizationRecommendation(
@@ -847,7 +842,7 @@ class PerformanceOptimizer:
                         "Monitor performance impact"
                     ]
                 )
-            
+
             elif strategy == OptimizationStrategy.SCALE_VERTICALLY:
                 return OptimizationRecommendation(
                     recommendation_id=f"scale_v_{int(time.time())}",
@@ -866,7 +861,7 @@ class PerformanceOptimizer:
                         "Monitor resource utilization"
                     ]
                 )
-            
+
             elif strategy == OptimizationStrategy.OPTIMIZE_ALGORITHM:
                 return OptimizationRecommendation(
                     recommendation_id=f"algo_opt_{int(time.time())}",
@@ -885,7 +880,7 @@ class PerformanceOptimizer:
                         "Test and validate improvements"
                     ]
                 )
-            
+
             elif strategy == OptimizationStrategy.INCREASE_CACHE:
                 return OptimizationRecommendation(
                     recommendation_id=f"cache_inc_{int(time.time())}",
@@ -904,7 +899,7 @@ class PerformanceOptimizer:
                         "Monitor cache performance"
                     ]
                 )
-            
+
             elif strategy == OptimizationStrategy.INCREASE_PARALLELISM:
                 return OptimizationRecommendation(
                     recommendation_id=f"parallel_inc_{int(time.time())}",
@@ -923,74 +918,74 @@ class PerformanceOptimizer:
                         "Monitor for diminishing returns"
                     ]
                 )
-            
+
             # Add more strategies as needed
-            
+
         except Exception as e:
             logger.error(f"Recommendation creation failed: {e}")
-        
+
         return None
 
 
 class RealTimePerformanceMonitor:
     """Main real-time performance monitoring system."""
-    
+
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         config = config or {}
-        
+
         self.monitor_id = f"monitor_{uuid.uuid4().hex[:8]}"
         self.enabled = config.get('enabled', True)
         self.collection_interval = config.get('collection_interval', 1.0)
         self.detection_interval = config.get('detection_interval', 30.0)
         self.optimization_interval = config.get('optimization_interval', 300.0)
-        
+
         # Components
         self.metric_collector = MetricCollector(self.collection_interval)
         self.bottleneck_detector = BottleneckDetector(self.metric_collector)
         self.performance_optimizer = PerformanceOptimizer(self.bottleneck_detector)
-        
+
         # Alerting
         self.alerts: deque = deque(maxlen=1000)
         self.alert_handlers: List[Callable] = []
-        
+
         # Baselines
         self.baselines: Dict[str, PerformanceBaseline] = {}
-        
+
         # Background tasks
         self.background_tasks: List[asyncio.Task] = []
         self.is_running = False
-        
+
         self.lock = threading.RLock()
-    
+
     async def start(self) -> None:
         """Start the performance monitor."""
         if self.is_running:
             return
-        
+
         self.is_running = True
-        
+
         # Start metric collection
         await self.metric_collector.start_collection()
-        
+
         # Start background tasks
         self.background_tasks = [
             asyncio.create_task(self._bottleneck_detection_loop()),
             asyncio.create_task(self._optimization_loop()),
             asyncio.create_task(self._alerting_loop())
         ]
-        
+
         logger.info(f"Started real-time performance monitor {self.monitor_id}")
-    
+
     async def stop(self) -> None:
         """Stop the performance monitor."""
         if not self.is_running:
             return
-        
+
         self.is_running = False
-        
+
         # Stop metric collection
         await self.metric_collector.stop_collection()
-        
+
         # Cancel background tasks
         for task in self.background_tasks:
             task.cancel()
@@ -998,57 +993,57 @@ class RealTimePerformanceMonitor:
                 await task
             except asyncio.CancelledError:
                 pass
-        
+
         self.background_tasks.clear()
         logger.info(f"Stopped real-time performance monitor {self.monitor_id}")
-    
+
     async def _bottleneck_detection_loop(self) -> None:
         """Bottleneck detection loop."""
         while self.is_running:
             try:
                 bottlenecks = await self.bottleneck_detector.detect_bottlenecks()
-                
+
                 # Generate alerts for new bottlenecks
                 for bottleneck in bottlenecks:
                     await self._create_bottleneck_alert(bottleneck)
-                
+
                 await asyncio.sleep(self.detection_interval)
-                
+
             except Exception as e:
                 logger.error(f"Bottleneck detection loop error: {e}")
                 await asyncio.sleep(self.detection_interval)
-    
+
     async def _optimization_loop(self) -> None:
         """Optimization recommendation loop."""
         while self.is_running:
             try:
                 recommendations = await self.performance_optimizer.generate_recommendations()
-                
+
                 # Log high-priority recommendations
                 high_priority_recs = [r for r in recommendations if r.priority_score > 70]
                 for rec in high_priority_recs:
                     logger.info(f"High-priority optimization: {rec.strategy.value} for {rec.component} "
                                f"(expected improvement: {rec.expected_improvement}%)")
-                
+
                 await asyncio.sleep(self.optimization_interval)
-                
+
             except Exception as e:
                 logger.error(f"Optimization loop error: {e}")
                 await asyncio.sleep(self.optimization_interval)
-    
+
     async def _alerting_loop(self) -> None:
         """Alerting loop."""
         while self.is_running:
             try:
                 # Check metric thresholds and generate alerts
                 await self._check_metric_alerts()
-                
+
                 await asyncio.sleep(60.0)  # Check every minute
-                
+
             except Exception as e:
                 logger.error(f"Alerting loop error: {e}")
                 await asyncio.sleep(60.0)
-    
+
     async def _create_bottleneck_alert(self, bottleneck: BottleneckDetection) -> None:
         """Create an alert for a detected bottleneck."""
         try:
@@ -1067,37 +1062,37 @@ class RealTimePerformanceMonitor:
                     'root_cause': bottleneck.root_cause_analysis
                 }
             )
-            
+
             with self.lock:
                 self.alerts.append(alert)
-            
+
             # Notify alert handlers
             for handler in self.alert_handlers:
                 try:
                     await handler(alert)
                 except Exception as e:
                     logger.error(f"Alert handler failed: {e}")
-            
+
         except Exception as e:
             logger.error(f"Alert creation failed: {e}")
-    
+
     async def _check_metric_alerts(self) -> None:
         """Check metrics against alert thresholds."""
         try:
             # This would check various metrics against their thresholds
             # For now, just log if we have any active bottlenecks
-            
+
             active_bottlenecks = self.bottleneck_detector.get_active_bottlenecks()
             if active_bottlenecks:
                 logger.debug(f"Active bottlenecks: {len(active_bottlenecks)}")
-            
+
         except Exception as e:
             logger.error(f"Metric alert check failed: {e}")
-    
+
     def add_alert_handler(self, handler: Callable[[PerformanceAlert], None]) -> None:
         """Add an alert handler."""
         self.alert_handlers.append(handler)
-    
+
     def set_baseline(self, component: str, metric_type: PerformanceMetricType, baseline_value: float, acceptable_deviation: float = 0.2) -> None:
         """Set a performance baseline."""
         baseline = PerformanceBaseline(
@@ -1108,18 +1103,18 @@ class RealTimePerformanceMonitor:
             measurement_window=60,
             confidence_level=0.95
         )
-        
+
         baseline_key = f"{component}:{metric_type.value}"
         with self.lock:
             self.baselines[baseline_key] = baseline
-    
+
     def get_performance_summary(self) -> Dict[str, Any]:
         """Get comprehensive performance summary."""
         with self.lock:
             active_bottlenecks = self.bottleneck_detector.get_active_bottlenecks()
             recent_alerts = list(self.alerts)[-10:]  # Last 10 alerts
             recent_recommendations = list(self.performance_optimizer.recommendations)[-5:]  # Last 5 recommendations
-            
+
             # Get latest metrics
             latest_metrics = {}
             for key, metric in self.metric_collector.latest_metrics.items():
@@ -1129,7 +1124,7 @@ class RealTimePerformanceMonitor:
                     'component': metric.component,
                     'operation': metric.operation
                 }
-            
+
             return {
                 'monitor_id': self.monitor_id,
                 'enabled': self.enabled,
@@ -1187,7 +1182,7 @@ async def performance_monitoring_context(component: str, operation: str):
     """Context manager for performance monitoring."""
     start_time = time.time()
     monitor = get_performance_monitor()
-    
+
     try:
         yield monitor
     except Exception as e:
@@ -1207,7 +1202,7 @@ async def performance_monitoring_context(component: str, operation: str):
         # Record latency metric
         end_time = time.time()
         latency = end_time - start_time
-        
+
         latency_metric = PerformanceMetric(
             metric_id=f"latency_{int(end_time * 1000)}",
             metric_type=PerformanceMetricType.LATENCY,
