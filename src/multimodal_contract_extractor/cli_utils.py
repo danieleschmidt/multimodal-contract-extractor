@@ -118,21 +118,20 @@ def process_single_document(file_path: str, output_path: str = None, output_form
     Returns:
         Dictionary containing extraction results
     """
-    from . import load_document, extract_from_document, save_results
-    from .extraction import ExtractionResult
-    
+    from . import extract_from_document, load_document, save_results
+
     # Use format if provided (for compatibility)
     if format is not None:
         output_format = format
-    
+
     # Load and process document
     document = load_document(file_path)
     result = extract_from_document(document)
-    
+
     # Save results if output path specified
     if output_path:
         save_results(result, output_path, output_format)
-    
+
     # Return as dictionary
     from dataclasses import asdict
     return asdict(result)

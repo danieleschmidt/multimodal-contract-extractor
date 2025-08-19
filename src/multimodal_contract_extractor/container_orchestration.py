@@ -8,26 +8,21 @@ management for the distributed contract extraction system.
 
 from __future__ import annotations
 
-import asyncio
-import base64
-import json
 import logging
-import os
-import time
 import uuid
-import yaml
-from collections import defaultdict, deque
+from collections import deque
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Callable, Union
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 # Try to import Kubernetes and container libraries
 try:
-    from kubernetes import client, config as k8s_config
+    from kubernetes import client
+    from kubernetes import config as k8s_config
     from kubernetes.client.rest import ApiException
     HAS_KUBERNETES = True
 except ImportError:
@@ -98,7 +93,7 @@ class ContainerImage:
     dockerfile: Optional[str] = None
     build_args: Dict[str, str] = field(default_factory=dict)
     labels: Dict[str, str] = field(default_factory=dict)
-    
+
     @property
     def full_name(self) -> str:
         """Get full image name."""
@@ -197,7 +192,7 @@ class ServiceMeshConfig:
 
 class DockerManager:
     """Docker container management."""
-    
+
     def __init__(self):
         self.docker_client = None
         if HAS_DOCKER:
@@ -207,22 +202,22 @@ class DockerManager:
             except Exception as e:
                 logger.error(f"Docker client initialization failed: {e}")
                 self.docker_client = None
-    
+
     async def build_image(self, image_spec: ContainerImage) -> bool:
         """Build a Docker image."""
         if not self.docker_client or not image_spec.build_context:
             return False
-        
+
         try:
             build_path = Path(image_spec.build_context)
             if not build_path.exists():
                 logger.error(f"Build context path does not exist: {build_path}")
                 return False
-            
+
             dockerfile_path = image_spec.dockerfile or "Dockerfile"
-            
+
             logger.info(f"Building image {image_spec.full_name} from {build_path}")
-            
+
             # Build image
             image, build_logs = self.docker_client.images.build(
                 path=str(build_path),
@@ -232,27 +227,27 @@ class DockerManager:
                 labels=image_spec.labels,
                 rm=True  # Remove intermediate containers
             )
-            
+
             # Log build output
             for log_entry in build_logs:
                 if 'stream' in log_entry:
                     logger.debug(f"Build: {log_entry['stream'].strip()}")
-            
+
             logger.info(f"Successfully built image {image_spec.full_name}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Image build failed: {e}")
             return False
-    
+
     async def push_image(self, image_spec: ContainerImage, auth_config: Optional[Dict[str, str]] = None) -> bool:
         """Push image to registry."""
         if not self.docker_client:
             return False
-        
+
         try:
             logger.info(f"Pushing image {image_spec.full_name}")
-            
+
             # Push image
             push_logs = self.docker_client.images.push(
                 image_spec.full_name,
@@ -260,7 +255,7 @@ class DockerManager:
                 stream=True,
                 decode=True
             )
-            
+
             # Process push logs
             for log_entry in push_logs:
                 if 'status' in log_entry:
@@ -268,19 +263,19 @@ class DockerManager:
                 if 'error' in log_entry:
                     logger.error(f"Push error: {log_entry['error']}")
                     return False
-            
+
             logger.info(f"Successfully pushed image {image_spec.full_name}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Image push failed: {e}")
             return False
-    
+
     async def run_container(self, container_spec: ContainerSpec, detach: bool = True) -> Optional[str]:
         """Run a container."""
         if not self.docker_client:
             return None
-        
+
         try:
             # Prepare container configuration
             container_config = {
@@ -291,22 +286,22 @@ class DockerManager:
                 'ports': {f"{port}/tcp": port for port in container_spec.ports} if container_spec.ports else None,
                 'volumes': container_spec.volume_mounts if container_spec.volume_mounts else None
             }
-            
+
             if container_spec.command:
                 container_config['command'] = container_spec.command
             if container_spec.args:
                 container_config['command'] = (container_config.get('command', []) + container_spec.args)
-            
+
             # Run container
             container = self.docker_client.containers.run(**container_config)
-            
+
             if detach:
                 logger.info(f"Started container {container_spec.name} with ID {container.id}")
                 return container.id
             else:
                 logger.info(f"Container {container_spec.name} completed")
                 return container.id
-            
+
         except Exception as e:
             logger.error(f"Container run failed: {e}")
             return None
@@ -314,14 +309,14 @@ class DockerManager:
 
 class KubernetesManager:
     """Kubernetes cluster management."""
-    
+
     def __init__(self, kubeconfig_path: Optional[str] = None):
         self.k8s_client = None
         self.apps_v1 = None
         self.core_v1 = None
         self.networking_v1 = None
         self.autoscaling_v2 = None
-        
+
         if HAS_KUBERNETES:
             try:
                 if kubeconfig_path:
@@ -332,38 +327,38 @@ class KubernetesManager:
                         k8s_config.load_incluster_config()
                     except:
                         k8s_config.load_kube_config()
-                
+
                 # Initialize API clients
                 self.apps_v1 = client.AppsV1Api()
                 self.core_v1 = client.CoreV1Api()
                 self.networking_v1 = client.NetworkingV1Api()
                 self.autoscaling_v2 = client.AutoscalingV2Api()
-                
+
                 # Test connection
                 self.core_v1.list_namespace(limit=1)
                 logger.info("Kubernetes client initialized successfully")
-                
+
             except Exception as e:
                 logger.error(f"Kubernetes client initialization failed: {e}")
-    
+
     async def create_deployment(self, deployment_spec: DeploymentSpec) -> bool:
         """Create a Kubernetes deployment."""
         if not self.apps_v1:
             return False
-        
+
         try:
             # Build deployment manifest
             deployment = self._build_deployment_manifest(deployment_spec)
-            
+
             # Create deployment
             result = self.apps_v1.create_namespaced_deployment(
                 namespace=deployment_spec.namespace,
                 body=deployment
             )
-            
+
             logger.info(f"Created deployment {deployment_spec.name} in namespace {deployment_spec.namespace}")
             return True
-            
+
         except ApiException as e:
             if e.status == 409:  # Already exists
                 logger.info(f"Deployment {deployment_spec.name} already exists, updating...")
@@ -374,51 +369,51 @@ class KubernetesManager:
         except Exception as e:
             logger.error(f"Deployment creation failed: {e}")
             return False
-    
+
     async def update_deployment(self, deployment_spec: DeploymentSpec) -> bool:
         """Update a Kubernetes deployment."""
         if not self.apps_v1:
             return False
-        
+
         try:
             # Build deployment manifest
             deployment = self._build_deployment_manifest(deployment_spec)
-            
+
             # Update deployment
             result = self.apps_v1.patch_namespaced_deployment(
                 name=deployment_spec.name,
                 namespace=deployment_spec.namespace,
                 body=deployment
             )
-            
+
             logger.info(f"Updated deployment {deployment_spec.name}")
             return True
-            
+
         except ApiException as e:
             logger.error(f"Deployment update failed: {e}")
             return False
         except Exception as e:
             logger.error(f"Deployment update failed: {e}")
             return False
-    
+
     async def create_service(self, service_spec: ServiceSpec, namespace: str = "default") -> bool:
         """Create a Kubernetes service."""
         if not self.core_v1:
             return False
-        
+
         try:
             # Build service manifest
             service = self._build_service_manifest(service_spec)
-            
+
             # Create service
             result = self.core_v1.create_namespaced_service(
                 namespace=namespace,
                 body=service
             )
-            
+
             logger.info(f"Created service {service_spec.name} in namespace {namespace}")
             return True
-            
+
         except ApiException as e:
             if e.status == 409:  # Already exists
                 logger.info(f"Service {service_spec.name} already exists")
@@ -429,25 +424,25 @@ class KubernetesManager:
         except Exception as e:
             logger.error(f"Service creation failed: {e}")
             return False
-    
+
     async def create_hpa(self, hpa_spec: HorizontalPodAutoscalerSpec) -> bool:
         """Create a Horizontal Pod Autoscaler."""
         if not self.autoscaling_v2:
             return False
-        
+
         try:
             # Build HPA manifest
             hpa = self._build_hpa_manifest(hpa_spec)
-            
+
             # Create HPA
             result = self.autoscaling_v2.create_namespaced_horizontal_pod_autoscaler(
                 namespace=hpa_spec.namespace,
                 body=hpa
             )
-            
+
             logger.info(f"Created HPA {hpa_spec.name}")
             return True
-            
+
         except ApiException as e:
             if e.status == 409:
                 logger.info(f"HPA {hpa_spec.name} already exists")
@@ -458,25 +453,25 @@ class KubernetesManager:
         except Exception as e:
             logger.error(f"HPA creation failed: {e}")
             return False
-    
+
     async def create_ingress(self, ingress_spec: IngressSpec) -> bool:
         """Create a Kubernetes ingress."""
         if not self.networking_v1:
             return False
-        
+
         try:
             # Build ingress manifest
             ingress = self._build_ingress_manifest(ingress_spec)
-            
+
             # Create ingress
             result = self.networking_v1.create_namespaced_ingress(
                 namespace=ingress_spec.namespace,
                 body=ingress
             )
-            
+
             logger.info(f"Created ingress {ingress_spec.name}")
             return True
-            
+
         except ApiException as e:
             if e.status == 409:
                 logger.info(f"Ingress {ingress_spec.name} already exists")
@@ -487,43 +482,43 @@ class KubernetesManager:
         except Exception as e:
             logger.error(f"Ingress creation failed: {e}")
             return False
-    
+
     async def scale_deployment(self, name: str, namespace: str, replicas: int) -> bool:
         """Scale a deployment."""
         if not self.apps_v1:
             return False
-        
+
         try:
             # Patch deployment with new replica count
             body = {'spec': {'replicas': replicas}}
-            
+
             result = self.apps_v1.patch_namespaced_deployment_scale(
                 name=name,
                 namespace=namespace,
                 body=body
             )
-            
+
             logger.info(f"Scaled deployment {name} to {replicas} replicas")
             return True
-            
+
         except ApiException as e:
             logger.error(f"Deployment scaling failed: {e}")
             return False
         except Exception as e:
             logger.error(f"Deployment scaling failed: {e}")
             return False
-    
+
     async def get_deployment_status(self, name: str, namespace: str) -> Optional[Dict[str, Any]]:
         """Get deployment status."""
         if not self.apps_v1:
             return None
-        
+
         try:
             deployment = self.apps_v1.read_namespaced_deployment(
                 name=name,
                 namespace=namespace
             )
-            
+
             status = deployment.status
             return {
                 'replicas': status.replicas or 0,
@@ -541,14 +536,14 @@ class KubernetesManager:
                     for condition in (status.conditions or [])
                 ]
             }
-            
+
         except ApiException as e:
             logger.error(f"Failed to get deployment status: {e}")
             return None
         except Exception as e:
             logger.error(f"Failed to get deployment status: {e}")
             return None
-    
+
     def _build_deployment_manifest(self, spec: DeploymentSpec) -> Dict[str, Any]:
         """Build Kubernetes deployment manifest."""
         # Container specifications
@@ -560,12 +555,12 @@ class KubernetesManager:
                 'ports': [{'containerPort': port} for port in container_spec.ports],
                 'env': [{'name': k, 'value': v} for k, v in container_spec.environment.items()]
             }
-            
+
             if container_spec.command:
                 container['command'] = container_spec.command
             if container_spec.args:
                 container['args'] = container_spec.args
-            
+
             # Resource requirements
             if container_spec.resource_requests or container_spec.resource_limits:
                 container['resources'] = {}
@@ -573,23 +568,23 @@ class KubernetesManager:
                     container['resources']['requests'] = container_spec.resource_requests
                 if container_spec.resource_limits:
                     container['resources']['limits'] = container_spec.resource_limits
-            
+
             # Volume mounts
             if container_spec.volume_mounts:
                 container['volumeMounts'] = [
                     {'name': vol_name, 'mountPath': mount_path}
                     for mount_path, vol_name in container_spec.volume_mounts.items()
                 ]
-            
+
             # Health checks
             if container_spec.health_check:
                 if 'readiness' in container_spec.health_check:
                     container['readinessProbe'] = container_spec.health_check['readiness']
                 if 'liveness' in container_spec.health_check:
                     container['livenessProbe'] = container_spec.health_check['liveness']
-            
+
             containers.append(container)
-        
+
         # Pod template
         pod_template = {
             'metadata': {
@@ -599,34 +594,34 @@ class KubernetesManager:
                 'containers': containers
             }
         }
-        
+
         # Volumes
         if spec.volumes:
             pod_template['spec']['volumes'] = [
                 {'name': name, **volume_spec}
                 for name, volume_spec in spec.volumes.items()
             ]
-        
+
         # Node selector
         if spec.node_selector:
             pod_template['spec']['nodeSelector'] = spec.node_selector
-        
+
         # Tolerations
         if spec.tolerations:
             pod_template['spec']['tolerations'] = spec.tolerations
-        
+
         # Affinity
         if spec.affinity:
             pod_template['spec']['affinity'] = spec.affinity
-        
+
         # Service account
         if spec.service_account:
             pod_template['spec']['serviceAccountName'] = spec.service_account
-        
+
         # Security context
         if spec.security_context:
             pod_template['spec']['securityContext'] = spec.security_context
-        
+
         # Deployment strategy
         strategy = {'type': 'RollingUpdate'}
         if spec.strategy == DeploymentStrategy.ROLLING_UPDATE:
@@ -636,7 +631,7 @@ class KubernetesManager:
             }
         elif spec.strategy == DeploymentStrategy.RECREATE:
             strategy['type'] = 'Recreate'
-        
+
         # Build full deployment manifest
         deployment = {
             'apiVersion': 'apps/v1',
@@ -654,9 +649,9 @@ class KubernetesManager:
                 'strategy': strategy
             }
         }
-        
+
         return deployment
-    
+
     def _build_service_manifest(self, spec: ServiceSpec) -> Dict[str, Any]:
         """Build Kubernetes service manifest."""
         service = {
@@ -673,20 +668,20 @@ class KubernetesManager:
                 'type': spec.service_type.value
             }
         }
-        
+
         if spec.cluster_ip:
             service['spec']['clusterIP'] = spec.cluster_ip
         if spec.load_balancer_ip:
             service['spec']['loadBalancerIP'] = spec.load_balancer_ip
         if spec.external_name:
             service['spec']['externalName'] = spec.external_name
-        
+
         return service
-    
+
     def _build_hpa_manifest(self, spec: HorizontalPodAutoscalerSpec) -> Dict[str, Any]:
         """Build HPA manifest."""
         metrics = []
-        
+
         # CPU utilization metric
         if spec.target_cpu_utilization:
             metrics.append({
@@ -699,7 +694,7 @@ class KubernetesManager:
                     }
                 }
             })
-        
+
         # Memory utilization metric
         if spec.target_memory_utilization:
             metrics.append({
@@ -712,10 +707,10 @@ class KubernetesManager:
                     }
                 }
             })
-        
+
         # Custom metrics
         metrics.extend(spec.custom_metrics)
-        
+
         hpa = {
             'apiVersion': 'autoscaling/v2',
             'kind': 'HorizontalPodAutoscaler',
@@ -742,9 +737,9 @@ class KubernetesManager:
                 }
             }
         }
-        
+
         return hpa
-    
+
     def _build_ingress_manifest(self, spec: IngressSpec) -> Dict[str, Any]:
         """Build ingress manifest."""
         ingress = {
@@ -763,25 +758,25 @@ class KubernetesManager:
                 'rules': spec.rules
             }
         }
-        
+
         if spec.tls:
             ingress['spec']['tls'] = spec.tls
-        
+
         return ingress
 
 
 class ServiceMeshManager:
     """Service mesh integration and management."""
-    
+
     def __init__(self, config: ServiceMeshConfig, k8s_manager: KubernetesManager):
         self.config = config
         self.k8s_manager = k8s_manager
-    
+
     async def enable_mesh_injection(self, namespace: str) -> bool:
         """Enable service mesh injection for a namespace."""
         if not self.k8s_manager.core_v1:
             return False
-        
+
         try:
             # Label namespace for mesh injection
             if self.config.mesh_type == ServiceMeshType.ISTIO:
@@ -802,26 +797,26 @@ class ServiceMeshManager:
                 }
             else:
                 return False  # Unsupported mesh type
-            
+
             # Patch namespace
             self.k8s_manager.core_v1.patch_namespace(
                 name=namespace,
                 body=label_patch
             )
-            
+
             logger.info(f"Enabled {self.config.mesh_type.value} injection for namespace {namespace}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to enable mesh injection: {e}")
             return False
-    
+
     async def create_destination_rule(self, name: str, host: str, namespace: str = "default") -> bool:
         """Create a destination rule for traffic management."""
         if self.config.mesh_type != ServiceMeshType.ISTIO:
             logger.warning("Destination rules are only supported with Istio")
             return False
-        
+
         try:
             destination_rule = {
                 'apiVersion': 'networking.istio.io/v1beta1',
@@ -839,26 +834,26 @@ class ServiceMeshManager:
                     }
                 }
             }
-            
+
             # Add circuit breaker configuration
             if self.config.circuit_breaker:
                 destination_rule['spec']['trafficPolicy']['outlierDetection'] = self.config.circuit_breaker
-            
+
             # This would use a custom resource API to create the destination rule
             # For now, we'll just log the creation
             logger.info(f"Created destination rule {name} for host {host}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to create destination rule: {e}")
             return False
-    
+
     async def create_virtual_service(self, name: str, hosts: List[str], http_routes: List[Dict[str, Any]], namespace: str = "default") -> bool:
         """Create a virtual service for traffic routing."""
         if self.config.mesh_type != ServiceMeshType.ISTIO:
             logger.warning("Virtual services are only supported with Istio")
             return False
-        
+
         try:
             virtual_service = {
                 'apiVersion': 'networking.istio.io/v1beta1',
@@ -872,26 +867,26 @@ class ServiceMeshManager:
                     'http': http_routes
                 }
             }
-            
+
             # Add retry policy if configured
             if self.config.retry_policy:
                 for route in http_routes:
                     if 'route' in route:
                         route['retries'] = self.config.retry_policy
-            
+
             logger.info(f"Created virtual service {name}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to create virtual service: {e}")
             return False
-    
+
     async def create_authorization_policy(self, name: str, namespace: str, rules: List[Dict[str, Any]]) -> bool:
         """Create authorization policy for security."""
         if self.config.mesh_type != ServiceMeshType.ISTIO:
             logger.warning("Authorization policies are only supported with Istio")
             return False
-        
+
         try:
             auth_policy = {
                 'apiVersion': 'security.istio.io/v1beta1',
@@ -904,10 +899,10 @@ class ServiceMeshManager:
                     'rules': rules
                 }
             }
-            
+
             logger.info(f"Created authorization policy {name}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to create authorization policy: {e}")
             return False
@@ -915,18 +910,18 @@ class ServiceMeshManager:
 
 class ContainerOrchestrator:
     """Main container orchestration management system."""
-    
+
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         config = config or {}
-        
+
         self.orchestrator_id = f"orchestrator_{uuid.uuid4().hex[:8]}"
         self.platform = OrchestrationPlatform(config.get('platform', 'kubernetes'))
         self.namespace = config.get('namespace', 'multimodal-contract-extractor')
-        
+
         # Initialize managers
         self.docker_manager = DockerManager()
         self.k8s_manager = KubernetesManager(config.get('kubeconfig_path'))
-        
+
         # Service mesh configuration
         mesh_config = config.get('service_mesh', {})
         if mesh_config.get('enabled', False):
@@ -939,64 +934,64 @@ class ContainerOrchestrator:
             self.service_mesh_manager = ServiceMeshManager(self.service_mesh_config, self.k8s_manager)
         else:
             self.service_mesh_manager = None
-        
+
         # Deployment tracking
         self.deployments: Dict[str, DeploymentSpec] = {}
         self.services: Dict[str, ServiceSpec] = {}
-        
+
         self.deployment_history: deque = deque(maxlen=100)
-    
+
     async def deploy_application(self, deployment_config: Dict[str, Any]) -> bool:
         """Deploy the complete application stack."""
         try:
             logger.info(f"Starting application deployment with orchestrator {self.orchestrator_id}")
-            
+
             # Create namespace if it doesn't exist
             await self._ensure_namespace()
-            
+
             # Enable service mesh injection if configured
             if self.service_mesh_manager:
                 await self.service_mesh_manager.enable_mesh_injection(self.namespace)
-            
+
             # Deploy core components
             success = True
-            
+
             # 1. Deploy contract extractor API
             api_deployment = await self._deploy_api_service(deployment_config.get('api', {}))
             success = success and api_deployment
-            
+
             # 2. Deploy worker nodes
             worker_deployment = await self._deploy_worker_nodes(deployment_config.get('workers', {}))
             success = success and worker_deployment
-            
+
             # 3. Deploy monitoring stack
             monitoring_deployment = await self._deploy_monitoring_stack(deployment_config.get('monitoring', {}))
             success = success and monitoring_deployment
-            
+
             # 4. Deploy caching layer
             cache_deployment = await self._deploy_cache_layer(deployment_config.get('cache', {}))
             success = success and cache_deployment
-            
+
             # 5. Configure ingress
             ingress_deployment = await self._deploy_ingress(deployment_config.get('ingress', {}))
             success = success and ingress_deployment
-            
+
             if success:
                 logger.info("Application deployment completed successfully")
             else:
                 logger.error("Application deployment completed with errors")
-            
+
             return success
-            
+
         except Exception as e:
             logger.error(f"Application deployment failed: {e}")
             return False
-    
+
     async def _ensure_namespace(self) -> bool:
         """Ensure namespace exists."""
         if not self.k8s_manager.core_v1:
             return False
-        
+
         try:
             # Try to get namespace
             try:
@@ -1006,7 +1001,7 @@ class ContainerOrchestrator:
             except ApiException as e:
                 if e.status != 404:
                     raise
-            
+
             # Create namespace
             namespace_manifest = {
                 'apiVersion': 'v1',
@@ -1019,15 +1014,15 @@ class ContainerOrchestrator:
                     }
                 }
             }
-            
+
             self.k8s_manager.core_v1.create_namespace(body=namespace_manifest)
             logger.info(f"Created namespace {self.namespace}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to ensure namespace: {e}")
             return False
-    
+
     async def _deploy_api_service(self, config: Dict[str, Any]) -> bool:
         """Deploy API service."""
         try:
@@ -1038,7 +1033,7 @@ class ContainerOrchestrator:
                 registry=config.get('registry', 'docker.io'),
                 namespace=config.get('image_namespace', 'mce')
             )
-            
+
             # Container spec
             container = ContainerSpec(
                 name="api",
@@ -1077,7 +1072,7 @@ class ContainerOrchestrator:
                     }
                 }
             )
-            
+
             # Deployment spec
             deployment = DeploymentSpec(
                 name="api",
@@ -1091,7 +1086,7 @@ class ContainerOrchestrator:
                 },
                 strategy=DeploymentStrategy.ROLLING_UPDATE
             )
-            
+
             # Service spec
             service = ServiceSpec(
                 name="api",
@@ -1105,7 +1100,7 @@ class ContainerOrchestrator:
                 service_type=ServiceType.CLUSTER_IP,
                 labels={'app': 'api', 'component': 'multimodal-contract-extractor'}
             )
-            
+
             # HPA spec
             hpa = HorizontalPodAutoscalerSpec(
                 name="api",
@@ -1116,24 +1111,24 @@ class ContainerOrchestrator:
                 target_cpu_utilization=config.get('target_cpu', 70),
                 target_memory_utilization=config.get('target_memory', 80)
             )
-            
+
             # Deploy components
             success = True
             success = success and await self.k8s_manager.create_deployment(deployment)
             success = success and await self.k8s_manager.create_service(service, self.namespace)
             success = success and await self.k8s_manager.create_hpa(hpa)
-            
+
             if success:
                 self.deployments["api"] = deployment
                 self.services["api"] = service
                 logger.info("API service deployed successfully")
-            
+
             return success
-            
+
         except Exception as e:
             logger.error(f"API service deployment failed: {e}")
             return False
-    
+
     async def _deploy_worker_nodes(self, config: Dict[str, Any]) -> bool:
         """Deploy worker nodes."""
         try:
@@ -1144,7 +1139,7 @@ class ContainerOrchestrator:
                 registry=config.get('registry', 'docker.io'),
                 namespace=config.get('image_namespace', 'mce')
             )
-            
+
             # Worker container
             container = ContainerSpec(
                 name="worker",
@@ -1164,12 +1159,12 @@ class ContainerOrchestrator:
                     'memory': config.get('memory_limit', '8Gi')
                 }
             )
-            
+
             # Add GPU resources if enabled
             if config.get('gpu_enabled', False):
                 container.resource_requests['nvidia.com/gpu'] = str(config.get('gpu_request', 1))
                 container.resource_limits['nvidia.com/gpu'] = str(config.get('gpu_limit', 1))
-            
+
             # Worker deployment
             deployment = DeploymentSpec(
                 name="workers",
@@ -1182,11 +1177,11 @@ class ContainerOrchestrator:
                     'version': config.get('tag', 'latest')
                 }
             )
-            
+
             # Add node selector for GPU nodes if needed
             if config.get('gpu_enabled', False):
                 deployment.node_selector = {'accelerator': 'nvidia-tesla-gpu'}
-            
+
             # Worker HPA
             hpa = HorizontalPodAutoscalerSpec(
                 name="workers",
@@ -1196,56 +1191,56 @@ class ContainerOrchestrator:
                 max_replicas=config.get('max_replicas', 20),
                 target_cpu_utilization=config.get('target_cpu', 80)
             )
-            
+
             # Deploy
             success = True
             success = success and await self.k8s_manager.create_deployment(deployment)
             success = success and await self.k8s_manager.create_hpa(hpa)
-            
+
             if success:
                 self.deployments["workers"] = deployment
                 logger.info("Worker nodes deployed successfully")
-            
+
             return success
-            
+
         except Exception as e:
             logger.error(f"Worker deployment failed: {e}")
             return False
-    
+
     async def _deploy_monitoring_stack(self, config: Dict[str, Any]) -> bool:
         """Deploy monitoring stack."""
         if not config.get('enabled', True):
             return True
-        
+
         try:
             # This would typically deploy Prometheus, Grafana, etc.
             # For now, we'll just log the deployment
             logger.info("Monitoring stack deployment completed")
             return True
-            
+
         except Exception as e:
             logger.error(f"Monitoring deployment failed: {e}")
             return False
-    
+
     async def _deploy_cache_layer(self, config: Dict[str, Any]) -> bool:
         """Deploy caching layer (Redis)."""
         if not config.get('enabled', True):
             return True
-        
+
         try:
             # Redis deployment would go here
             logger.info("Cache layer deployment completed")
             return True
-            
+
         except Exception as e:
             logger.error(f"Cache deployment failed: {e}")
             return False
-    
+
     async def _deploy_ingress(self, config: Dict[str, Any]) -> bool:
         """Deploy ingress configuration."""
         if not config.get('enabled', True):
             return True
-        
+
         try:
             ingress = IngressSpec(
                 name="api-ingress",
@@ -1271,25 +1266,25 @@ class ContainerOrchestrator:
                     'nginx.ingress.kubernetes.io/ssl-redirect': 'true'
                 }
             )
-            
+
             # Add TLS if configured
             if config.get('tls', {}).get('enabled', False):
                 ingress.tls = [{
                     'hosts': [config.get('host', 'api.multimodal-contract-extractor.local')],
                     'secretName': config['tls'].get('secret_name', 'api-tls')
                 }]
-            
+
             success = await self.k8s_manager.create_ingress(ingress)
-            
+
             if success:
                 logger.info("Ingress deployed successfully")
-            
+
             return success
-            
+
         except Exception as e:
             logger.error(f"Ingress deployment failed: {e}")
             return False
-    
+
     async def get_deployment_status(self) -> Dict[str, Any]:
         """Get comprehensive deployment status."""
         status = {
@@ -1301,24 +1296,24 @@ class ContainerOrchestrator:
             'services': {},
             'overall_health': 'healthy'
         }
-        
+
         # Get deployment statuses
         for name, deployment_spec in self.deployments.items():
             deployment_status = await self.k8s_manager.get_deployment_status(name, self.namespace)
             if deployment_status:
                 status['deployments'][name] = deployment_status
-                
+
                 # Check health
                 if deployment_status['ready_replicas'] != deployment_status['replicas']:
                     status['overall_health'] = 'degraded'
-        
+
         # Get service information
         for name, service_spec in self.services.items():
             status['services'][name] = {
                 'type': service_spec.service_type.value,
                 'ports': service_spec.ports
             }
-        
+
         return status
 
 
@@ -1338,15 +1333,15 @@ def get_container_orchestrator(config: Optional[Dict[str, Any]] = None) -> Conta
 async def deployment_context(deployment_config: Dict[str, Any]):
     """Context manager for application deployment."""
     orchestrator = get_container_orchestrator()
-    
+
     try:
         # Deploy application
         success = await orchestrator.deploy_application(deployment_config)
         if not success:
             raise RuntimeError("Application deployment failed")
-        
+
         yield orchestrator
-        
+
     except Exception as e:
         logger.error(f"Deployment context error: {e}")
         raise

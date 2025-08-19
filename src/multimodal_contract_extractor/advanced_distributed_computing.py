@@ -9,20 +9,20 @@ scale the contract extraction system across multiple servers and cloud regions.
 from __future__ import annotations
 
 import asyncio
+import base64
 import hashlib
 import json
 import logging
+import pickle
 import socket
+import threading
 import time
 import uuid
 from collections import defaultdict, deque
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple, Callable, AsyncGenerator
-import threading
-import pickle
-import base64
+from typing import Any, AsyncGenerator, Callable, Dict, List, Optional, Set, Tuple
 
 import psutil
 
@@ -152,7 +152,7 @@ class ClusterMetrics:
 
 class DistributedTaskQueue:
     """Advanced distributed task queue with priority and affinity."""
-    
+
     def __init__(self, redis_client: Optional[Any] = None):
         self.redis_client = redis_client
         self.queues: Dict[TaskPriority, deque] = {
@@ -161,30 +161,30 @@ class DistributedTaskQueue:
         self.task_registry: Dict[str, DistributedTask] = {}
         self.node_affinities: Dict[str, Set[str]] = defaultdict(set)
         self.lock = threading.RLock()
-    
+
     async def enqueue_task(self, task: DistributedTask) -> bool:
         """Enqueue a task with priority ordering."""
         try:
             with self.lock:
                 self.task_registry[task.task_id] = task
                 self.queues[task.priority].append(task.task_id)
-                
+
                 # Store in Redis if available
                 if self.redis_client and HAS_REDIS:
                     task_data = self._serialize_task(task)
                     await self.redis_client.hset("tasks", task.task_id, task_data)
                     await self.redis_client.zadd(
-                        f"queue:{task.priority.value}", 
+                        f"queue:{task.priority.value}",
                         {task.task_id: task.created_at}
                     )
-                
+
                 logger.info(f"Enqueued task {task.task_id} with priority {task.priority.name}")
                 return True
-                
+
         except Exception as e:
             logger.error(f"Failed to enqueue task {task.task_id}: {e}")
             return False
-    
+
     async def dequeue_task(self, node_id: str, capabilities: Dict[str, Any]) -> Optional[DistributedTask]:
         """Dequeue the next appropriate task for a node."""
         try:
@@ -192,34 +192,34 @@ class DistributedTaskQueue:
                 # Check queues in priority order
                 for priority in TaskPriority:
                     queue = self.queues[priority]
-                    
+
                     # Find a suitable task
                     for i, task_id in enumerate(queue):
                         task = self.task_registry.get(task_id)
                         if not task or task.status != TaskStatus.QUEUED:
                             continue
-                        
+
                         # Check if node can handle this task
                         if self._can_node_handle_task(node_id, task, capabilities):
                             # Remove from queue
                             queue.remove(task_id)
                             task.status = TaskStatus.ASSIGNED
                             task.assigned_node = node_id
-                            
+
                             # Update Redis
                             if self.redis_client and HAS_REDIS:
                                 await self.redis_client.zrem(f"queue:{priority.value}", task_id)
                                 await self.redis_client.hset("tasks", task_id, self._serialize_task(task))
-                            
+
                             logger.info(f"Assigned task {task_id} to node {node_id}")
                             return task
-                
+
                 return None  # No suitable tasks
-                
+
         except Exception as e:
             logger.error(f"Failed to dequeue task for node {node_id}: {e}")
             return None
-    
+
     def _can_node_handle_task(self, node_id: str, task: DistributedTask, capabilities: Dict[str, Any]) -> bool:
         """Check if a node can handle a specific task."""
         try:
@@ -231,7 +231,7 @@ class DistributedTaskQueue:
                     return False
                 if isinstance(value, str) and capabilities[req] != value:
                     return False
-            
+
             # Check constraints
             for constraint, value in task.constraints.items():
                 if constraint == "excluded_nodes" and node_id in value:
@@ -240,17 +240,17 @@ class DistributedTaskQueue:
                     return False
                 if constraint == "min_memory" and capabilities.get("memory", 0) < value:
                     return False
-            
+
             # Check node affinity
             if task.task_type in self.node_affinities[node_id]:
                 return True  # Preferred node
-            
+
             return True
-            
+
         except Exception as e:
             logger.error(f"Error checking node capability: {e}")
             return False
-    
+
     def _serialize_task(self, task: DistributedTask) -> str:
         """Serialize task for storage."""
         try:
@@ -282,27 +282,27 @@ class DistributedTaskQueue:
 
 class LoadBalancer:
     """Advanced load balancer for distributed task assignment."""
-    
+
     def __init__(self, strategy: DistributionStrategy = DistributionStrategy.LOAD_BALANCED):
         self.strategy = strategy
         self.node_weights: Dict[str, float] = {}
         self.node_performance_history: Dict[str, deque] = defaultdict(lambda: deque(maxlen=100))
         self.task_completion_times: Dict[str, deque] = defaultdict(lambda: deque(maxlen=50))
         self.geographic_latency: Dict[Tuple[str, str], float] = {}
-    
+
     def select_nodes_for_task(self, task: DistributedTask, available_nodes: List[NodeInfo], count: int = 1) -> List[NodeInfo]:
         """Select optimal nodes for task execution."""
         try:
             if not available_nodes:
                 return []
-            
+
             # Filter nodes that can handle the task
             capable_nodes = [node for node in available_nodes if self._can_node_handle_task(node, task)]
-            
+
             if not capable_nodes:
                 logger.warning(f"No capable nodes found for task {task.task_id}")
                 return []
-            
+
             # Apply selection strategy
             if self.strategy == DistributionStrategy.ROUND_ROBIN:
                 return self._round_robin_selection(capable_nodes, count)
@@ -318,11 +318,11 @@ class LoadBalancer:
                 return self._capability_based_selection(capable_nodes, task, count)
             else:
                 return capable_nodes[:count]
-                
+
         except Exception as e:
             logger.error(f"Node selection failed: {e}")
             return []
-    
+
     def _can_node_handle_task(self, node: NodeInfo, task: DistributedTask) -> bool:
         """Check if node can handle the task."""
         try:
@@ -332,44 +332,44 @@ class LoadBalancer:
                 current_used = node.current_load.get(resource, 0)
                 if available - current_used < required:
                     return False
-            
+
             # Check capabilities
             task_capabilities = task.requirements.get("capabilities", [])
             for capability in task_capabilities:
                 if capability not in node.capabilities:
                     return False
-            
+
             return True
-            
+
         except Exception as e:
             logger.error(f"Error checking node {node.node_id} for task: {e}")
             return False
-    
+
     def _round_robin_selection(self, nodes: List[NodeInfo], count: int) -> List[NodeInfo]:
         """Round-robin node selection."""
         if not hasattr(self, '_rr_index'):
             self._rr_index = 0
-        
+
         selected = []
         for i in range(count):
             if nodes:
                 selected.append(nodes[self._rr_index % len(nodes)])
                 self._rr_index = (self._rr_index + 1) % len(nodes)
-        
+
         return selected
-    
+
     def _hash_based_selection(self, nodes: List[NodeInfo], task: DistributedTask, count: int) -> List[NodeInfo]:
         """Hash-based consistent node selection."""
         task_hash = hashlib.md5(task.task_id.encode()).hexdigest()
         start_index = int(task_hash, 16) % len(nodes)
-        
+
         selected = []
         for i in range(count):
             index = (start_index + i) % len(nodes)
             selected.append(nodes[index])
-        
+
         return selected
-    
+
     def _load_balanced_selection(self, nodes: List[NodeInfo], count: int) -> List[NodeInfo]:
         """Load-balanced node selection based on current utilization."""
         # Calculate load scores for each node
@@ -379,98 +379,98 @@ class LoadBalancer:
             cpu_load = node.current_load.get("cpu", 0) / max(node.resource_capacity.get("cpu", 1), 1)
             memory_load = node.current_load.get("memory", 0) / max(node.resource_capacity.get("memory", 1), 1)
             network_load = node.current_load.get("network", 0) / max(node.resource_capacity.get("network", 1), 1)
-            
+
             # Weighted average (CPU: 40%, Memory: 40%, Network: 20%)
             load_score = (cpu_load * 0.4) + (memory_load * 0.4) + (network_load * 0.2)
-            
+
             # Factor in performance history
             perf_history = self.node_performance_history[node.node_id]
             performance_factor = 1.0
             if perf_history:
                 avg_performance = sum(perf_history) / len(perf_history)
                 performance_factor = min(2.0, max(0.5, avg_performance))
-            
+
             final_score = load_score / performance_factor
             node_scores.append((node, final_score))
-        
+
         # Sort by score (lower is better) and select top nodes
         node_scores.sort(key=lambda x: x[1])
         return [node for node, score in node_scores[:count]]
-    
+
     def _affinity_based_selection(self, nodes: List[NodeInfo], task: DistributedTask, count: int) -> List[NodeInfo]:
         """Affinity-based selection considering data locality."""
         # Check for data locality hints
         preferred_nodes = task.constraints.get("preferred_nodes", [])
         data_locality = task.constraints.get("data_locality", {})
-        
+
         # Score nodes based on affinity
         node_scores = []
         for node in nodes:
             score = 0.0
-            
+
             # Preferred node bonus
             if node.node_id in preferred_nodes:
                 score += 10.0
-            
+
             # Data locality bonus
             for data_key, locations in data_locality.items():
                 if node.region in locations:
                     score += 5.0
                 if node.zone in locations:
                     score += 2.0
-            
+
             # Historical performance bonus
             completion_times = self.task_completion_times[node.node_id]
             if completion_times:
                 avg_time = sum(completion_times) / len(completion_times)
                 score += max(0, 10.0 - avg_time)  # Faster nodes get higher scores
-            
+
             node_scores.append((node, score))
-        
+
         # Sort by score (higher is better)
         node_scores.sort(key=lambda x: x[1], reverse=True)
         return [node for node, score in node_scores[:count]]
-    
+
     def _geographic_selection(self, nodes: List[NodeInfo], task: DistributedTask, count: int) -> List[NodeInfo]:
         """Geographic selection to minimize network latency."""
         source_region = task.constraints.get("source_region", "")
         if not source_region:
             return self._load_balanced_selection(nodes, count)
-        
+
         # Group nodes by region and calculate latency
         regional_nodes = defaultdict(list)
         for node in nodes:
             regional_nodes[node.region].append(node)
-        
+
         # Select nodes from closest regions first
         selected = []
         regions_by_latency = sorted(
             regional_nodes.keys(),
             key=lambda region: self.geographic_latency.get((source_region, region), float('inf'))
         )
-        
+
         for region in regions_by_latency:
             if len(selected) >= count:
                 break
-            
+
             region_nodes = regional_nodes[region]
             needed = count - len(selected)
             selected.extend(self._load_balanced_selection(region_nodes, min(needed, len(region_nodes))))
-        
+
         return selected
-    
+
     def _capability_based_selection(self, nodes: List[NodeInfo], task: DistributedTask, count: int) -> List[NodeInfo]:
         """Select nodes based on specialized capabilities."""
         required_capabilities = task.requirements.get("specialized_capabilities", [])
-        
+
         if not required_capabilities:
             return self._load_balanced_selection(nodes, count)
-        
+
         # Score nodes based on capability match
         node_scores = []
         for node in nodes:
             score = 0.0
-            
+
             for capability in required_capabilities:
                 if capability in node.capabilities:
                     capability_level = node.capabilities[capability]
@@ -478,29 +478,29 @@ class LoadBalancer:
                         score += capability_level
                     else:
                         score += 1.0
-            
+
             node_scores.append((node, score))
-        
+
         # Sort by capability score (higher is better)
         node_scores.sort(key=lambda x: x[1], reverse=True)
         return [node for node, score in node_scores[:count]]
-    
+
     def update_node_performance(self, node_id: str, task_duration: float, success: bool) -> None:
         """Update node performance metrics."""
         try:
             performance_score = 1.0 / max(task_duration, 0.001) if success else 0.0
             self.node_performance_history[node_id].append(performance_score)
-            
+
             if success:
                 self.task_completion_times[node_id].append(task_duration)
-                
+
         except Exception as e:
             logger.error(f"Failed to update performance for node {node_id}: {e}")
 
 
 class DistributedCoordinator:
     """Central coordinator for distributed processing."""
-    
+
     def __init__(self, node_id: str, redis_url: Optional[str] = None):
         self.node_id = node_id
         self.node_registry: Dict[str, NodeInfo] = {}
@@ -511,7 +511,7 @@ class DistributedCoordinator:
         self.is_leader = False
         self.heartbeat_interval = 30.0
         self.node_timeout = 120.0
-        
+
         # Initialize Redis connection
         self.redis_client = None
         if redis_url and HAS_REDIS:
@@ -520,11 +520,11 @@ class DistributedCoordinator:
                 self.task_queue.redis_client = self.redis_client
             except Exception as e:
                 logger.error(f"Failed to connect to Redis: {e}")
-        
+
         # Start background tasks
         self.background_tasks = []
         self._start_background_tasks()
-    
+
     def _start_background_tasks(self) -> None:
         """Start background maintenance tasks."""
         try:
@@ -532,24 +532,24 @@ class DistributedCoordinator:
         except RuntimeError:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-        
+
         # Heartbeat task
         heartbeat_task = asyncio.create_task(self._heartbeat_loop())
         self.background_tasks.append(heartbeat_task)
-        
+
         # Health check task
         health_task = asyncio.create_task(self._health_check_loop())
         self.background_tasks.append(health_task)
-        
+
         # Leader election task
         election_task = asyncio.create_task(self._leader_election_loop())
         self.background_tasks.append(election_task)
-    
+
     async def register_node(self, node_info: NodeInfo) -> bool:
         """Register a new node in the cluster."""
         try:
             self.node_registry[node_info.node_id] = node_info
-            
+
             if self.redis_client:
                 node_data = {
                     "node_type": node_info.node_type.value,
@@ -566,68 +566,68 @@ class DistributedCoordinator:
                 }
                 await self.redis_client.hset(f"node:{node_info.node_id}", mapping=node_data)
                 await self.redis_client.sadd("cluster:nodes", node_info.node_id)
-            
+
             logger.info(f"Registered node {node_info.node_id} ({node_info.node_type.value}) from {node_info.region}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to register node {node_info.node_id}: {e}")
             return False
-    
+
     async def unregister_node(self, node_id: str) -> bool:
         """Unregister a node from the cluster."""
         try:
             if node_id in self.node_registry:
                 del self.node_registry[node_id]
-            
+
             if self.redis_client:
                 await self.redis_client.delete(f"node:{node_id}")
                 await self.redis_client.srem("cluster:nodes", node_id)
-            
+
             logger.info(f"Unregistered node {node_id}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to unregister node {node_id}: {e}")
             return False
-    
+
     async def submit_task(self, task: DistributedTask) -> bool:
         """Submit a task for distributed execution."""
         try:
             # Select appropriate nodes for the task
             available_nodes = [node for node in self.node_registry.values() if node.health_status == "healthy"]
             selected_nodes = self.load_balancer.select_nodes_for_task(task, available_nodes, 1)
-            
+
             if not selected_nodes:
                 logger.error(f"No suitable nodes available for task {task.task_id}")
                 return False
-            
+
             # Enqueue the task
             return await self.task_queue.enqueue_task(task)
-            
+
         except Exception as e:
             logger.error(f"Failed to submit task {task.task_id}: {e}")
             return False
-    
+
     async def get_cluster_metrics(self) -> ClusterMetrics:
         """Get comprehensive cluster metrics."""
         try:
             total_nodes = len(self.node_registry)
             healthy_nodes = sum(1 for node in self.node_registry.values() if node.health_status == "healthy")
-            
+
             # Get task statistics
             total_tasks = len(self.task_queue.task_registry)
             completed_tasks = sum(1 for task in self.task_queue.task_registry.values() if task.status == TaskStatus.COMPLETED)
             failed_tasks = sum(1 for task in self.task_queue.task_registry.values() if task.status == TaskStatus.FAILED)
-            
+
             # Calculate average task duration
             durations = []
             for task in self.task_queue.task_registry.values():
                 if task.completed_at and task.started_at:
                     durations.append(task.completed_at - task.started_at)
-            
+
             average_duration = sum(durations) / len(durations) if durations else 0.0
-            
+
             # Calculate cluster utilization
             total_capacity = 0.0
             total_usage = 0.0
@@ -635,23 +635,23 @@ class DistributedCoordinator:
                 for resource, capacity in node.resource_capacity.items():
                     total_capacity += capacity
                     total_usage += node.current_load.get(resource, 0)
-            
+
             cluster_utilization = (total_usage / max(total_capacity, 1)) * 100
-            
+
             # Calculate resource utilization by type
             resource_utilization = {}
             resource_types = set()
             for node in self.node_registry.values():
                 resource_types.update(node.resource_capacity.keys())
-            
+
             for resource_type in resource_types:
                 total_cap = sum(node.resource_capacity.get(resource_type, 0) for node in self.node_registry.values())
                 total_use = sum(node.current_load.get(resource_type, 0) for node in self.node_registry.values())
                 resource_utilization[resource_type] = (total_use / max(total_cap, 1)) * 100
-            
+
             # Calculate fault tolerance level
             fault_tolerance = min(1.0, healthy_nodes / max(total_nodes, 1))
-            
+
             return ClusterMetrics(
                 total_nodes=total_nodes,
                 healthy_nodes=healthy_nodes,
@@ -664,61 +664,61 @@ class DistributedCoordinator:
                 resource_utilization=resource_utilization,
                 fault_tolerance_level=fault_tolerance
             )
-            
+
         except Exception as e:
             logger.error(f"Failed to get cluster metrics: {e}")
             return ClusterMetrics(0, 0, 0, 0, 0, 0.0, 0.0, {}, {}, 0.0)
-    
+
     async def _heartbeat_loop(self) -> None:
         """Background heartbeat loop."""
         while True:
             try:
                 await asyncio.sleep(self.heartbeat_interval)
-                
+
                 # Update node heartbeats
                 current_time = time.time()
                 expired_nodes = []
-                
+
                 for node_id, node in self.node_registry.items():
                     if current_time - node.last_heartbeat > self.node_timeout:
                         expired_nodes.append(node_id)
                         node.health_status = "offline"
-                
+
                 # Remove expired nodes
                 for node_id in expired_nodes:
                     await self.unregister_node(node_id)
                     logger.warning(f"Removed expired node {node_id}")
-                
+
             except Exception as e:
                 logger.error(f"Heartbeat loop error: {e}")
-    
+
     async def _health_check_loop(self) -> None:
         """Background health check loop."""
         while True:
             try:
                 await asyncio.sleep(60.0)  # Check every minute
-                
+
                 # Update cluster health
                 healthy_ratio = sum(1 for node in self.node_registry.values() if node.health_status == "healthy") / max(len(self.node_registry), 1)
-                
+
                 if healthy_ratio >= 0.8:
                     self.cluster_health["status"] = "healthy"
                 elif healthy_ratio >= 0.5:
                     self.cluster_health["status"] = "degraded"
                 else:
                     self.cluster_health["status"] = "unhealthy"
-                
+
                 self.cluster_health["last_check"] = time.time()
-                
+
             except Exception as e:
                 logger.error(f"Health check loop error: {e}")
-    
+
     async def _leader_election_loop(self) -> None:
         """Background leader election loop."""
         while True:
             try:
                 await asyncio.sleep(30.0)  # Check every 30 seconds
-                
+
                 with self.election_lock:
                     # Simple leader election based on node ID
                     if self.node_registry:
@@ -726,17 +726,17 @@ class DistributedCoordinator:
                         self.is_leader = (leader_id == self.node_id)
                     else:
                         self.is_leader = True
-                
+
                 if self.is_leader:
                     logger.debug(f"Node {self.node_id} is the cluster leader")
-                
+
             except Exception as e:
                 logger.error(f"Leader election error: {e}")
 
 
 class DistributedWorker:
     """Distributed worker node for task execution."""
-    
+
     def __init__(self, node_id: str, coordinator_url: str, node_type: NodeType = NodeType.WORKER):
         self.node_id = node_id
         self.coordinator_url = coordinator_url
@@ -744,13 +744,13 @@ class DistributedWorker:
         self.is_running = False
         self.current_tasks: Dict[str, DistributedTask] = {}
         self.task_handlers: Dict[str, Callable] = {}
-        
+
         # Node information
         self.node_info = self._create_node_info()
-        
+
         # Background task for worker loop
         self.worker_task: Optional[asyncio.Task] = None
-    
+
     def _create_node_info(self) -> NodeInfo:
         """Create node information."""
         hostname = socket.gethostname()
@@ -758,11 +758,11 @@ class DistributedWorker:
             ip_address = socket.gethostbyname(hostname)
         except:
             ip_address = "127.0.0.1"
-        
+
         # Get system resources
         cpu_count = psutil.cpu_count()
         memory_total = psutil.virtual_memory().total // (1024 * 1024)  # MB
-        
+
         return NodeInfo(
             node_id=self.node_id,
             node_type=self.node_type,
@@ -790,63 +790,63 @@ class DistributedWorker:
                 "storage": 0.0
             }
         )
-    
+
     def register_task_handler(self, task_type: str, handler: Callable) -> None:
         """Register a task handler for a specific task type."""
         self.task_handlers[task_type] = handler
-    
+
     async def start(self) -> None:
         """Start the worker node."""
         try:
             self.is_running = True
-            
+
             # Start worker loop
             self.worker_task = asyncio.create_task(self._worker_loop())
-            
+
             logger.info(f"Started distributed worker {self.node_id}")
-            
+
         except Exception as e:
             logger.error(f"Failed to start worker: {e}")
-    
+
     async def stop(self) -> None:
         """Stop the worker node."""
         try:
             self.is_running = False
-            
+
             if self.worker_task:
                 self.worker_task.cancel()
                 try:
                     await self.worker_task
                 except asyncio.CancelledError:
                     pass
-            
+
             logger.info(f"Stopped distributed worker {self.node_id}")
-            
+
         except Exception as e:
             logger.error(f"Failed to stop worker: {e}")
-    
+
     async def _worker_loop(self) -> None:
         """Main worker loop for processing tasks."""
         while self.is_running:
             try:
                 # Update resource utilization
                 self._update_resource_utilization()
-                
+
                 # Get next task (would communicate with coordinator)
                 # For now, simulate task processing
                 await asyncio.sleep(1.0)
-                
+
             except Exception as e:
                 logger.error(f"Worker loop error: {e}")
                 await asyncio.sleep(5.0)  # Back off on error
-    
+
     def _update_resource_utilization(self) -> None:
         """Update current resource utilization."""
         try:
             self.node_info.current_load["cpu"] = psutil.cpu_percent()
             self.node_info.current_load["memory"] = psutil.virtual_memory().percent
             # Network and storage would be monitored with additional tools
-            
+
         except Exception as e:
             logger.error(f"Failed to update resource utilization: {e}")
 
@@ -889,7 +889,7 @@ async def distributed_processing_context(
         requirements=requirements or {},
         constraints=constraints or {}
     )
-    
+
     try:
         coordinator = get_distributed_coordinator()
         await coordinator.submit_task(task)

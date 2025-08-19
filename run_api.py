@@ -43,7 +43,6 @@ def main():
         app,
         host=host,
         port=port,
-        debug=debug,
         reload=debug,
         workers=1 if debug else workers,
         access_log=True,

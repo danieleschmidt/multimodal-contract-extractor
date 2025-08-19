@@ -51,6 +51,21 @@ from .language_detection import (
     get_supported_languages,
     is_language_supported,
 )
+from .meta_learning_engine import (
+    LegalDomain,
+    LegalMetaLearningFramework,
+    MetaLearningConfig,
+    create_meta_learning_framework,
+)
+
+# Advanced Research Components (Generation 4+)
+from .multimodal_transformer import (
+    DocumentElement,
+    LegalDocumentAnalyzer,
+    MultimodalLegalTransformer,
+    SpatialPosition,
+    create_legal_document_analyzer,
+)
 from .neuromorphic_engine import (
     NeuromorphicConfig,
     NeuromorphicProcessor,
@@ -68,6 +83,12 @@ from .quantum_analysis import (
     QuantumProcessor,
     analyze_with_quantum_computing,
     get_quantum_processor,
+)
+from .research_publication_framework import (
+    ExperimentType,
+    PublicationVenue,
+    ResearchPublicationFramework,
+    create_research_framework,
 )
 from .security import (
     SecurityError,
@@ -90,6 +111,12 @@ from .serialization import (
     serialize_with_validation,
     validate_extraction_result,
 )
+from .variational_quantum_encoder import (
+    QuantumFeatureMap,
+    QuantumLegalAnalyzer,
+    VariationalQuantumClassifier,
+    create_quantum_legal_analyzer,
+)
 from .version import get_api_version, get_version
 from .websocket_server import (
     CollaborationMessage,
@@ -98,33 +125,6 @@ from .websocket_server import (
     WebSocketManager,
     start_websocket_server,
     websocket_manager,
-)
-
-# Advanced Research Components (Generation 4+)
-from .multimodal_transformer import (
-    MultimodalLegalTransformer,
-    LegalDocumentAnalyzer,
-    create_legal_document_analyzer,
-    SpatialPosition,
-    DocumentElement,
-)
-from .variational_quantum_encoder import (
-    QuantumLegalAnalyzer,
-    create_quantum_legal_analyzer,
-    VariationalQuantumClassifier,
-    QuantumFeatureMap,
-)
-from .meta_learning_engine import (
-    LegalMetaLearningFramework,
-    create_meta_learning_framework,
-    LegalDomain,
-    MetaLearningConfig,
-)
-from .research_publication_framework import (
-    ResearchPublicationFramework,
-    create_research_framework,
-    PublicationVenue,
-    ExperimentType,
 )
 
 __all__ = [
@@ -208,7 +208,7 @@ __all__ = [
     "MultimodalLegalTransformer",
     "LegalDocumentAnalyzer",
     "create_legal_document_analyzer",
-    "SpatialPosition", 
+    "SpatialPosition",
     "DocumentElement",
     "QuantumLegalAnalyzer",
     "create_quantum_legal_analyzer",
