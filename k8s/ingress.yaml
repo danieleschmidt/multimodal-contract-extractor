@@ -1,0 +1,458 @@
+# Production Ingress Configuration with TLS and Advanced Routing
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mce-ingress
+  namespace: multimodal-contract-extractor
+  labels:
+    app: mce-app
+    version: "4.0.0"
+    environment: production
+  annotations:
+    # Nginx Ingress Controller annotations
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    
+    # SSL/TLS Configuration
+    nginx.ingress.kubernetes.io/ssl-protocols: "TLSv1.2 TLSv1.3"
+    nginx.ingress.kubernetes.io/ssl-ciphers: "ECDHE-ECDSA-AES128-GCM-SHA256,ECDHE-RSA-AES128-GCM-SHA256,ECDHE-ECDSA-AES256-GCM-SHA384,ECDHE-RSA-AES256-GCM-SHA384"
+    nginx.ingress.kubernetes.io/ssl-prefer-server-ciphers: "on"
+    
+    # Security headers
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      add_header X-Frame-Options "SAMEORIGIN" always;
+      add_header X-Content-Type-Options "nosniff" always;
+      add_header X-XSS-Protection "1; mode=block" always;
+      add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+      add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none';" always;
+      add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    
+    # Rate limiting
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+    nginx.ingress.kubernetes.io/rate-limit-connections: "10"
+    
+    # Load balancing
+    nginx.ingress.kubernetes.io/upstream-hash-by: "$remote_addr"
+    nginx.ingress.kubernetes.io/load-balance: "ip_hash"
+    
+    # Timeouts
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-next-upstream-timeout: "300"
+    
+    # Buffer sizes
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
+    nginx.ingress.kubernetes.io/proxy-buffers-number: "4"
+    nginx.ingress.kubernetes.io/client-max-body-size: "500m"
+    
+    # Compression
+    nginx.ingress.kubernetes.io/enable-compression: "true"
+    nginx.ingress.kubernetes.io/compression-level: "6"
+    nginx.ingress.kubernetes.io/compression-types: "text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript"
+    
+    # CORS
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "https://contract-extractor.example.com"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization"
+    nginx.ingress.kubernetes.io/cors-max-age: "86400"
+    
+    # Custom error pages
+    nginx.ingress.kubernetes.io/custom-http-errors: "404,500,502,503,504"
+    nginx.ingress.kubernetes.io/default-backend: "default-http-backend"
+    
+    # Monitoring
+    nginx.ingress.kubernetes.io/enable-access-log: "true"
+    nginx.ingress.kubernetes.io/enable-rewrite-log: "false"
+    
+    # Certificate management
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    acme.cert-manager.io/http01-edit-in-place: "true"
+
+spec:
+  tls:
+  - hosts:
+    - contract-extractor.example.com
+    - api.contract-extractor.example.com
+    - monitoring.contract-extractor.example.com
+    secretName: mce-tls-cert
+  
+  rules:
+  # Main application domain
+  - host: contract-extractor.example.com
+    http:
+      paths:
+      # Web interface
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: mce-app-service
+            port:
+              number: 8501
+      
+      # Health checks (no auth required)
+      - path: /health
+        pathType: Exact
+        backend:
+          service:
+            name: mce-app-service
+            port:
+              number: 8501
+      
+      # Metrics endpoint (restricted access)
+      - path: /metrics
+        pathType: Exact
+        backend:
+          service:
+            name: mce-app-service
+            port:
+              number: 9090
+      
+      # Static files
+      - path: /static
+        pathType: Prefix
+        backend:
+          service:
+            name: mce-app-service
+            port:
+              number: 8501
+
+  # API subdomain
+  - host: api.contract-extractor.example.com
+    http:
+      paths:
+      # API endpoints
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: mce-app-service
+            port:
+              number: 8502
+      
+      # API documentation
+      - path: /docs
+        pathType: Prefix
+        backend:
+          service:
+            name: mce-app-service
+            port:
+              number: 8502
+      
+      # OpenAPI spec
+      - path: /openapi.json
+        pathType: Exact
+        backend:
+          service:
+            name: mce-app-service
+            port:
+              number: 8502
+
+  # Monitoring subdomain (restricted access)
+  - host: monitoring.contract-extractor.example.com
+    http:
+      paths:
+      # Grafana
+      - path: /grafana
+        pathType: Prefix
+        backend:
+          service:
+            name: grafana-service
+            port:
+              number: 3000
+      
+      # Prometheus (admin access only)
+      - path: /prometheus
+        pathType: Prefix
+        backend:
+          service:
+            name: prometheus-service
+            port:
+              number: 9090
+      
+      # AlertManager
+      - path: /alertmanager
+        pathType: Prefix
+        backend:
+          service:
+            name: alertmanager-service
+            port:
+              number: 9093
+      
+      # Jaeger UI
+      - path: /jaeger
+        pathType: Prefix
+        backend:
+          service:
+            name: jaeger-service
+            port:
+              number: 16686
+      
+      # Kibana
+      - path: /kibana
+        pathType: Prefix
+        backend:
+          service:
+            name: kibana-service
+            port:
+              number: 5601
+
+---
+# Ingress for internal services (cluster access only)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mce-internal-ingress
+  namespace: multimodal-contract-extractor
+  labels:
+    app: mce-app
+    access-type: internal
+  annotations:
+    kubernetes.io/ingress.class: "nginx-internal"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/whitelist-source-range: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+    nginx.ingress.kubernetes.io/rate-limit: "1000"
+    nginx.ingress.kubernetes.io/enable-access-log: "false"
+spec:
+  rules:
+  - host: mce-internal.cluster.local
+    http:
+      paths:
+      # Internal API endpoints
+      - path: /internal/api
+        pathType: Prefix
+        backend:
+          service:
+            name: mce-app-service
+            port:
+              number: 8502
+      
+      # Admin endpoints
+      - path: /admin
+        pathType: Prefix
+        backend:
+          service:
+            name: mce-app-service
+            port:
+              number: 8501
+      
+      # Debug endpoints (development only)
+      - path: /debug
+        pathType: Prefix
+        backend:
+          service:
+            name: mce-app-service
+            port:
+              number: 8501
+
+---
+# Istio VirtualService (for Service Mesh deployment)
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: mce-virtualservice
+  namespace: multimodal-contract-extractor
+  labels:
+    app: mce-app
+    mesh-type: istio
+spec:
+  hosts:
+  - contract-extractor.example.com
+  - api.contract-extractor.example.com
+  gateways:
+  - mce-gateway
+  http:
+  # Canary deployment routing (90/10 split)
+  - match:
+    - headers:
+        canary:
+          exact: "true"
+    route:
+    - destination:
+        host: mce-app-service
+        subset: canary
+      weight: 100
+    timeout: 300s
+    retries:
+      attempts: 3
+      perTryTimeout: 30s
+  
+  # Main traffic routing
+  - match:
+    - uri:
+        prefix: "/api/"
+    route:
+    - destination:
+        host: mce-app-service
+        port:
+          number: 8502
+        subset: stable
+      weight: 90
+    - destination:
+        host: mce-app-service
+        port:
+          number: 8502
+        subset: canary
+      weight: 10
+    timeout: 300s
+    fault:
+      delay:
+        percentage:
+          value: 0.1
+        fixedDelay: 5s
+    retries:
+      attempts: 3
+      perTryTimeout: 30s
+      retryOn: 5xx,reset,connect-failure,refused-stream
+  
+  # Web interface routing
+  - match:
+    - uri:
+        prefix: "/"
+    route:
+    - destination:
+        host: mce-app-service
+        port:
+          number: 8501
+        subset: stable
+      weight: 90
+    - destination:
+        host: mce-app-service
+        port:
+          number: 8501
+        subset: canary
+      weight: 10
+    timeout: 60s
+
+---
+# Istio Gateway
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: mce-gateway
+  namespace: multimodal-contract-extractor
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - contract-extractor.example.com
+    - api.contract-extractor.example.com
+    tls:
+      httpsRedirect: true
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    tls:
+      mode: SIMPLE
+      credentialName: mce-tls-cert
+    hosts:
+    - contract-extractor.example.com
+    - api.contract-extractor.example.com
+
+---
+# Destination Rule for traffic management
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: mce-destination-rule
+  namespace: multimodal-contract-extractor
+spec:
+  host: mce-app-service
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+        connectTimeout: 30s
+        keepAlive:
+          time: 7200s
+          interval: 75s
+      http:
+        http1MaxPendingRequests: 10
+        http2MaxRequests: 100
+        maxRequestsPerConnection: 10
+        maxRetries: 3
+        consecutiveGatewayErrors: 5
+        interval: 30s
+        baseEjectionTime: 30s
+    loadBalancer:
+      simple: LEAST_CONN
+    outlierDetection:
+      consecutiveGatewayErrors: 3
+      consecutive5xxErrors: 3
+      interval: 30s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+      splitExternalLocalOriginErrors: true
+  subsets:
+  - name: stable
+    labels:
+      version: "4.0.0"
+    trafficPolicy:
+      connectionPool:
+        tcp:
+          maxConnections: 50
+  - name: canary
+    labels:
+      version: "4.0.1"
+    trafficPolicy:
+      connectionPool:
+        tcp:
+          maxConnections: 10
+
+---
+# Service Entry for external dependencies
+apiVersion: networking.istio.io/v1beta1
+kind: ServiceEntry
+metadata:
+  name: external-ocr-api
+  namespace: multimodal-contract-extractor
+spec:
+  hosts:
+  - ocr-api.example.com
+  ports:
+  - number: 443
+    name: https
+    protocol: HTTPS
+  location: MESH_EXTERNAL
+  resolution: DNS
+
+---
+# Network Policy for ingress traffic
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-traffic
+  namespace: multimodal-contract-extractor
+spec:
+  podSelector:
+    matchLabels:
+      app: mce-app
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: nginx-ingress
+    - namespaceSelector:
+        matchLabels:
+          name: istio-system
+    ports:
+    - protocol: TCP
+      port: 8501
+    - protocol: TCP
+      port: 8502
+    - protocol: TCP
+      port: 9090

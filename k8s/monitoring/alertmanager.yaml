@@ -1,0 +1,502 @@
+# Enterprise AlertManager Configuration with Multi-Channel Notifications
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: alertmanager
+  namespace: monitoring
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+  namespace: monitoring
+  labels:
+    app: alertmanager
+data:
+  alertmanager.yml: |
+    global:
+      smtp_smarthost: 'smtp.example.com:587'
+      smtp_from: 'alertmanager@example.com'
+      smtp_auth_username: 'alertmanager@example.com'
+      smtp_auth_password_file: '/etc/alertmanager/secrets/smtp-password'
+      slack_api_url_file: '/etc/alertmanager/secrets/slack-webhook'
+      pagerduty_url: 'https://events.pagerduty.com/v2/enqueue'
+      
+    # Templates
+    templates:
+    - '/etc/alertmanager/templates/*.tmpl'
+    
+    # Route tree
+    route:
+      group_by: ['alertname', 'cluster', 'service']
+      group_wait: 10s
+      group_interval: 10s
+      repeat_interval: 12h
+      receiver: 'default-receiver'
+      
+      routes:
+      # Critical alerts go to PagerDuty immediately
+      - match:
+          severity: critical
+        receiver: 'critical-alerts'
+        group_wait: 10s
+        group_interval: 5m
+        repeat_interval: 5m
+        
+      # Security alerts
+      - match:
+          category: security
+        receiver: 'security-alerts'
+        group_wait: 0s
+        group_interval: 1m
+        repeat_interval: 30m
+        
+      # Application-specific alerts
+      - match:
+          service: multimodal-contract-extractor
+        receiver: 'application-alerts'
+        routes:
+        - match:
+            severity: critical
+          receiver: 'critical-application-alerts'
+        - match:
+            category: performance
+          receiver: 'performance-alerts'
+        - match:
+            category: quality
+          receiver: 'quality-alerts'
+          
+      # Infrastructure alerts
+      - match_re:
+          alertname: ^(KubePodCrashLooping|KubeDeploymentReplicasMismatch|KubeStatefulSetReplicasMismatch)$
+        receiver: 'infrastructure-alerts'
+        
+      # Database alerts
+      - match:
+          tier: database
+        receiver: 'database-alerts'
+        
+      # Monitoring system alerts
+      - match:
+          tier: monitoring
+        receiver: 'monitoring-alerts'
+        
+    # Inhibit rules to reduce noise
+    inhibit_rules:
+    - source_match:
+        severity: 'critical'
+      target_match:
+        severity: 'warning'
+      equal: ['alertname', 'cluster', 'service']
+      
+    - source_match:
+        alertname: 'ApplicationDown'
+      target_match_re:
+        alertname: '^(HighResponseTime|HighErrorRate|HealthCheckFailing)$'
+      equal: ['instance']
+
+    # Receiver definitions
+    receivers:
+    - name: 'default-receiver'
+      slack_configs:
+      - channel: '#mce-alerts'
+        title: 'MCE Alert - {{ .GroupLabels.alertname }}'
+        text: >-
+          {{ range .Alerts }}
+            *Alert:* {{ .Annotations.summary }}
+            *Description:* {{ .Annotations.description }}
+            *Severity:* {{ .Labels.severity }}
+            *Service:* {{ .Labels.service }}
+          {{ end }}
+        actions:
+        - type: button
+          text: 'Runbook :notebook:'
+          url: '{{ (index .Alerts 0).Annotations.runbook_url }}'
+        - type: button
+          text: 'Query :mag:'
+          url: '{{ template "slack.default.callbackurl" . }}'
+        - type: button
+          text: 'Silence :no_bell:'
+          url: '{{ template "slack.default.callbackurl" . }}'
+
+    - name: 'critical-alerts'
+      pagerduty_configs:
+      - routing_key_file: '/etc/alertmanager/secrets/pagerduty-routing-key'
+        description: 'Critical Alert: {{ .GroupLabels.alertname }}'
+        severity: 'critical'
+        details:
+          alert_count: '{{ len .Alerts }}'
+          service: '{{ .GroupLabels.service }}'
+          cluster: '{{ .GroupLabels.cluster }}'
+        links:
+        - href: '{{ (index .Alerts 0).Annotations.runbook_url }}'
+          text: 'Runbook'
+      slack_configs:
+      - channel: '#mce-critical'
+        color: 'danger'
+        title: ':rotating_light: CRITICAL ALERT - {{ .GroupLabels.alertname }}'
+        text: >-
+          {{ range .Alerts }}
+            *Alert:* {{ .Annotations.summary }}
+            *Description:* {{ .Annotations.description }}
+            *Service:* {{ .Labels.service }}
+            *Started:* {{ .StartsAt.Format "2006-01-02 15:04:05 UTC" }}
+          {{ end }}
+      webhook_configs:
+      - url: 'https://hooks.example.com/critical-alerts'
+        send_resolved: true
+
+    - name: 'critical-application-alerts'
+      pagerduty_configs:
+      - routing_key_file: '/etc/alertmanager/secrets/pagerduty-routing-key'
+        description: 'Critical MCE Application Alert: {{ .GroupLabels.alertname }}'
+        severity: 'critical'
+      slack_configs:
+      - channel: '#mce-app-critical'
+        color: 'danger'
+        title: ':fire: CRITICAL APP ALERT - {{ .GroupLabels.alertname }}'
+      email_configs:
+      - to: 'mce-team@example.com'
+        subject: 'CRITICAL: MCE Application Alert - {{ .GroupLabels.alertname }}'
+        body: |
+          Critical alert for MCE Application:
+          
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Severity: {{ .Labels.severity }}
+          Started: {{ .StartsAt.Format "2006-01-02 15:04:05 UTC" }}
+          {{ if .Annotations.runbook_url }}Runbook: {{ .Annotations.runbook_url }}{{ end }}
+          {{ end }}
+
+    - name: 'security-alerts'
+      slack_configs:
+      - channel: '#mce-security'
+        color: 'danger'
+        title: ':warning: SECURITY ALERT - {{ .GroupLabels.alertname }}'
+        text: >-
+          {{ range .Alerts }}
+            *Security Alert:* {{ .Annotations.summary }}
+            *Description:* {{ .Annotations.description }}
+            *Severity:* {{ .Labels.severity }}
+            *Instance:* {{ .Labels.instance }}
+            *Time:* {{ .StartsAt.Format "2006-01-02 15:04:05 UTC" }}
+          {{ end }}
+      email_configs:
+      - to: 'security-team@example.com'
+        subject: 'SECURITY ALERT: {{ .GroupLabels.alertname }}'
+      webhook_configs:
+      - url: 'https://siem.example.com/webhook/alerts'
+        send_resolved: true
+
+    - name: 'application-alerts'
+      slack_configs:
+      - channel: '#mce-app-alerts'
+        title: 'MCE App Alert - {{ .GroupLabels.alertname }}'
+        text: >-
+          {{ range .Alerts }}
+            *Alert:* {{ .Annotations.summary }}
+            *Description:* {{ .Annotations.description }}
+            *Severity:* {{ .Labels.severity }}
+            *Service:* {{ .Labels.service }}
+          {{ end }}
+
+    - name: 'performance-alerts'
+      slack_configs:
+      - channel: '#mce-performance'
+        color: 'warning'
+        title: ':chart_with_downwards_trend: Performance Alert - {{ .GroupLabels.alertname }}'
+        
+    - name: 'quality-alerts'
+      slack_configs:
+      - channel: '#mce-quality'
+        color: 'warning'
+        title: ':exclamation: Quality Alert - {{ .GroupLabels.alertname }}'
+        
+    - name: 'infrastructure-alerts'
+      slack_configs:
+      - channel: '#mce-infrastructure'
+        title: 'Infrastructure Alert - {{ .GroupLabels.alertname }}'
+        
+    - name: 'database-alerts'
+      slack_configs:
+      - channel: '#mce-database'
+        title: 'Database Alert - {{ .GroupLabels.alertname }}'
+        
+    - name: 'monitoring-alerts'
+      slack_configs:
+      - channel: '#mce-monitoring'
+        title: 'Monitoring Alert - {{ .GroupLabels.alertname }}'
+
+---
+# Alert Notification Templates
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-templates
+  namespace: monitoring
+data:
+  default.tmpl: |
+    {{ define "slack.default.title" }}
+    {{ if eq .Status "firing" }}:fire:{{ else }}:white_check_mark:{{ end }} {{ .GroupLabels.alertname }}
+    {{ end }}
+    
+    {{ define "slack.default.text" }}
+    {{ range .Alerts }}
+      {{ if .Annotations.summary }}*Summary:* {{ .Annotations.summary }}{{ end }}
+      {{ if .Annotations.description }}*Description:* {{ .Annotations.description }}{{ end }}
+      *Severity:* {{ .Labels.severity }}
+      {{ if .Labels.service }}*Service:* {{ .Labels.service }}{{ end }}
+      {{ if .Labels.instance }}*Instance:* {{ .Labels.instance }}{{ end }}
+      *Started:* {{ .StartsAt.Format "2006-01-02 15:04:05 UTC" }}
+      {{ if .Annotations.runbook_url }}*Runbook:* {{ .Annotations.runbook_url }}{{ end }}
+    {{ end }}
+    {{ end }}
+    
+    {{ define "slack.default.callbackurl" }}
+    {{ end }}
+    
+    {{ define "email.default.subject" }}
+    {{ if eq .Status "firing" }}[FIRING]{{ else }}[RESOLVED]{{ end }} {{ .GroupLabels.alertname }} ({{ len .Alerts }} alerts)
+    {{ end }}
+    
+    {{ define "email.default.html" }}
+    <html>
+    <head>
+    <style>
+    body { font-family: Arial, sans-serif; }
+    .alert { margin: 10px 0; padding: 10px; border-left: 4px solid #dc3545; }
+    .resolved { border-left-color: #28a745; }
+    .critical { background-color: #f8d7da; }
+    .warning { background-color: #fff3cd; }
+    .info { background-color: #d1ecf1; }
+    </style>
+    </head>
+    <body>
+    <h2>{{ if eq .Status "firing" }}Firing{{ else }}Resolved{{ end }} Alerts</h2>
+    {{ range .Alerts }}
+    <div class="alert {{ if eq .Status "resolved" }}resolved{{ end }} {{ .Labels.severity }}">
+      <h3>{{ .Annotations.summary }}</h3>
+      <p><strong>Description:</strong> {{ .Annotations.description }}</p>
+      <p><strong>Severity:</strong> {{ .Labels.severity }}</p>
+      {{ if .Labels.service }}<p><strong>Service:</strong> {{ .Labels.service }}</p>{{ end }}
+      {{ if .Labels.instance }}<p><strong>Instance:</strong> {{ .Labels.instance }}</p>{{ end }}
+      <p><strong>Started:</strong> {{ .StartsAt.Format "2006-01-02 15:04:05 UTC" }}</p>
+      {{ if .Annotations.runbook_url }}<p><a href="{{ .Annotations.runbook_url }}">Runbook</a></p>{{ end }}
+    </div>
+    {{ end }}
+    </body>
+    </html>
+    {{ end }}
+
+---
+# Secrets for AlertManager
+apiVersion: v1
+kind: Secret
+metadata:
+  name: alertmanager-secrets
+  namespace: monitoring
+  labels:
+    app: alertmanager
+type: Opaque
+stringData:
+  smtp-password: "CHANGE_ME_IN_PRODUCTION"
+  slack-webhook: "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
+  pagerduty-routing-key: "YOUR_PAGERDUTY_ROUTING_KEY"
+  webhook-auth-token: "YOUR_WEBHOOK_AUTH_TOKEN"
+
+---
+# AlertManager Custom Resource
+apiVersion: monitoring.coreos.com/v1
+kind: Alertmanager
+metadata:
+  name: mce-alertmanager
+  namespace: monitoring
+  labels:
+    app: alertmanager
+spec:
+  replicas: 3
+  serviceAccountName: alertmanager
+  
+  # Storage configuration
+  storage:
+    volumeClaimTemplate:
+      spec:
+        storageClassName: fast-ssd
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi
+
+  # Resource allocation
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  # Security context
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    fsGroup: 2000
+
+  # Configuration
+  configMaps:
+  - alertmanager-config
+  
+  secrets:
+  - alertmanager-secrets
+
+  # External URL
+  externalUrl: "https://monitoring.contract-extractor.example.com/alertmanager/"
+  
+  # Route prefix
+  routePrefix: /alertmanager/
+  
+  # Log settings
+  logLevel: info
+  logFormat: json
+
+  # Cluster settings for HA
+  clusterAdvertiseAddress: false
+  clusterGossipInterval: 200ms
+  clusterPeerTimeout: 15s
+  clusterPushpullInterval: 60s
+
+  # Pod anti-affinity
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+            - key: app
+              operator: In
+              values:
+              - alertmanager
+          topologyKey: kubernetes.io/hostname
+
+  # Node selector (optional)
+  nodeSelector:
+    kubernetes.io/arch: amd64
+
+  # Tolerations (optional)
+  tolerations:
+  - key: "monitoring"
+    operator: "Equal"
+    value: "true"
+    effect: "NoSchedule"
+
+---
+# AlertManager Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager-operated
+  namespace: monitoring
+  labels:
+    app: alertmanager
+    operated-alertmanager: "true"
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+  - name: web
+    port: 9093
+    protocol: TCP
+    targetPort: web
+  - name: mesh
+    port: 9094
+    protocol: TCP
+    targetPort: mesh
+  selector:
+    app: alertmanager
+    
+---
+# AlertManager LoadBalancer Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager-service
+  namespace: monitoring
+  labels:
+    app: alertmanager
+    service-type: load-balancer
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-internal: "true"
+spec:
+  type: LoadBalancer
+  ports:
+  - name: web
+    port: 9093
+    targetPort: 9093
+    protocol: TCP
+  selector:
+    app: alertmanager
+    alertmanager: mce-alertmanager
+
+---
+# Prometheus Rules for MCE-specific alerts
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: mce-application-rules
+  namespace: monitoring
+  labels:
+    prometheus: mce
+    role: alert-rules
+spec:
+  groups:
+  - name: mce.application
+    interval: 30s
+    rules:
+    - alert: MCEApplicationDown
+      expr: up{job="mce-app"} == 0
+      for: 1m
+      labels:
+        severity: critical
+        service: multimodal-contract-extractor
+        category: availability
+      annotations:
+        summary: "MCE application is down"
+        description: "MCE application at {{ $labels.instance }} has been down for more than 1 minute."
+        runbook_url: "https://github.com/your-org/mce/wiki/Runbook-Application-Down"
+        
+    - alert: MCEHighLatency
+      expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="mce-app"}[5m])) > 10
+      for: 5m
+      labels:
+        severity: warning
+        service: multimodal-contract-extractor
+        category: performance
+      annotations:
+        summary: "MCE application high latency"
+        description: "95th percentile latency is {{ $value }}s for MCE application."
+        
+    - alert: MCEHighErrorRate
+      expr: rate(http_requests_total{job="mce-app",status=~"5.."}[5m]) / rate(http_requests_total{job="mce-app"}[5m]) > 0.1
+      for: 3m
+      labels:
+        severity: critical
+        service: multimodal-contract-extractor
+        category: errors
+      annotations:
+        summary: "MCE application high error rate"
+        description: "Error rate is {{ $value | humanizePercentage }} for MCE application."
+        
+    - alert: MCELowClauseAccuracy
+      expr: avg_over_time(clause_detection_accuracy[1h]) < 0.85
+      for: 15m
+      labels:
+        severity: warning
+        service: multimodal-contract-extractor
+        category: quality
+      annotations:
+        summary: "MCE clause detection accuracy is low"
+        description: "Average clause detection accuracy is {{ $value | humanizePercentage }} over the last hour."

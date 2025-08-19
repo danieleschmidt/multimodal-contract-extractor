@@ -1,0 +1,376 @@
+# Configuration Management for Production Deployment
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mce-config
+  namespace: multimodal-contract-extractor
+  labels:
+    app: mce-app
+    version: "4.0.0"
+    environment: production
+data:
+  # Application Configuration
+  MCE_ENVIRONMENT: "production"
+  MCE_LOG_LEVEL: "INFO"
+  MCE_ENABLE_GPU: "true"
+  MCE_ENABLE_RESEARCH_ALGORITHMS: "true"
+  MCE_ENABLE_ENTERPRISE_FEATURES: "true"
+  MCE_METRICS_ENABLED: "true"
+  MCE_TRACING_ENABLED: "true"
+  
+  # Performance Settings
+  WORKER_PROCESSES: "4"
+  WORKER_CONNECTIONS: "1000"
+  MAX_FILE_SIZE_MB: "500"
+  PROCESSING_TIMEOUT_SECONDS: "300"
+  MCE_GPU_MEMORY_FRACTION: "0.8"
+  
+  # Feature Flags
+  ENABLE_ADVANCED_ANALYTICS: "true"
+  ENABLE_COMPLIANCE_MONITORING: "true"
+  ENABLE_AUTO_SCALING: "true"
+  ENABLE_CACHING: "true"
+  ENABLE_DISTRIBUTED_PROCESSING: "true"
+  ENABLE_QUANTUM_ALGORITHMS: "true"
+  ENABLE_NEUROMORPHIC_PROCESSING: "true"
+  
+  # Security Settings
+  SSL_VERIFY: "true"
+  MAX_CONCURRENT_REQUESTS: "100"
+  REQUEST_TIMEOUT_SECONDS: "60"
+  
+  # Monitoring Configuration
+  PROMETHEUS_MULTIPROC_DIR: "/tmp/prometheus"
+  JAEGER_AGENT_HOST: "jaeger-agent.monitoring.svc.cluster.local"
+  JAEGER_AGENT_PORT: "6831"
+  JAEGER_SAMPLER_TYPE: "probabilistic"
+  JAEGER_SAMPLER_PARAM: "0.1"
+  
+  # Database Configuration
+  DB_POOL_SIZE: "20"
+  DB_MAX_OVERFLOW: "10"
+  DB_POOL_TIMEOUT: "30"
+  DB_POOL_RECYCLE: "3600"
+  
+  # Redis Configuration
+  REDIS_POOL_SIZE: "10"
+  REDIS_TIMEOUT: "5"
+  REDIS_RETRY_ON_TIMEOUT: "true"
+  
+  # Kubernetes-specific
+  KUBERNETES_NAMESPACE: "multimodal-contract-extractor"
+  KUBERNETES_SERVICE_HOST: "kubernetes.default.svc.cluster.local"
+  
+---
+# Application Configuration File
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mce-app-config
+  namespace: multimodal-contract-extractor
+  labels:
+    app: mce-app
+    config-type: application
+data:
+  config.yml: |
+    # Production Configuration for Multimodal Contract Extractor
+    environment: production
+    
+    # Core Settings
+    app:
+      name: "Multimodal Contract Extractor"
+      version: "4.0.0"
+      debug: false
+      testing: false
+      
+    # Server Configuration
+    server:
+      host: "0.0.0.0"
+      port: 8501
+      api_port: 8502
+      workers: 4
+      max_requests: 1000
+      max_requests_jitter: 50
+      timeout: 300
+      keepalive: 2
+      
+    # Security Configuration
+    security:
+      max_file_size_mb: 500
+      allowed_file_types: ["pdf", "png", "jpg", "jpeg", "tiff", "bmp"]
+      csrf_protection: true
+      rate_limiting:
+        enabled: true
+        max_requests_per_minute: 60
+        max_requests_per_hour: 1000
+      
+    # Database Configuration
+    database:
+      url: "postgresql://mce_user:${POSTGRES_PASSWORD}@postgres-service:5432/mce_db"
+      pool_size: 20
+      max_overflow: 10
+      pool_timeout: 30
+      pool_recycle: 3600
+      echo: false
+      
+    # Cache Configuration  
+    cache:
+      type: "redis"
+      url: "redis://redis-service:6379/0"
+      timeout: 5
+      pool_size: 10
+      default_ttl: 3600
+      
+    # AI/ML Configuration
+    ai:
+      enable_gpu: true
+      gpu_memory_fraction: 0.8
+      model_cache_size: 4
+      batch_size: 8
+      max_sequence_length: 512
+      confidence_threshold: 0.85
+      
+    # Research Algorithms
+    research:
+      enable_novel_algorithms: true
+      enable_quantum_processing: true
+      enable_neuromorphic_processing: true
+      enable_federated_learning: true
+      enable_causal_inference: true
+      
+    # Monitoring Configuration
+    monitoring:
+      metrics_enabled: true
+      tracing_enabled: true
+      health_check_interval: 30
+      performance_monitoring: true
+      
+    # Logging Configuration
+    logging:
+      level: INFO
+      format: json
+      structured: true
+      include_trace_id: true
+      
+    # Feature Toggles
+    features:
+      advanced_analytics: true
+      compliance_monitoring: true
+      auto_scaling: true
+      distributed_processing: true
+      real_time_performance_monitoring: true
+      enterprise_security: true
+      
+---
+# Monitoring Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mce-monitoring-config
+  namespace: multimodal-contract-extractor
+  labels:
+    app: mce-app
+    config-type: monitoring
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+      external_labels:
+        cluster: 'production'
+        environment: 'production'
+        namespace: 'multimodal-contract-extractor'
+    
+    scrape_configs:
+      - job_name: 'mce-app'
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - multimodal-contract-extractor
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            action: keep
+            regex: mce-app
+          - source_labels: [__meta_kubernetes_pod_container_port_name]
+            action: keep
+            regex: metrics
+          - source_labels: [__address__]
+            target_label: __param_target
+          - source_labels: [__param_target]
+            target_label: instance
+          - target_label: __address__
+            replacement: kubernetes-apiservers:443
+        metrics_path: '/metrics'
+        scheme: http
+        
+  jaeger.yml: |
+    collector:
+      zipkin:
+        host-port: :9411
+    
+    storage:
+      type: elasticsearch
+      options:
+        es:
+          server-urls: http://elasticsearch.monitoring.svc.cluster.local:9200
+          index-prefix: jaeger
+          
+---
+# Nginx Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  namespace: multimodal-contract-extractor
+  labels:
+    app: nginx
+    config-type: web-server
+data:
+  nginx.conf: |
+    events {
+        worker_connections 1024;
+    }
+    
+    http {
+        upstream mce_app {
+            least_conn;
+            server mce-app-service:8501 max_fails=3 fail_timeout=30s;
+        }
+        
+        upstream mce_api {
+            least_conn;
+            server mce-app-service:8502 max_fails=3 fail_timeout=30s;
+        }
+        
+        # Rate limiting
+        limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
+        limit_req_zone $binary_remote_addr zone=app:10m rate=30r/s;
+        
+        # Security headers
+        add_header X-Frame-Options DENY;
+        add_header X-Content-Type-Options nosniff;
+        add_header X-XSS-Protection "1; mode=block";
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains";
+        add_header Content-Security-Policy "default-src 'self'";
+        
+        server {
+            listen 80;
+            listen 443 ssl http2;
+            server_name _;
+            
+            # SSL Configuration
+            ssl_certificate /etc/nginx/certs/tls.crt;
+            ssl_certificate_key /etc/nginx/certs/tls.key;
+            ssl_protocols TLSv1.2 TLSv1.3;
+            ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512;
+            ssl_prefer_server_ciphers off;
+            
+            # Health check
+            location /health {
+                access_log off;
+                return 200 "healthy\n";
+                add_header Content-Type text/plain;
+            }
+            
+            # API endpoints
+            location /api/ {
+                limit_req zone=api burst=20 nodelay;
+                proxy_pass http://mce_api/;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+                proxy_connect_timeout 60s;
+                proxy_send_timeout 60s;
+                proxy_read_timeout 60s;
+                proxy_buffering on;
+                proxy_buffer_size 128k;
+                proxy_buffers 4 256k;
+                proxy_busy_buffers_size 256k;
+            }
+            
+            # Web application
+            location / {
+                limit_req zone=app burst=50 nodelay;
+                proxy_pass http://mce_app/;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+                proxy_connect_timeout 60s;
+                proxy_send_timeout 60s;
+                proxy_read_timeout 60s;
+            }
+            
+            # Static files (if any)
+            location /static/ {
+                alias /var/www/static/;
+                expires 1y;
+                add_header Cache-Control "public, immutable";
+                access_log off;
+            }
+            
+            # Metrics endpoint (protected)
+            location /metrics {
+                allow 10.0.0.0/8;
+                allow 172.16.0.0/12;
+                allow 192.168.0.0/16;
+                deny all;
+                proxy_pass http://mce_app/metrics;
+            }
+        }
+    }
+    
+---
+# Fluentd Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluentd-config
+  namespace: multimodal-contract-extractor
+  labels:
+    app: fluentd
+    config-type: logging
+data:
+  fluent.conf: |
+    <source>
+      @type tail
+      path /var/log/containers/*mce*.log
+      pos_file /var/log/fluentd-containers.log.pos
+      tag kubernetes.var.log.containers.*
+      read_from_head true
+      format json
+      time_format %Y-%m-%dT%H:%M:%S.%NZ
+    </source>
+    
+    <filter kubernetes.var.log.containers.**>
+      @type kubernetes_metadata
+      @log_level warn
+      skip_labels false
+      skip_container_metadata false
+      skip_master_url false
+      skip_namespace_metadata false
+    </filter>
+    
+    <match kubernetes.var.log.containers.**>
+      @type elasticsearch
+      @log_level info
+      hosts elasticsearch.monitoring.svc.cluster.local:9200
+      index_name mce-logs
+      type_name _doc
+      include_timestamp true
+      reload_connections false
+      reconnect_on_error true
+      reload_on_failure true
+      log_es_400_reason false
+      logstash_prefix mce-logs
+      logstash_dateformat %Y.%m.%d
+      flush_interval 5s
+      max_retry_wait 30
+      disable_retry_limit
+      buffer_type file
+      buffer_path /var/log/fluentd-buffer
+      buffer_chunk_limit 32MB
+      buffer_queue_limit 8
+    </match>

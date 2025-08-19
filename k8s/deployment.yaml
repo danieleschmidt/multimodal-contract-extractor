@@ -1,0 +1,542 @@
+# Production Kubernetes Deployment for Multimodal Contract Extractor
+# Supports both CPU and GPU deployments with comprehensive monitoring and auto-scaling
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mce-app
+  namespace: multimodal-contract-extractor
+  labels:
+    app: mce-app
+    version: "4.0.0"
+    environment: production
+    tier: application
+    component: web-api
+  annotations:
+    deployment.kubernetes.io/revision: "1"
+    kubernetes.io/change-cause: "Initial production deployment"
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: mce-app
+      version: "4.0.0"
+  template:
+    metadata:
+      labels:
+        app: mce-app
+        version: "4.0.0"
+        environment: production
+        tier: application
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+        fluentd.io/parser-type: "json"
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+    spec:
+      serviceAccountName: mce-app
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      
+      # Anti-affinity to spread pods across nodes
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - mce-app
+              topologyKey: kubernetes.io/hostname
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 50
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - compute-optimized
+          - weight: 30
+            preference:
+              matchExpressions:
+              - key: availability-zone
+                operator: In
+                values:
+                - us-west-2a
+                - us-west-2b
+                - us-west-2c
+
+      tolerations:
+      - key: "node.kubernetes.io/memory-pressure"
+        operator: "Exists"
+        effect: "NoExecute"
+        tolerationSeconds: 300
+      - key: "node.kubernetes.io/disk-pressure"
+        operator: "Exists"
+        effect: "NoExecute"
+        tolerationSeconds: 300
+
+      # Init containers for setup tasks
+      initContainers:
+      - name: wait-for-database
+        image: busybox:1.35
+        command: ['sh', '-c']
+        args:
+        - |
+          until nc -z postgres-service 5432; do
+            echo "Waiting for PostgreSQL...";
+            sleep 5;
+          done;
+          echo "PostgreSQL is ready!"
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+
+      - name: wait-for-redis
+        image: busybox:1.35
+        command: ['sh', '-c']
+        args:
+        - |
+          until nc -z redis-service 6379; do
+            echo "Waiting for Redis...";
+            sleep 3;
+          done;
+          echo "Redis is ready!"
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+
+      - name: database-migration
+        image: mce-app:4.0.0-cpu-prod
+        command: ['python', '-m', 'alembic', 'upgrade', 'head']
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: mce-database-credentials
+              key: DATABASE_URL
+        envFrom:
+        - configMapRef:
+            name: mce-config
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: false
+          runAsNonRoot: true
+          runAsUser: 1000
+
+      containers:
+      # Main application container
+      - name: mce-app
+        image: mce-app:4.0.0-cpu-prod  # Updated at deployment time
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8501
+          name: web
+          protocol: TCP
+        - containerPort: 8502
+          name: api
+          protocol: TCP
+        - containerPort: 9090
+          name: metrics
+          protocol: TCP
+        
+        env:
+        # Database configuration from secrets
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: mce-database-credentials
+              key: DATABASE_URL
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: mce-redis-credentials
+              key: REDIS_URL
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: mce-app-secrets
+              key: SECRET_KEY
+        - name: JWT_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: mce-app-secrets
+              key: JWT_SECRET_KEY
+        
+        # Kubernetes-specific environment
+        - name: KUBERNETES_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: KUBERNETES_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: KUBERNETES_NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: KUBERNETES_POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        
+        envFrom:
+        - configMapRef:
+            name: mce-config
+
+        resources:
+          requests:
+            cpu: "1"
+            memory: "2Gi"
+            ephemeral-storage: "5Gi"
+          limits:
+            cpu: "4"
+            memory: "8Gi"
+            ephemeral-storage: "10Gi"
+
+        # Health checks
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8501
+            scheme: HTTP
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+          successThreshold: 1
+
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8501
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+          successThreshold: 1
+
+        startupProbe:
+          httpGet:
+            path: /health/startup
+            port: 8501
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 30
+          successThreshold: 1
+
+        # Security context
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+
+        # Volume mounts
+        volumeMounts:
+        - name: app-config
+          mountPath: /app/config.yml
+          subPath: config.yml
+          readOnly: true
+        - name: tmp-volume
+          mountPath: /tmp
+        - name: app-cache
+          mountPath: /app/cache
+        - name: app-logs
+          mountPath: /app/logs
+        - name: prometheus-metrics
+          mountPath: /tmp/prometheus
+        - name: tls-certs
+          mountPath: /etc/ssl/certs
+          readOnly: true
+
+        # Lifecycle hooks
+        lifecycle:
+          preStop:
+            exec:
+              command: ["/bin/sh", "-c", "sleep 15"]
+
+      # Monitoring sidecar container
+      - name: monitoring-agent
+        image: prom/node-exporter:v1.6.1
+        args:
+        - --web.listen-address=0.0.0.0:9100
+        - --path.procfs=/host/proc
+        - --path.sysfs=/host/sys
+        - --collector.filesystem.ignored-mount-points=^/(dev|proc|sys|var/lib/docker/.+)($|/)
+        - --collector.filesystem.ignored-fs-types=^(autofs|binfmt_misc|cgroup|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|mqueue|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|sysfs|tracefs)$
+        ports:
+        - containerPort: 9100
+          name: node-metrics
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+        volumeMounts:
+        - name: proc
+          mountPath: /host/proc
+          readOnly: true
+        - name: sys
+          mountPath: /host/sys
+          readOnly: true
+
+      # Log forwarding sidecar
+      - name: log-forwarder
+        image: fluent/fluent-bit:2.1.8
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "64Mi"
+          limits:
+            cpu: "100m"
+            memory: "128Mi"
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+        volumeMounts:
+        - name: fluent-bit-config
+          mountPath: /fluent-bit/etc
+        - name: app-logs
+          mountPath: /var/log/app
+          readOnly: true
+
+      volumes:
+      - name: app-config
+        configMap:
+          name: mce-app-config
+          defaultMode: 0444
+      - name: tmp-volume
+        emptyDir: {}
+      - name: app-cache
+        persistentVolumeClaim:
+          claimName: mce-cache-pvc
+      - name: app-logs
+        persistentVolumeClaim:
+          claimName: mce-logs-pvc
+      - name: prometheus-metrics
+        emptyDir: {}
+      - name: tls-certs
+        secret:
+          secretName: mce-tls-cert
+          defaultMode: 0400
+      - name: proc
+        hostPath:
+          path: /proc
+      - name: sys
+        hostPath:
+          path: /sys
+      - name: fluent-bit-config
+        configMap:
+          name: fluent-bit-config
+
+      imagePullSecrets:
+      - name: mce-registry-secret
+
+      # Termination settings
+      terminationGracePeriodSeconds: 30
+      
+      # DNS policy
+      dnsPolicy: ClusterFirst
+      dnsConfig:
+        options:
+        - name: ndots
+          value: "2"
+        - name: edns0
+
+---
+# GPU Deployment (separate for GPU nodes)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mce-app-gpu
+  namespace: multimodal-contract-extractor
+  labels:
+    app: mce-app-gpu
+    version: "4.0.0"
+    environment: production
+    tier: application
+    component: gpu-processing
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: mce-app-gpu
+      version: "4.0.0"
+  template:
+    metadata:
+      labels:
+        app: mce-app-gpu
+        version: "4.0.0"
+        environment: production
+        tier: application
+        gpu-enabled: "true"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: mce-app
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+
+      # GPU node selection
+      nodeSelector:
+        accelerator: nvidia-tesla-v100
+      tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - amd64
+              - key: node.kubernetes.io/instance-type
+                operator: In
+                values:
+                - p3.2xlarge
+                - p3.8xlarge
+                - g4dn.xlarge
+
+      containers:
+      - name: mce-app-gpu
+        image: mce-app:4.0.0-gpu-prod
+        imagePullPolicy: IfNotPresent
+        
+        env:
+        - name: MCE_ENABLE_GPU
+          value: "true"
+        - name: CUDA_VISIBLE_DEVICES
+          value: "all"
+        - name: NVIDIA_VISIBLE_DEVICES
+          value: "all"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: mce-database-credentials
+              key: DATABASE_URL
+
+        resources:
+          requests:
+            cpu: "2"
+            memory: "4Gi"
+            nvidia.com/gpu: 1
+          limits:
+            cpu: "8"
+            memory: "16Gi"
+            nvidia.com/gpu: 1
+
+        ports:
+        - containerPort: 8501
+          name: web
+        - containerPort: 8502  
+          name: api
+        - containerPort: 9090
+          name: metrics
+
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8501
+          initialDelaySeconds: 90
+          periodSeconds: 30
+          timeoutSeconds: 15
+          failureThreshold: 3
+
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8501
+          initialDelaySeconds: 60
+          periodSeconds: 15
+          timeoutSeconds: 10
+          failureThreshold: 3
+
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+
+        volumeMounts:
+        - name: tmp-volume
+          mountPath: /tmp
+        - name: app-cache
+          mountPath: /app/cache
+
+      volumes:
+      - name: tmp-volume
+        emptyDir: {}
+      - name: app-cache
+        persistentVolumeClaim:
+          claimName: mce-gpu-cache-pvc
+
+      terminationGracePeriodSeconds: 60
