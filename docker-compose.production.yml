@@ -1,0 +1,716 @@
+# Production Docker Compose for Multimodal Contract Extractor
+# Enterprise-grade deployment with comprehensive monitoring and security
+
+version: '3.8'
+
+# =============================================================================
+# Network Configuration
+# =============================================================================
+networks:
+  frontend:
+    driver: bridge
+    internal: false
+    ipam:
+      config:
+        - subnet: 172.20.1.0/24
+  backend:
+    driver: bridge  
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.20.2.0/24
+  monitoring:
+    driver: bridge
+    internal: false
+    ipam:
+      config:
+        - subnet: 172.20.3.0/24
+
+# =============================================================================
+# Volume Configuration
+# =============================================================================
+volumes:
+  # Application data
+  app-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${DATA_PATH:-/opt/mce/data}
+  app-logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${LOGS_PATH:-/opt/mce/logs}
+  app-cache:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${CACHE_PATH:-/opt/mce/cache}
+      
+  # Database volumes
+  postgres-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${DB_PATH:-/opt/mce/database}
+  redis-data:
+    driver: local
+  
+  # Monitoring volumes
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+  elasticsearch-data:
+    driver: local
+  alertmanager-data:
+    driver: local
+  
+  # Security volumes
+  vault-data:
+    driver: local
+  ssl-certs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${SSL_CERTS_PATH:-/opt/mce/ssl}
+
+# =============================================================================
+# Service Configuration
+# =============================================================================
+services:
+  # ===========================================================================
+  # Core Application Services
+  # ===========================================================================
+  
+  # Main Application (CPU Version)
+  app-cpu:
+    build:
+      context: .
+      dockerfile: Dockerfile.production
+      target: production-cpu
+      args:
+        PYTHON_VERSION: "3.11.8"
+        SECURITY_SCAN: "true"
+    image: mce-app:4.0.0-cpu-prod
+    container_name: mce-app-cpu
+    hostname: mce-app-cpu
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      vault:
+        condition: service_healthy
+    networks:
+      - frontend
+      - backend
+      - monitoring
+    ports:
+      - "8501:8501"
+      - "8502:8502"
+    environment:
+      # Core settings
+      - MCE_ENVIRONMENT=production
+      - MCE_LOG_LEVEL=INFO
+      - MCE_ENABLE_GPU=false
+      - MCE_ENABLE_RESEARCH_ALGORITHMS=true
+      - MCE_ENABLE_ENTERPRISE_FEATURES=true
+      
+      # Database
+      - DATABASE_URL=postgresql://mce_user:${POSTGRES_PASSWORD}@postgres:5432/mce_db
+      - REDIS_URL=redis://redis:6379/0
+      
+      # Security
+      - VAULT_ADDR=http://vault:8200
+      - VAULT_TOKEN=${VAULT_TOKEN}
+      - SSL_CERT_PATH=/etc/ssl/certs/mce.crt
+      - SSL_KEY_PATH=/etc/ssl/private/mce.key
+      
+      # Monitoring
+      - PROMETHEUS_MULTIPROC_DIR=/app/tmp/prometheus
+      - JAEGER_AGENT_HOST=jaeger
+      - JAEGER_AGENT_PORT=6831
+      
+      # Performance
+      - WORKER_PROCESSES=4
+      - WORKER_CONNECTIONS=1000
+      - MAX_FILE_SIZE_MB=500
+      - PROCESSING_TIMEOUT_SECONDS=300
+      
+      # Features
+      - ENABLE_ADVANCED_ANALYTICS=true
+      - ENABLE_COMPLIANCE_MONITORING=true
+      - ENABLE_AUTO_SCALING=true
+      - ENABLE_CACHING=true
+    volumes:
+      - app-data:/app/data:rw
+      - app-logs:/app/logs:rw
+      - app-cache:/app/cache:rw
+      - ssl-certs:/etc/ssl:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "from src.multimodal_contract_extractor.health import is_healthy; exit(0 if is_healthy() else 1)"]
+      interval: 30s
+      timeout: 30s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: 8G
+        reservations:
+          cpus: "2.0"
+          memory: 4G
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: "fluentd:24224"
+        tag: "mce.app.cpu"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /app/tmp:rw,noexec,nosuid,size=1G
+    profiles:
+      - cpu-deployment
+
+  # GPU Application (when GPU is available)
+  app-gpu:
+    build:
+      context: .
+      dockerfile: Dockerfile.production
+      target: production-gpu
+      args:
+        CUDA_VERSION: "12.1.1"
+    image: mce-app:4.0.0-gpu-prod
+    container_name: mce-app-gpu
+    hostname: mce-app-gpu
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - frontend
+      - backend
+      - monitoring
+    ports:
+      - "8501:8501"
+      - "8502:8502"
+    environment:
+      - MCE_ENVIRONMENT=production
+      - MCE_ENABLE_GPU=true
+      - MCE_GPU_MEMORY_FRACTION=0.8
+      - CUDA_VISIBLE_DEVICES=all
+      - NVIDIA_VISIBLE_DEVICES=all
+      - DATABASE_URL=postgresql://mce_user:${POSTGRES_PASSWORD}@postgres:5432/mce_db
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - app-data:/app/data:rw
+      - app-logs:/app/logs:rw
+      - app-cache:/app/cache:rw
+    deploy:
+      resources:
+        limits:
+          cpus: "8.0"
+          memory: 16G
+        reservations:
+          cpus: "4.0"
+          memory: 8G
+        generic_resources:
+          - discrete_resource_spec:
+              kind: "NVIDIA-GPU"
+              value: 1
+    runtime: nvidia
+    profiles:
+      - gpu-deployment
+
+  # Load Balancer & Reverse Proxy
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: mce-nginx
+    restart: unless-stopped
+    depends_on:
+      - app-cpu
+    networks:
+      - frontend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ssl-certs:/etc/ssl/certs:ro
+      - app-logs:/var/log/nginx:rw
+    environment:
+      - NGINX_HOST=${DOMAIN_NAME:-localhost}
+      - NGINX_PORT=80
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: "fluentd:24224"
+        tag: "mce.nginx"
+
+  # ===========================================================================
+  # Database Services
+  # ===========================================================================
+  
+  # PostgreSQL Primary Database
+  postgres:
+    image: postgres:15.4-alpine
+    container_name: mce-postgres
+    hostname: mce-postgres-primary
+    restart: unless-stopped
+    networks:
+      - backend
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=mce_db
+      - POSTGRES_USER=mce_user
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_INITDB_ARGS="--auth-host=md5"
+      - POSTGRES_HOST_AUTH_METHOD=md5
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d:ro
+    command: >
+      postgres 
+      -c shared_preload_libraries=pg_stat_statements
+      -c pg_stat_statements.track=all
+      -c max_connections=200
+      -c shared_buffers=256MB
+      -c effective_cache_size=1GB
+      -c maintenance_work_mem=64MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+      -c work_mem=4MB
+      -c min_wal_size=1GB
+      -c max_wal_size=4GB
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mce_user -d mce_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+        reservations:
+          cpus: "1.0"
+          memory: 1G
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: "fluentd:24224"
+        tag: "mce.postgres"
+
+  # Redis Cache & Session Store
+  redis:
+    image: redis:7.2-alpine
+    container_name: mce-redis
+    hostname: mce-redis
+    restart: unless-stopped
+    networks:
+      - backend
+    ports:
+      - "6379:6379"
+    command: >
+      redis-server 
+      --appendonly yes 
+      --maxmemory 512mb 
+      --maxmemory-policy allkeys-lru
+      --timeout 300
+      --tcp-keepalive 60
+      --maxclients 1000
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: "fluentd:24224"
+        tag: "mce.redis"
+
+  # ===========================================================================
+  # Security & Secrets Management
+  # ===========================================================================
+  
+  # HashiCorp Vault
+  vault:
+    image: vault:1.15.2
+    container_name: mce-vault
+    hostname: mce-vault
+    restart: unless-stopped
+    networks:
+      - backend
+    ports:
+      - "8200:8200"
+    environment:
+      - VAULT_ADDR=http://0.0.0.0:8200
+      - VAULT_API_ADDR=http://0.0.0.0:8200
+      - VAULT_DEV_ROOT_TOKEN_ID=${VAULT_TOKEN}
+    volumes:
+      - vault-data:/vault/data
+      - ./vault/config:/vault/config:ro
+    cap_add:
+      - IPC_LOCK
+    command: vault server -config=/vault/config/vault.hcl
+    healthcheck:
+      test: ["CMD", "vault", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: "fluentd:24224"
+        tag: "mce.vault"
+
+  # ===========================================================================
+  # Monitoring & Observability Stack
+  # ===========================================================================
+  
+  # Prometheus Metrics Collection
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: mce-prometheus
+    hostname: mce-prometheus
+    restart: unless-stopped
+    networks:
+      - monitoring
+      - backend
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+      - '--storage.tsdb.retention.size=50GB'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+      - '--web.enable-remote-write-receiver'
+      - '--query.max-concurrency=50'
+      - '--query.timeout=2m'
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+      - ./monitoring/recording_rules.yml:/etc/prometheus/recording_rules.yml:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      - alertmanager
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 4G
+        reservations:
+          cpus: "1.0"
+          memory: 2G
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: "fluentd:24224"
+        tag: "mce.prometheus"
+
+  # Grafana Visualization
+  grafana:
+    image: grafana/grafana-enterprise:10.1.0
+    container_name: mce-grafana
+    hostname: mce-grafana
+    restart: unless-stopped
+    networks:
+      - monitoring
+      - frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel,grafana-clock-panel,grafana-worldmap-panel
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_USERS_ALLOW_ORG_CREATE=false
+      - GF_ALERTING_ENABLED=true
+      - GF_UNIFIED_ALERTING_ENABLED=true
+      - GF_SERVER_DOMAIN=${DOMAIN_NAME:-localhost}
+      - GF_SERVER_ROOT_URL=https://${DOMAIN_NAME:-localhost}/grafana/
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: "fluentd:24224"
+        tag: "mce.grafana"
+
+  # AlertManager
+  alertmanager:
+    image: prom/alertmanager:v0.26.0
+    container_name: mce-alertmanager
+    hostname: mce-alertmanager
+    restart: unless-stopped
+    networks:
+      - monitoring
+    ports:
+      - "9093:9093"
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://localhost:9093'
+      - '--cluster.listen-address=0.0.0.0:9094'
+      - '--log.level=info'
+    volumes:
+      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9093/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: "fluentd:24224"
+        tag: "mce.alertmanager"
+
+  # Jaeger Distributed Tracing
+  jaeger:
+    image: jaegertracing/all-in-one:1.49
+    container_name: mce-jaeger
+    hostname: mce-jaeger
+    restart: unless-stopped
+    networks:
+      - monitoring
+      - backend
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "14268:14268"  # HTTP collector
+      - "6831:6831/udp"  # Jaeger agent
+    environment:
+      - COLLECTOR_ZIPKIN_HOST_PORT=:9411
+      - COLLECTOR_OTLP_ENABLED=true
+      - SPAN_STORAGE_TYPE=elasticsearch
+      - ES_SERVER_URLS=http://elasticsearch:9200
+    depends_on:
+      - elasticsearch
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:14269/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: "fluentd:24224"
+        tag: "mce.jaeger"
+
+  # ===========================================================================
+  # Logging Stack (EFK)
+  # ===========================================================================
+  
+  # Elasticsearch
+  elasticsearch:
+    image: elasticsearch:8.10.2
+    container_name: mce-elasticsearch
+    hostname: mce-elasticsearch
+    restart: unless-stopped
+    networks:
+      - monitoring
+    ports:
+      - "9200:9200"
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms2g -Xmx2g"
+      - xpack.security.enabled=false
+      - xpack.monitoring.collection.enabled=true
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 4G
+        reservations:
+          cpus: "1.0"
+          memory: 2G
+    logging:
+      driver: json-file
+      options:
+        max-size: "200m"
+        max-file: "3"
+
+  # Fluentd Log Aggregation
+  fluentd:
+    build:
+      context: ./fluentd
+      dockerfile: Dockerfile
+    image: mce-fluentd:latest
+    container_name: mce-fluentd
+    hostname: mce-fluentd
+    restart: unless-stopped
+    networks:
+      - monitoring
+    ports:
+      - "24224:24224"
+      - "24224:24224/udp"
+    environment:
+      - FLUENTD_CONF=fluent.conf
+    volumes:
+      - ./fluentd/conf:/fluentd/etc:ro
+      - app-logs:/var/log/apps:ro
+    depends_on:
+      - elasticsearch
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:24220/api/plugins.json"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "3"
+
+  # Kibana Log Visualization
+  kibana:
+    image: kibana:8.10.2
+    container_name: mce-kibana
+    hostname: mce-kibana
+    restart: unless-stopped
+    networks:
+      - monitoring
+      - frontend
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - SERVER_NAME=kibana
+      - SERVER_HOST=0.0.0.0
+    depends_on:
+      - elasticsearch
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5601/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: "fluentd:24224"
+        tag: "mce.kibana"
+
+  # ===========================================================================
+  # Performance & Load Testing
+  # ===========================================================================
+  
+  # Node Exporter for System Metrics
+  node-exporter:
+    image: prom/node-exporter:v1.6.1
+    container_name: mce-node-exporter
+    hostname: mce-node-exporter
+    restart: unless-stopped
+    networks:
+      - monitoring
+    ports:
+      - "9100:9100"
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+      - '--collector.netdev.device-exclude=^lo$$'
+      - '--collector.diskstats.ignored-devices=^(ram|loop|fd|(h|s|v)d[a-z]|nvme\\d+n\\d+p)\\d+$$'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    privileged: true
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9100/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # cAdvisor for Container Metrics
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.47.2
+    container_name: mce-cadvisor
+    hostname: mce-cadvisor
+    restart: unless-stopped
+    networks:
+      - monitoring
+    ports:
+      - "8080:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    privileged: true
+    devices:
+      - /dev/kmsg:/dev/kmsg
+    command:
+      - '--housekeeping_interval=30s'
+      - '--max_housekeeping_interval=35s'
+      - '--event_storage_event_limit=default=0'
+      - '--event_storage_age_limit=default=0'
+      - '--disable_metrics=percpu,sched,tcp,udp,disk,diskIO,accelerator,hugetlb'
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

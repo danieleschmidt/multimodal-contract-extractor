@@ -1,0 +1,647 @@
+# Role-Based Access Control (RBAC) Configuration
+# Zero-Trust Security Architecture with Least Privilege Access
+
+# =============================================================================
+# Service Accounts
+# =============================================================================
+
+# MCE Application Service Account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mce-app
+  namespace: multimodal-contract-extractor
+  labels:
+    app: mce-app
+    security.level: restricted
+  annotations:
+    iam.gke.io/gcp-service-account: mce-app@PROJECT_ID.iam.gserviceaccount.com
+    eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/mce-app-role
+automountServiceAccountToken: true
+
+---
+# Monitoring Service Account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mce-monitoring
+  namespace: multimodal-contract-extractor
+  labels:
+    app: monitoring
+    security.level: monitoring
+automountServiceAccountToken: true
+
+---
+# Database Migration Service Account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mce-db-migration
+  namespace: multimodal-contract-extractor
+  labels:
+    app: database
+    security.level: admin
+automountServiceAccountToken: true
+
+---
+# Backup Service Account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mce-backup
+  namespace: multimodal-contract-extractor
+  labels:
+    app: backup
+    security.level: backup
+automountServiceAccountToken: true
+
+# =============================================================================
+# ClusterRoles - Global Permissions
+# =============================================================================
+
+# Read-only access to cluster resources for monitoring
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: mce-monitoring-reader
+  labels:
+    security.level: monitoring
+rules:
+- apiGroups: [""]
+  resources:
+  - nodes
+  - nodes/proxy
+  - nodes/metrics
+  - services
+  - endpoints
+  - pods
+  - ingresses
+  - configmaps
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["extensions", "networking.k8s.io"]
+  resources:
+  - ingresses
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources:
+  - deployments
+  - daemonsets
+  - replicasets
+  - statefulsets
+  verbs: ["get", "list", "watch"]
+- nonResourceURLs: ["/metrics", "/metrics/cadvisor"]
+  verbs: ["get"]
+
+---
+# Minimal cluster access for application
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: mce-app-cluster-reader
+  labels:
+    security.level: restricted
+rules:
+- apiGroups: [""]
+  resources:
+  - nodes
+  verbs: ["get", "list"]
+- apiGroups: ["metrics.k8s.io"]
+  resources:
+  - nodes
+  - pods
+  verbs: ["get", "list"]
+
+---
+# Service mesh permissions
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: mce-service-mesh
+  labels:
+    security.level: network
+rules:
+- apiGroups: ["networking.istio.io"]
+  resources:
+  - virtualservices
+  - destinationrules
+  - gateways
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["security.istio.io"]
+  resources:
+  - authorizationpolicies
+  - peerauthentications
+  verbs: ["get", "list", "watch"]
+
+# =============================================================================
+# Roles - Namespace-specific Permissions
+# =============================================================================
+
+# Application role with minimal required permissions
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: multimodal-contract-extractor
+  name: mce-app-role
+  labels:
+    security.level: restricted
+rules:
+# ConfigMap access for configuration
+- apiGroups: [""]
+  resources: ["configmaps"]
+  resourceNames: ["mce-config", "mce-app-config"]
+  verbs: ["get", "watch"]
+
+# Secret access for credentials
+- apiGroups: [""]
+  resources: ["secrets"]
+  resourceNames: 
+  - "mce-database-credentials"
+  - "mce-redis-credentials" 
+  - "mce-app-secrets"
+  - "mce-tls-cert"
+  verbs: ["get"]
+
+# Pod information for health checks and metrics
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+
+# Service discovery
+- apiGroups: [""]
+  resources: ["services", "endpoints"]
+  verbs: ["get", "list", "watch"]
+
+# Events for debugging (read-only)
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["get", "list", "watch"]
+
+---
+# Monitoring role with extended read permissions
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: multimodal-contract-extractor
+  name: mce-monitoring-role
+  labels:
+    security.level: monitoring
+rules:
+- apiGroups: [""]
+  resources:
+  - pods
+  - services
+  - endpoints
+  - configmaps
+  - secrets
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources:
+  - deployments
+  - replicasets
+  - statefulsets
+  - daemonsets
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["extensions", "networking.k8s.io"]
+  resources:
+  - ingresses
+  verbs: ["get", "list", "watch"]
+
+---
+# Database migration role with admin permissions
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: multimodal-contract-extractor
+  name: mce-db-migration-role
+  labels:
+    security.level: admin
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  resourceNames: ["mce-database-credentials"]
+  verbs: ["get"]
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "create", "update", "patch"]
+- apiGroups: ["batch"]
+  resources: ["jobs"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+
+---
+# Backup role with storage access
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: multimodal-contract-extractor
+  name: mce-backup-role
+  labels:
+    security.level: backup
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  resourceNames: 
+  - "mce-database-credentials"
+  - "mce-backup-credentials"
+  verbs: ["get"]
+- apiGroups: [""]
+  resources: ["persistentvolumes", "persistentvolumeclaims"]
+  verbs: ["get", "list", "create"]
+- apiGroups: ["batch"]
+  resources: ["jobs", "cronjobs"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+
+# =============================================================================
+# ClusterRoleBindings - Global Permission Assignments
+# =============================================================================
+
+# Monitoring cluster access
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: mce-monitoring-cluster-binding
+  labels:
+    security.level: monitoring
+subjects:
+- kind: ServiceAccount
+  name: mce-monitoring
+  namespace: multimodal-contract-extractor
+- kind: ServiceAccount
+  name: prometheus-mce
+  namespace: monitoring
+roleRef:
+  kind: ClusterRole
+  name: mce-monitoring-reader
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Application cluster access (minimal)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: mce-app-cluster-binding
+  labels:
+    security.level: restricted
+subjects:
+- kind: ServiceAccount
+  name: mce-app
+  namespace: multimodal-contract-extractor
+roleRef:
+  kind: ClusterRole
+  name: mce-app-cluster-reader
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Service mesh access
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: mce-service-mesh-binding
+  labels:
+    security.level: network
+subjects:
+- kind: ServiceAccount
+  name: mce-app
+  namespace: multimodal-contract-extractor
+roleRef:
+  kind: ClusterRole
+  name: mce-service-mesh
+  apiGroup: rbac.authorization.k8s.io
+
+# =============================================================================
+# RoleBindings - Namespace Permission Assignments
+# =============================================================================
+
+# Application permissions
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mce-app-binding
+  namespace: multimodal-contract-extractor
+  labels:
+    security.level: restricted
+subjects:
+- kind: ServiceAccount
+  name: mce-app
+  namespace: multimodal-contract-extractor
+roleRef:
+  kind: Role
+  name: mce-app-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Monitoring permissions
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mce-monitoring-binding
+  namespace: multimodal-contract-extractor
+  labels:
+    security.level: monitoring
+subjects:
+- kind: ServiceAccount
+  name: mce-monitoring
+  namespace: multimodal-contract-extractor
+- kind: ServiceAccount
+  name: prometheus-mce
+  namespace: monitoring
+- kind: ServiceAccount
+  name: grafana
+  namespace: monitoring
+roleRef:
+  kind: Role
+  name: mce-monitoring-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Database migration permissions
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mce-db-migration-binding
+  namespace: multimodal-contract-extractor
+  labels:
+    security.level: admin
+subjects:
+- kind: ServiceAccount
+  name: mce-db-migration
+  namespace: multimodal-contract-extractor
+roleRef:
+  kind: Role
+  name: mce-db-migration-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Backup permissions
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mce-backup-binding
+  namespace: multimodal-contract-extractor
+  labels:
+    security.level: backup
+subjects:
+- kind: ServiceAccount
+  name: mce-backup
+  namespace: multimodal-contract-extractor
+roleRef:
+  kind: Role
+  name: mce-backup-role
+  apiGroup: rbac.authorization.k8s.io
+
+# =============================================================================
+# Pod Security Standards
+# =============================================================================
+
+# Restricted Pod Security Standard for application
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: multimodal-contract-extractor
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+    security.level: restricted
+
+---
+# Baseline Pod Security Standard for monitoring
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: baseline
+    pod-security.kubernetes.io/warn: baseline
+    security.level: monitoring
+
+# =============================================================================
+# Security Context Constraints (for OpenShift compatibility)
+# =============================================================================
+
+apiVersion: security.openshift.io/v1
+kind: SecurityContextConstraints
+metadata:
+  name: mce-app-scc
+  labels:
+    security.level: restricted
+allowHostDirVolumePlugin: false
+allowHostIPC: false
+allowHostNetwork: false
+allowHostPID: false
+allowHostPorts: false
+allowPrivilegeEscalation: false
+allowPrivilegedContainer: false
+allowedCapabilities: null
+defaultAddCapabilities: null
+fsGroup:
+  type: MustRunAs
+  ranges:
+  - min: 1000
+    max: 65535
+priority: 10
+readOnlyRootFilesystem: true
+requiredDropCapabilities:
+- ALL
+runAsUser:
+  type: MustRunAsNonRoot
+seLinuxContext:
+  type: MustRunAs
+supplementalGroups:
+  type: MustRunAs
+  ranges:
+  - min: 1000
+    max: 65535
+volumes:
+- configMap
+- secret
+- persistentVolumeClaim
+- emptyDir
+- projected
+- downwardAPI
+users:
+- system:serviceaccount:multimodal-contract-extractor:mce-app
+
+---
+# Monitoring SCC with slightly relaxed constraints
+apiVersion: security.openshift.io/v1
+kind: SecurityContextConstraints
+metadata:
+  name: mce-monitoring-scc
+  labels:
+    security.level: monitoring
+allowHostDirVolumePlugin: true
+allowHostIPC: false
+allowHostNetwork: false
+allowHostPID: false
+allowHostPorts: false
+allowPrivilegeEscalation: false
+allowPrivilegedContainer: false
+allowedCapabilities: null
+defaultAddCapabilities: null
+fsGroup:
+  type: RunAsAny
+readOnlyRootFilesystem: false
+requiredDropCapabilities:
+- ALL
+runAsUser:
+  type: RunAsAny
+seLinuxContext:
+  type: MustRunAs
+supplementalGroups:
+  type: RunAsAny
+volumes:
+- '*'
+users:
+- system:serviceaccount:monitoring:prometheus-mce
+- system:serviceaccount:monitoring:grafana
+- system:serviceaccount:monitoring:alertmanager
+
+# =============================================================================
+# Network Policies for Zero-Trust Networking
+# =============================================================================
+
+# Default deny all traffic
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: multimodal-contract-extractor
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+
+---
+# Allow application to access database
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-app-to-db
+  namespace: multimodal-contract-extractor
+spec:
+  podSelector:
+    matchLabels:
+      app: mce-app
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app: postgres
+    ports:
+    - protocol: TCP
+      port: 5432
+
+---
+# Allow application to access redis
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-app-to-redis
+  namespace: multimodal-contract-extractor
+spec:
+  podSelector:
+    matchLabels:
+      app: mce-app
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app: redis
+    ports:
+    - protocol: TCP
+      port: 6379
+
+---
+# Allow ingress traffic to application
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-app
+  namespace: multimodal-contract-extractor
+spec:
+  podSelector:
+    matchLabels:
+      app: mce-app
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: nginx-ingress
+    - namespaceSelector:
+        matchLabels:
+          name: istio-system
+    ports:
+    - protocol: TCP
+      port: 8501
+    - protocol: TCP
+      port: 8502
+
+---
+# Allow monitoring access
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-monitoring-access
+  namespace: multimodal-contract-extractor
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 9090
+    - protocol: TCP
+      port: 8080
+
+---
+# Allow DNS resolution
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: multimodal-contract-extractor
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  egress:
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+
+---
+# Allow external HTTPS traffic (for API calls)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-external-https
+  namespace: multimodal-contract-extractor
+spec:
+  podSelector:
+    matchLabels:
+      app: mce-app
+  policyTypes:
+  - Egress
+  egress:
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 80

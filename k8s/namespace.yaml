@@ -1,0 +1,188 @@
+# Kubernetes Namespace Configuration for Production Deployment
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: multimodal-contract-extractor
+  labels:
+    name: multimodal-contract-extractor
+    environment: production
+    version: "4.0.0"
+    managed-by: kubernetes
+    team: legal-ai
+    cost-center: research
+    compliance.level: enterprise
+    security.zone: restricted
+  annotations:
+    description: "Production namespace for Multimodal Contract Extractor with advanced AI research capabilities"
+    created-by: "production-deployment-automation"
+    last-updated: "2025-01-24"
+    network-policy: "enabled"
+    resource-quotas: "enabled"
+    monitoring: "enabled"
+    backup: "enabled"
+---
+# Network Policy for Namespace Isolation
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: multimodal-contract-extractor
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+---
+# Allow ingress from nginx-ingress
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-nginx-ingress
+  namespace: multimodal-contract-extractor
+spec:
+  podSelector:
+    matchLabels:
+      app: mce-app
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: nginx-ingress
+    ports:
+    - protocol: TCP
+      port: 8501
+    - protocol: TCP
+      port: 8502
+---
+# Allow monitoring access
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-monitoring
+  namespace: multimodal-contract-extractor
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 9090
+    - protocol: TCP
+      port: 8080
+---
+# Allow internal communication
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-internal
+  namespace: multimodal-contract-extractor
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: multimodal-contract-extractor
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: multimodal-contract-extractor
+---
+# Allow DNS resolution
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: multimodal-contract-extractor
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  egress:
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+---
+# Resource Quota for Production Environment
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: production-quota
+  namespace: multimodal-contract-extractor
+spec:
+  hard:
+    # Compute resources
+    requests.cpu: "20"
+    requests.memory: 40Gi
+    limits.cpu: "50"
+    limits.memory: 100Gi
+    
+    # GPU resources
+    requests.nvidia.com/gpu: "4"
+    limits.nvidia.com/gpu: "8"
+    
+    # Storage
+    requests.storage: 1Ti
+    persistentvolumeclaims: "20"
+    
+    # Objects
+    pods: "50"
+    replicationcontrollers: "10"
+    secrets: "20"
+    configmaps: "20"
+    services: "15"
+    services.loadbalancers: "5"
+    services.nodeports: "5"
+    
+    # Advanced resources
+    count/deployments.apps: "10"
+    count/replicasets.apps: "20"
+    count/statefulsets.apps: "5"
+    count/jobs.batch: "20"
+    count/cronjobs.batch: "10"
+    count/ingresses.networking.k8s.io: "10"
+---
+# Limit Range for Resource Constraints
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: production-limits
+  namespace: multimodal-contract-extractor
+spec:
+  limits:
+  - default:
+      cpu: "2"
+      memory: "4Gi"
+      nvidia.com/gpu: "1"
+    defaultRequest:
+      cpu: "500m"
+      memory: "1Gi"
+    max:
+      cpu: "8"
+      memory: "16Gi"
+      nvidia.com/gpu: "2"
+    min:
+      cpu: "100m"
+      memory: "256Mi"
+    type: Container
+  - default:
+      storage: "10Gi"
+    max:
+      storage: "100Gi"
+    min:
+      storage: "1Gi"
+    type: PersistentVolumeClaim

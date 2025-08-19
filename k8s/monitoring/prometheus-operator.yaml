@@ -1,0 +1,460 @@
+# Prometheus Operator Configuration for Advanced Monitoring
+# Enterprise-grade monitoring with custom metrics and alerting
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    name: monitoring
+    monitoring: enabled
+---
+# Prometheus Operator ServiceAccount
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus-operator
+  namespace: monitoring
+---
+# Prometheus Operator ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: prometheus-operator
+rules:
+- apiGroups: [""]
+  resources:
+    - nodes
+    - nodes/proxy
+    - nodes/metrics
+    - services
+    - endpoints
+    - pods
+    - ingresses
+    - configmaps
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources:
+    - configmaps
+  verbs: ["create", "update", "delete"]
+- apiGroups: ["extensions", "networking.k8s.io"]
+  resources:
+    - ingresses
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources:
+    - deployments
+    - daemonsets
+    - replicasets
+    - statefulsets
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["monitoring.coreos.com"]
+  resources:
+    - prometheuses
+    - prometheusrules
+    - servicemonitors
+    - podmonitors
+    - alertmanagers
+  verbs: ["*"]
+- apiGroups: ["apiextensions.k8s.io"]
+  resources:
+    - customresourcedefinitions
+  verbs: ["create", "get", "list", "watch", "delete"]
+---
+# Prometheus Operator ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: prometheus-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: prometheus-operator
+subjects:
+- kind: ServiceAccount
+  name: prometheus-operator
+  namespace: monitoring
+---
+# Prometheus Operator Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus-operator
+  namespace: monitoring
+  labels:
+    app: prometheus-operator
+    version: v0.68.0
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus-operator
+  template:
+    metadata:
+      labels:
+        app: prometheus-operator
+    spec:
+      serviceAccountName: prometheus-operator
+      containers:
+      - name: prometheus-operator
+        image: quay.io/prometheus-operator/prometheus-operator:v0.68.0
+        args:
+        - --kubelet-service=kube-system/kubelet
+        - --logtostderr=true
+        - --config-reloader-image=quay.io/prometheus-operator/prometheus-config-reloader:v0.68.0
+        - --prometheus-config-reloader=quay.io/prometheus-operator/prometheus-config-reloader:v0.68.0
+        - --log-level=info
+        - --web.enable-tls=false
+        - --web.listen-address=0.0.0.0:8080
+        ports:
+        - containerPort: 8080
+          name: http
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65534
+        livenessProbe:
+          httpGet:
+            path: /metrics
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /metrics
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+---
+# Prometheus Instance
+apiVersion: monitoring.coreos.com/v1
+kind: Prometheus
+metadata:
+  name: mce-prometheus
+  namespace: monitoring
+  labels:
+    app: prometheus
+    prometheus: mce
+spec:
+  replicas: 2
+  retention: "30d"
+  retentionSize: "50GB"
+  
+  # Resource allocation
+  resources:
+    requests:
+      cpu: "1"
+      memory: "2Gi"
+    limits:
+      cpu: "2"
+      memory: "4Gi"
+  
+  # Storage configuration
+  storage:
+    volumeClaimTemplate:
+      spec:
+        storageClassName: fast-ssd
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 100Gi
+
+  # Service account
+  serviceAccountName: prometheus-mce
+  
+  # Security context
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    fsGroup: 2000
+
+  # Configuration
+  serviceMonitorSelector:
+    matchLabels:
+      monitoring: enabled
+  
+  podMonitorSelector:
+    matchLabels:
+      monitoring: enabled
+
+  ruleSelector:
+    matchLabels:
+      prometheus: mce
+
+  # Alertmanager configuration
+  alerting:
+    alertmanagers:
+    - namespace: monitoring
+      name: mce-alertmanager
+      port: web
+
+  # External labels
+  externalLabels:
+    cluster: multimodal-contract-extractor
+    environment: production
+    region: us-west-2
+
+  # Additional scrape configs
+  additionalScrapeConfigs:
+    name: additional-scrape-configs
+    key: additional-scrape-configs.yaml
+
+  # Web configuration
+  web:
+    pageTitle: "MCE Prometheus"
+    
+  # Enable admin API
+  enableAdminAPI: true
+  
+  # Log level
+  logLevel: info
+  
+  # Thanos sidecar for long-term storage
+  thanos:
+    image: quay.io/thanos/thanos:v0.32.0
+    version: v0.32.0
+    objectStorageConfig:
+      name: thanos-storage-config
+      key: thanos-storage.yaml
+
+  # Affinity rules
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+            - key: app
+              operator: In
+              values:
+              - prometheus
+          topologyKey: kubernetes.io/hostname
+
+---
+# Prometheus Service Account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus-mce
+  namespace: monitoring
+---
+# Prometheus ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: prometheus-mce
+rules:
+- apiGroups: [""]
+  resources:
+  - nodes
+  - nodes/proxy
+  - nodes/metrics
+  - services
+  - endpoints
+  - pods
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["extensions", "networking.k8s.io"]
+  resources:
+  - ingresses
+  verbs: ["get", "list", "watch"]
+- nonResourceURLs: ["/metrics"]
+  verbs: ["get"]
+---
+# Prometheus ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: prometheus-mce
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: prometheus-mce
+subjects:
+- kind: ServiceAccount
+  name: prometheus-mce
+  namespace: monitoring
+---
+# Prometheus Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus-operated
+  namespace: monitoring
+  labels:
+    app: prometheus
+    operated-prometheus: "true"
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+  - name: web
+    port: 9090
+    protocol: TCP
+    targetPort: web
+  - name: grpc
+    port: 10901
+    protocol: TCP
+    targetPort: grpc
+  selector:
+    app: prometheus
+---
+# Prometheus LoadBalancer Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus-service
+  namespace: monitoring
+  labels:
+    app: prometheus
+    service-type: load-balancer
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-internal: "true"
+spec:
+  type: LoadBalancer
+  ports:
+  - name: web
+    port: 9090
+    targetPort: 9090
+    protocol: TCP
+  selector:
+    app: prometheus
+    prometheus: mce
+---
+# Additional Scrape Configs
+apiVersion: v1
+kind: Secret
+metadata:
+  name: additional-scrape-configs
+  namespace: monitoring
+type: Opaque
+stringData:
+  additional-scrape-configs.yaml: |
+    # Custom application metrics
+    - job_name: 'mce-custom-metrics'
+      kubernetes_sd_configs:
+        - role: pod
+          namespaces:
+            names:
+              - multimodal-contract-extractor
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+          action: keep
+          regex: true
+        - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+          action: replace
+          target_label: __metrics_path__
+          regex: (.+)
+        - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+          action: replace
+          regex: ([^:]+)(?::\d+)?;(\d+)
+          replacement: $1:$2
+          target_label: __address__
+        - action: labelmap
+          regex: __meta_kubernetes_pod_label_(.+)
+        - source_labels: [__meta_kubernetes_namespace]
+          action: replace
+          target_label: kubernetes_namespace
+        - source_labels: [__meta_kubernetes_pod_name]
+          action: replace
+          target_label: kubernetes_pod_name
+
+    # GPU metrics (if available)
+    - job_name: 'gpu-metrics'
+      kubernetes_sd_configs:
+        - role: pod
+          namespaces:
+            names:
+              - multimodal-contract-extractor
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_label_gpu_enabled]
+          action: keep
+          regex: "true"
+        - source_labels: [__address__]
+          action: replace
+          target_label: __address__
+          regex: ([^:]+)(?::\d+)?
+          replacement: $1:9400
+        - action: labelmap
+          regex: __meta_kubernetes_pod_label_(.+)
+
+    # Business metrics endpoint
+    - job_name: 'mce-business-metrics'
+      static_configs:
+        - targets: ['mce-app-service.multimodal-contract-extractor.svc.cluster.local:8502']
+      metrics_path: '/business-metrics'
+      scrape_interval: 60s
+
+    # External service monitoring
+    - job_name: 'blackbox'
+      metrics_path: /probe
+      params:
+        module: [http_2xx]
+      static_configs:
+        - targets:
+          - https://contract-extractor.example.com/health
+          - https://api.contract-extractor.example.com/health
+      relabel_configs:
+        - source_labels: [__address__]
+          target_label: __param_target
+        - source_labels: [__param_target]
+          target_label: instance
+        - target_label: __address__
+          replacement: blackbox-exporter.monitoring.svc.cluster.local:9115
+---
+# Thanos Storage Configuration
+apiVersion: v1
+kind: Secret
+metadata:
+  name: thanos-storage-config
+  namespace: monitoring
+type: Opaque
+stringData:
+  thanos-storage.yaml: |
+    type: s3
+    config:
+      bucket: "mce-prometheus-thanos-storage"
+      endpoint: "s3.us-west-2.amazonaws.com"
+      region: "us-west-2"
+      access_key: ""
+      secret_key: ""
+      insecure: false
+      signature_version2: false
+      encrypt_sse: true
+      put_user_metadata: {}
+      http_config:
+        idle_conn_timeout: 1m30s
+        response_header_timeout: 2m
+        insecure_skip_verify: false
+      trace:
+        enable: false
+      part_size: 134217728
+---
+# Storage Class for Fast SSD
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: fast-ssd
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "false"
+provisioner: kubernetes.io/aws-ebs
+parameters:
+  type: gp3
+  iops: "3000"
+  throughput: "125"
+  encrypted: "true"
+allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Retain

@@ -1,0 +1,660 @@
+# Comprehensive Security Policies for Production Deployment
+# Includes Pod Security Standards, OPA Gatekeeper, and Falco Rules
+
+# =============================================================================
+# Pod Security Standards
+# =============================================================================
+
+# Restricted Pod Security Policy for Application Pods
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: mce-restricted-psp
+  labels:
+    app: mce-app
+    security.level: restricted
+spec:
+  privileged: false
+  allowPrivilegeEscalation: false
+  requiredDropCapabilities:
+    - ALL
+  volumes:
+    - 'configMap'
+    - 'secret'
+    - 'persistentVolumeClaim'
+    - 'emptyDir'
+    - 'projected'
+    - 'downwardAPI'
+  hostNetwork: false
+  hostIPC: false
+  hostPID: false
+  runAsUser:
+    rule: 'MustRunAsNonRoot'
+  supplementalGroups:
+    rule: 'MustRunAs'
+    ranges:
+      - min: 1
+        max: 65535
+  fsGroup:
+    rule: 'MustRunAs'
+    ranges:
+      - min: 1
+        max: 65535
+  readOnlyRootFilesystem: true
+  seLinux:
+    rule: 'RunAsAny'
+
+---
+# Baseline Pod Security Policy for Monitoring
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: mce-baseline-psp
+  labels:
+    app: monitoring
+    security.level: baseline
+spec:
+  privileged: false
+  allowPrivilegeEscalation: false
+  requiredDropCapabilities:
+    - ALL
+  volumes:
+    - '*'
+  hostNetwork: false
+  hostIPC: false
+  hostPID: false
+  runAsUser:
+    rule: 'RunAsAny'
+  supplementalGroups:
+    rule: 'RunAsAny'
+  fsGroup:
+    rule: 'RunAsAny'
+  readOnlyRootFilesystem: false
+  seLinux:
+    rule: 'RunAsAny'
+
+# =============================================================================
+# OPA Gatekeeper Policies
+# =============================================================================
+
+# Constraint Template for Required Labels
+apiVersion: templates.gatekeeper.sh/v1beta1
+kind: ConstraintTemplate
+metadata:
+  name: k8srequiredlabels
+  labels:
+    security.policy: required-labels
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sRequiredLabels
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            labels:
+              type: array
+              items:
+                type: string
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8srequiredlabels
+
+        violation[{"msg": msg}] {
+          required := input.parameters.labels
+          provided := input.review.object.metadata.labels
+          missing := required[_]
+          not provided[missing]
+          msg := sprintf("Missing required label: %v", [missing])
+        }
+
+---
+# Required Labels Constraint
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sRequiredLabels
+metadata:
+  name: must-have-security-labels
+spec:
+  match:
+    kinds:
+      - apiGroups: ["apps"]
+        kinds: ["Deployment", "StatefulSet", "DaemonSet"]
+      - apiGroups: [""]
+        kinds: ["Pod", "Service"]
+  parameters:
+    labels: 
+      - "app"
+      - "version"
+      - "environment"
+      - "security.level"
+
+---
+# Constraint Template for Container Security
+apiVersion: templates.gatekeeper.sh/v1beta1
+kind: ConstraintTemplate
+metadata:
+  name: k8scontainersecurity
+  labels:
+    security.policy: container-security
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sContainerSecurity
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            runAsNonRoot:
+              type: boolean
+            readOnlyRootFilesystem:
+              type: boolean
+            allowPrivilegeEscalation:
+              type: boolean
+            requiredDropCapabilities:
+              type: array
+              items:
+                type: string
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8scontainersecurity
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.template.spec.containers[_]
+          input.parameters.runAsNonRoot == true
+          not container.securityContext.runAsNonRoot == true
+          msg := sprintf("Container %v must run as non-root user", [container.name])
+        }
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.template.spec.containers[_]
+          input.parameters.readOnlyRootFilesystem == true
+          not container.securityContext.readOnlyRootFilesystem == true
+          msg := sprintf("Container %v must have read-only root filesystem", [container.name])
+        }
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.template.spec.containers[_]
+          input.parameters.allowPrivilegeEscalation == false
+          not container.securityContext.allowPrivilegeEscalation == false
+          msg := sprintf("Container %v must not allow privilege escalation", [container.name])
+        }
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.template.spec.containers[_]
+          required_caps := input.parameters.requiredDropCapabilities
+          container_caps := container.securityContext.capabilities.drop
+          missing_cap := required_caps[_]
+          not missing_cap in container_caps
+          msg := sprintf("Container %v must drop capability %v", [container.name, missing_cap])
+        }
+
+---
+# Container Security Constraint
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sContainerSecurity
+metadata:
+  name: container-security-requirements
+spec:
+  match:
+    kinds:
+      - apiGroups: ["apps"]
+        kinds: ["Deployment", "StatefulSet", "DaemonSet"]
+    excludedNamespaces: ["kube-system", "gatekeeper-system"]
+  parameters:
+    runAsNonRoot: true
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+    requiredDropCapabilities: ["ALL"]
+
+---
+# Constraint Template for Image Security
+apiVersion: templates.gatekeeper.sh/v1beta1
+kind: ConstraintTemplate
+metadata:
+  name: k8simagesecurity
+  labels:
+    security.policy: image-security
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sImageSecurity
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            allowedRegistries:
+              type: array
+              items:
+                type: string
+            requireDigest:
+              type: boolean
+            disallowLatest:
+              type: boolean
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8simagesecurity
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.template.spec.containers[_]
+          image := container.image
+          allowed_registries := input.parameters.allowedRegistries
+          count(allowed_registries) > 0
+          not starts_with_allowed_registry(image, allowed_registries)
+          msg := sprintf("Container %v uses disallowed registry in image %v", [container.name, image])
+        }
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.template.spec.containers[_]
+          image := container.image
+          input.parameters.requireDigest == true
+          not contains(image, "@sha256:")
+          msg := sprintf("Container %v must use image digest instead of tag: %v", [container.name, image])
+        }
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.template.spec.containers[_]
+          image := container.image
+          input.parameters.disallowLatest == true
+          endswith(image, ":latest")
+          msg := sprintf("Container %v cannot use latest tag: %v", [container.name, image])
+        }
+
+        starts_with_allowed_registry(image, registries) {
+          registry := registries[_]
+          startswith(image, registry)
+        }
+
+---
+# Image Security Constraint
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sImageSecurity
+metadata:
+  name: image-security-requirements
+spec:
+  match:
+    kinds:
+      - apiGroups: ["apps"]
+        kinds: ["Deployment", "StatefulSet", "DaemonSet"]
+    namespaces: ["multimodal-contract-extractor"]
+  parameters:
+    allowedRegistries:
+      - "gcr.io/project-id/"
+      - "your-registry.amazonaws.com/"
+      - "docker.io/library/"
+    requireDigest: false  # Set to true for maximum security
+    disallowLatest: true
+
+---
+# Constraint Template for Resource Limits
+apiVersion: templates.gatekeeper.sh/v1beta1
+kind: ConstraintTemplate
+metadata:
+  name: k8sresourcelimits
+  labels:
+    security.policy: resource-limits
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sResourceLimits
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            requireLimits:
+              type: boolean
+            requireRequests:
+              type: boolean
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8sresourcelimits
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.template.spec.containers[_]
+          input.parameters.requireLimits == true
+          not container.resources.limits
+          msg := sprintf("Container %v must specify resource limits", [container.name])
+        }
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.template.spec.containers[_]
+          input.parameters.requireRequests == true
+          not container.resources.requests
+          msg := sprintf("Container %v must specify resource requests", [container.name])
+        }
+
+---
+# Resource Limits Constraint
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sResourceLimits
+metadata:
+  name: require-resource-limits
+spec:
+  match:
+    kinds:
+      - apiGroups: ["apps"]
+        kinds: ["Deployment", "StatefulSet", "DaemonSet"]
+    namespaces: ["multimodal-contract-extractor"]
+  parameters:
+    requireLimits: true
+    requireRequests: true
+
+# =============================================================================
+# Falco Security Rules
+# =============================================================================
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: falco-rules
+  namespace: monitoring
+  labels:
+    app: falco
+    security.tool: runtime-security
+data:
+  mce_rules.yaml: |
+    # MCE-specific Falco rules for runtime security monitoring
+    
+    # Detect privilege escalation attempts
+    - rule: MCE Privilege Escalation Attempt
+      desc: Detect attempts to escalate privileges in MCE containers
+      condition: >
+        spawned_process and
+        container.name startswith "mce-" and
+        (proc.name in (sudo, su, setuid_binaries) or
+         proc.args contains "chmod +s" or
+         proc.args contains "setcap")
+      output: >
+        Privilege escalation attempt in MCE container
+        (user=%user.name command=%proc.cmdline container=%container.name image=%container.image)
+      priority: CRITICAL
+      tags: [security, privilege-escalation]
+
+    # Detect suspicious network connections
+    - rule: MCE Suspicious Network Activity
+      desc: Detect suspicious outbound network connections from MCE containers
+      condition: >
+        outbound and
+        container.name startswith "mce-" and
+        not fd.sip in (allowed_ips) and
+        (fd.sport in (ssh_ports, unusual_ports) or
+         fd.dport in (bitcoin_ports, tor_ports))
+      output: >
+        Suspicious network connection from MCE container
+        (user=%user.name command=%proc.cmdline connection=%fd.name container=%container.name)
+      priority: WARNING
+      tags: [security, network]
+
+    # Detect file system modifications in read-only areas
+    - rule: MCE Unauthorized File Modification
+      desc: Detect unauthorized file modifications in MCE containers
+      condition: >
+        open_write and
+        container.name startswith "mce-" and
+        (fd.name startswith "/etc/" or
+         fd.name startswith "/bin/" or
+         fd.name startswith "/usr/bin/" or
+         fd.name startswith "/lib/") and
+        not proc.name in (package_managers)
+      output: >
+        Unauthorized file modification in MCE container
+        (user=%user.name command=%proc.cmdline file=%fd.name container=%container.name)
+      priority: WARNING
+      tags: [security, filesystem]
+
+    # Detect crypto-mining activities
+    - rule: MCE Crypto Mining Detection
+      desc: Detect potential crypto-mining activities in MCE containers
+      condition: >
+        spawned_process and
+        container.name startswith "mce-" and
+        (proc.name in (crypto_miners) or
+         proc.args contains mining_keywords)
+      output: >
+        Potential crypto-mining activity detected in MCE container
+        (user=%user.name command=%proc.cmdline container=%container.name image=%container.image)
+      priority: CRITICAL
+      tags: [security, cryptomining]
+
+    # Detect shell spawning in application containers
+    - rule: MCE Unexpected Shell Spawn
+      desc: Detect unexpected shell spawning in MCE application containers
+      condition: >
+        spawned_process and
+        container.name startswith "mce-app" and
+        proc.name in (shell_binaries) and
+        not proc.pname in (allowed_parent_processes)
+      output: >
+        Unexpected shell spawned in MCE application container
+        (user=%user.name shell=%proc.name parent=%proc.pname container=%container.name)
+      priority: WARNING
+      tags: [security, shell]
+
+    # Lists for rule conditions
+    - list: allowed_ips
+      items: 
+      - 10.0.0.0/8
+      - 172.16.0.0/12
+      - 192.168.0.0/16
+      - 127.0.0.1
+
+    - list: ssh_ports
+      items: [22, 2222]
+
+    - list: unusual_ports
+      items: [1337, 31337, 8888, 9999]
+
+    - list: bitcoin_ports
+      items: [8332, 8333, 18332, 18333]
+
+    - list: tor_ports
+      items: [9050, 9051, 9150, 9151]
+
+    - list: crypto_miners
+      items: [xmrig, ethminer, cgminer, bfgminer, cpuminer]
+
+    - list: mining_keywords
+      items: [stratum, mining.pool, cryptonight, ethash]
+
+    - list: shell_binaries
+      items: [bash, sh, zsh, fish, dash, csh, tcsh]
+
+    - list: allowed_parent_processes
+      items: [python, gunicorn, uvicorn, nginx, supervisord]
+
+    - list: package_managers
+      items: [apt, yum, dnf, pip, npm, yarn]
+
+    - list: setuid_binaries
+      items: [passwd, su, sudo, ping, mount, umount]
+
+---
+# Falco Deployment
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: falco
+  namespace: monitoring
+  labels:
+    app: falco
+    security.tool: runtime-security
+spec:
+  selector:
+    matchLabels:
+      app: falco
+  template:
+    metadata:
+      labels:
+        app: falco
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8765"
+    spec:
+      serviceAccountName: falco
+      hostNetwork: true
+      hostPID: true
+      containers:
+      - name: falco
+        image: falcosecurity/falco:0.36.0
+        securityContext:
+          privileged: true
+        args:
+          - /usr/bin/falco
+          - --config=/etc/falco/falco.yaml
+          - --disable-source=k8s_audit
+          - -K=/var/run/secrets/kubernetes.io/serviceaccount/token
+          - -k=https://kubernetes.default.svc.cluster.local
+          - -pk
+        volumeMounts:
+        - name: proc
+          mountPath: /host/proc
+          readOnly: true
+        - name: boot
+          mountPath: /host/boot
+          readOnly: true
+        - name: lib-modules
+          mountPath: /host/lib/modules
+        - name: usr
+          mountPath: /host/usr
+          readOnly: true
+        - name: etc
+          mountPath: /host/etc
+          readOnly: true
+        - name: dev-fs
+          mountPath: /host/dev
+          readOnly: true
+        - name: sys-fs
+          mountPath: /host/sys
+          readOnly: true
+        - name: falco-config
+          mountPath: /etc/falco
+        - name: falco-rules
+          mountPath: /etc/falco/rules.d
+        env:
+        - name: FALCO_HOSTNAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+      volumes:
+      - name: proc
+        hostPath:
+          path: /proc
+      - name: boot
+        hostPath:
+          path: /boot
+      - name: lib-modules
+        hostPath:
+          path: /lib/modules
+      - name: usr
+        hostPath:
+          path: /usr
+      - name: etc
+        hostPath:
+          path: /etc
+      - name: dev-fs
+        hostPath:
+          path: /dev
+      - name: sys-fs
+        hostPath:
+          path: /sys
+      - name: falco-config
+        configMap:
+          name: falco-config
+      - name: falco-rules
+        configMap:
+          name: falco-rules
+
+---
+# Service Account for Falco
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: falco
+  namespace: monitoring
+
+---
+# ClusterRole for Falco
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: falco-cluster-role
+rules:
+- apiGroups: [""]
+  resources: ["nodes", "namespaces", "pods", "replicationcontrollers", "services"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["daemonsets", "deployments", "replicasets", "statefulsets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["extensions"]
+  resources: ["daemonsets", "deployments", "replicasets"]
+  verbs: ["get", "list", "watch"]
+
+---
+# ClusterRoleBinding for Falco
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: falco-cluster-role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: falco-cluster-role
+subjects:
+- kind: ServiceAccount
+  name: falco
+  namespace: monitoring
+
+# =============================================================================
+# Admission Controllers Configuration
+# =============================================================================
+
+# ImagePolicyWebhook configuration for image validation
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: image-policy-webhook-config
+  namespace: kube-system
+data:
+  admission_configuration.json: |
+    {
+      "imagePolicy": {
+        "kubeConfigFile": "/etc/kubernetes/image-policy-webhook/kubeconfig",
+        "allowTTL": 50,
+        "denyTTL": 50,
+        "retryBackoff": 500,
+        "defaultAllow": false
+      }
+    }
+  kubeconfig: |
+    apiVersion: v1
+    kind: Config
+    clusters:
+    - name: image-policy-webhook
+      cluster:
+        certificate-authority: /etc/kubernetes/image-policy-webhook/ca.crt
+        server: https://image-policy-webhook.kube-system.svc.cluster.local:8080/image_policy
+    contexts:
+    - context:
+        cluster: image-policy-webhook
+        user: api-server
+      name: image-policy-webhook
+    current-context: image-policy-webhook
+    users:
+    - name: api-server
+      user:
+        client-certificate: /etc/kubernetes/image-policy-webhook/api-server-client.crt
+        client-key: /etc/kubernetes/image-policy-webhook/api-server-client.key

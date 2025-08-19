@@ -1,0 +1,293 @@
+# Production-Ready Multi-Stage Dockerfile for Multimodal Contract Extractor
+# Supports CPU and GPU deployments with comprehensive security hardening
+
+# =============================================================================
+# Build Arguments
+# =============================================================================
+ARG PYTHON_VERSION=3.11.8
+ARG DEBIAN_VERSION=bookworm
+ARG CUDA_VERSION=12.1.1
+ARG BASE_REGISTRY=docker.io
+ARG SECURITY_SCAN=true
+
+# =============================================================================
+# Base Images
+# =============================================================================
+FROM ${BASE_REGISTRY}/python:${PYTHON_VERSION}-slim-${DEBIAN_VERSION} AS base-cpu
+FROM ${BASE_REGISTRY}/nvidia/cuda:${CUDA_VERSION}-devel-ubuntu22.04 AS base-gpu
+
+# =============================================================================
+# Build Stage - CPU Version
+# =============================================================================
+FROM base-cpu AS builder-cpu
+
+# Build metadata
+LABEL stage=builder
+LABEL version=1.0.0
+LABEL maintainer="Multimodal Contract Extractor Team"
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    pkg-config \
+    cmake \
+    git \
+    curl \
+    libssl-dev \
+    libffi-dev \
+    libjpeg-dev \
+    libpng-dev \
+    libtiff-dev \
+    libgif-dev \
+    libfreetype6-dev \
+    liblcms2-dev \
+    libwebp-dev \
+    libharfbuzz-dev \
+    libfribidi-dev \
+    libxcb1-dev \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Create build user
+RUN groupadd -r builduser && useradd -r -g builduser builduser
+
+# Set up Python environment
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_DEFAULT_TIMEOUT=100
+
+# Install Python dependencies
+COPY requirements.txt requirements-gpu.txt requirements-dev.txt ./
+RUN python -m pip install --upgrade pip setuptools wheel && \
+    pip install --user --no-cache-dir -r requirements.txt && \
+    pip install --user --no-cache-dir -r requirements-dev.txt
+
+# =============================================================================
+# Build Stage - GPU Version  
+# =============================================================================
+FROM base-gpu AS builder-gpu
+
+# Install Python and build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.11 \
+    python3.11-dev \
+    python3-pip \
+    build-essential \
+    pkg-config \
+    cmake \
+    git \
+    curl \
+    libssl-dev \
+    libffi-dev \
+    libjpeg-dev \
+    libpng-dev \
+    libtiff-dev \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Set up Python environment
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    CUDA_VISIBLE_DEVICES=all \
+    NVIDIA_VISIBLE_DEVICES=all \
+    NVIDIA_DRIVER_CAPABILITIES=compute,utility
+
+# Install Python dependencies with GPU support
+COPY requirements.txt requirements-gpu.txt requirements-dev.txt ./
+RUN python3.11 -m pip install --upgrade pip setuptools wheel && \
+    python3.11 -m pip install --user --no-cache-dir -r requirements.txt && \
+    python3.11 -m pip install --user --no-cache-dir -r requirements-gpu.txt
+
+# =============================================================================
+# Security Scanning Stage
+# =============================================================================
+FROM builder-cpu AS security-scanner
+
+ARG SECURITY_SCAN
+RUN if [ "$SECURITY_SCAN" = "true" ]; then \
+    pip install --user safety bandit semgrep && \
+    echo "Security scanning enabled"; \
+    fi
+
+# =============================================================================
+# Production Stage - CPU Version
+# =============================================================================
+FROM base-cpu AS production-cpu
+
+# Production metadata
+LABEL org.opencontainers.image.title="Multimodal Contract Extractor (CPU)"
+LABEL org.opencontainers.image.description="Production-ready legal AI system with advanced research algorithms"
+LABEL org.opencontainers.image.version="4.0.0"
+LABEL org.opencontainers.image.authors="Multimodal Contract Extractor Team"
+LABEL org.opencontainers.image.licenses="MIT"
+LABEL org.opencontainers.image.source="https://github.com/your-org/multimodal-contract-extractor"
+LABEL org.opencontainers.image.documentation="https://github.com/your-org/multimodal-contract-extractor/blob/main/README.md"
+LABEL deployment.type="cpu"
+LABEL deployment.environment="production"
+
+# Security hardening
+RUN groupadd -r appuser && useradd -r -g appuser -m -d /home/appuser -s /bin/bash appuser && \
+    mkdir -p /app /app/logs /app/cache /app/data /app/tmp && \
+    chown -R appuser:appuser /app
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    tesseract-ocr-fra \
+    tesseract-ocr-deu \
+    tesseract-ocr-spa \
+    poppler-utils \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    libgcc-s1 \
+    curl \
+    wget \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Copy Python packages from builder
+COPY --from=builder-cpu /root/.local /home/appuser/.local
+
+# Set up application directory
+WORKDIR /app
+
+# Copy application code with proper ownership
+COPY --chown=appuser:appuser src/ ./src/
+COPY --chown=appuser:appuser pyproject.toml ./
+COPY --chown=appuser:appuser extract.py batch_extract.py web_app.py enhanced_web_app.py run_api.py ./
+COPY --chown=appuser:appuser config.example.yml ./config.yml
+COPY --chown=appuser:appuser monitoring/ ./monitoring/
+
+# Install the package as appuser
+USER appuser
+ENV PATH=/home/appuser/.local/bin:$PATH
+ENV PYTHONPATH=/app/src:$PYTHONPATH
+
+RUN pip install --user -e .
+
+# Production environment variables
+ENV MCE_ENVIRONMENT=production \
+    MCE_LOG_LEVEL=INFO \
+    MCE_SECURITY_MAX_FILE_SIZE_MB=500 \
+    MCE_EXTRACTION_BASE_CONFIDENCE_SCORE=0.85 \
+    MCE_ENABLE_GPU=false \
+    MCE_ENABLE_RESEARCH_ALGORITHMS=true \
+    MCE_ENABLE_ENTERPRISE_FEATURES=true \
+    MCE_METRICS_ENABLED=true \
+    MCE_TRACING_ENABLED=true \
+    PROMETHEUS_MULTIPROC_DIR=/app/tmp/prometheus
+
+# Security settings
+RUN chmod 755 /app && \
+    chmod -R 700 /app/logs /app/cache /app/data /app/tmp
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=30s --start-period=60s --retries=3 \
+    CMD python -c "
+import sys
+sys.path.insert(0, '/app/src')
+try:
+    from multimodal_contract_extractor.health import is_healthy
+    exit(0 if is_healthy() else 1)
+except Exception as e:
+    print(f'Health check failed: {e}')
+    exit(1)
+" || exit 1
+
+# Expose ports
+EXPOSE 8501 8502 9090
+
+# Default command
+CMD ["python", "enhanced_web_app.py"]
+
+# =============================================================================
+# Production Stage - GPU Version
+# =============================================================================
+FROM base-gpu AS production-gpu
+
+# Production metadata
+LABEL org.opencontainers.image.title="Multimodal Contract Extractor (GPU)"
+LABEL org.opencontainers.image.description="Production-ready legal AI system with GPU acceleration"
+LABEL org.opencontainers.image.version="4.0.0"
+LABEL org.opencontainers.image.authors="Multimodal Contract Extractor Team"
+LABEL org.opencontainers.image.licenses="MIT"
+LABEL deployment.type="gpu"
+LABEL deployment.environment="production"
+
+# Install Python and runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.11 \
+    python3.11-distutils \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    poppler-utils \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -s /usr/bin/python3.11 /usr/bin/python
+
+# Create appuser
+RUN groupadd -r appuser && useradd -r -g appuser -m -d /home/appuser -s /bin/bash appuser && \
+    mkdir -p /app /app/logs /app/cache /app/data /app/tmp && \
+    chown -R appuser:appuser /app
+
+# Copy Python packages from builder
+COPY --from=builder-gpu /root/.local /home/appuser/.local
+
+# Set up application
+WORKDIR /app
+COPY --chown=appuser:appuser src/ ./src/
+COPY --chown=appuser:appuser pyproject.toml ./
+COPY --chown=appuser:appuser extract.py batch_extract.py web_app.py enhanced_web_app.py run_api.py ./
+COPY --chown=appuser:appuser config.example.yml ./config.yml
+
+# Switch to appuser
+USER appuser
+ENV PATH=/home/appuser/.local/bin:$PATH
+ENV PYTHONPATH=/app/src:$PYTHONPATH
+
+# GPU-specific environment variables
+ENV MCE_ENVIRONMENT=production \
+    MCE_ENABLE_GPU=true \
+    MCE_GPU_MEMORY_FRACTION=0.8 \
+    CUDA_VISIBLE_DEVICES=all \
+    NVIDIA_VISIBLE_DEVICES=all \
+    NVIDIA_DRIVER_CAPABILITIES=compute,utility
+
+# Health check for GPU version
+HEALTHCHECK --interval=30s --timeout=30s --start-period=90s --retries=3 \
+    CMD python -c "
+import sys
+sys.path.insert(0, '/app/src')
+try:
+    from multimodal_contract_extractor.health import is_healthy
+    from multimodal_contract_extractor.gpu_tensor_optimization import check_gpu_availability
+    gpu_ok = check_gpu_availability()
+    health_ok = is_healthy()
+    exit(0 if (gpu_ok and health_ok) else 1)
+except Exception as e:
+    print(f'GPU health check failed: {e}')
+    exit(1)
+" || exit 1
+
+EXPOSE 8501 8502 9090
+CMD ["python", "enhanced_web_app.py"]
+
+# =============================================================================
+# Final Stage Selection
+# =============================================================================
+ARG TARGET=cpu
+FROM production-${TARGET} AS final
+
+USER appuser

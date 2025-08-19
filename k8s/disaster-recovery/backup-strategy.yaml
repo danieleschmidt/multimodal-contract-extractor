@@ -1,0 +1,782 @@
+# Comprehensive Backup and Disaster Recovery Strategy
+# Enterprise-grade backup solution with multi-region replication
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: backup-system
+  labels:
+    name: backup-system
+    backup: enabled
+    security.level: admin
+
+---
+# Backup Service Account with elevated permissions
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: backup-operator
+  namespace: backup-system
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/backup-operator-role
+    iam.gke.io/gcp-service-account: backup-operator@PROJECT_ID.iam.gserviceaccount.com
+
+---
+# ClusterRole for backup operations
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: backup-operator
+rules:
+- apiGroups: [""]
+  resources:
+  - pods
+  - services
+  - endpoints
+  - persistentvolumes
+  - persistentvolumeclaims
+  - configmaps
+  - secrets
+  - namespaces
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
+- apiGroups: ["apps"]
+  resources:
+  - deployments
+  - replicasets
+  - statefulsets
+  - daemonsets
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["extensions", "networking.k8s.io"]
+  resources:
+  - ingresses
+  - networkpolicies
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["storage.k8s.io"]
+  resources:
+  - storageclasses
+  - volumeattachments
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["snapshot.storage.k8s.io"]
+  resources:
+  - volumesnapshots
+  - volumesnapshotcontents
+  - volumesnapshotclasses
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+---
+# ClusterRoleBinding for backup operator
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: backup-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: backup-operator
+subjects:
+- kind: ServiceAccount
+  name: backup-operator
+  namespace: backup-system
+
+---
+# Backup configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backup-config
+  namespace: backup-system
+data:
+  backup-policy.yaml: |
+    # Backup retention policies
+    retention:
+      daily: 30    # Keep daily backups for 30 days
+      weekly: 12   # Keep weekly backups for 12 weeks
+      monthly: 12  # Keep monthly backups for 12 months
+      yearly: 5    # Keep yearly backups for 5 years
+    
+    # Backup schedules
+    schedules:
+      database:
+        full: "0 2 * * *"      # Daily at 2 AM
+        incremental: "0 */6 * * *"  # Every 6 hours
+      application:
+        configuration: "0 1 * * *"  # Daily at 1 AM
+        secrets: "0 1 * * *"        # Daily at 1 AM
+      volumes:
+        snapshots: "0 3 * * *"      # Daily at 3 AM
+    
+    # Backup destinations
+    destinations:
+      primary: "s3://mce-backups-primary-us-west-2"
+      secondary: "s3://mce-backups-secondary-us-east-1"
+      archive: "s3://mce-backups-archive-glacier"
+    
+    # Encryption settings
+    encryption:
+      enabled: true
+      algorithm: "AES-256-GCM"
+      key_rotation_days: 90
+    
+    # Compression settings
+    compression:
+      enabled: true
+      algorithm: "gzip"
+      level: 6
+
+  disaster-recovery.yaml: |
+    # RTO (Recovery Time Objective) and RPO (Recovery Point Objective)
+    objectives:
+      database:
+        rto: "4h"    # Restore within 4 hours
+        rpo: "1h"    # Maximum 1 hour data loss
+      application:
+        rto: "2h"    # Restore within 2 hours
+        rpo: "6h"    # Maximum 6 hours configuration loss
+    
+    # Multi-region setup
+    regions:
+      primary: "us-west-2"
+      secondary: "us-east-1"
+      disaster_recovery: "eu-west-1"
+    
+    # Failover procedures
+    failover:
+      automatic_threshold: "300s"  # Auto-failover after 5 minutes
+      manual_approval_required: false
+      notification_channels:
+      - slack
+      - email
+      - pagerduty
+
+---
+# PostgreSQL Backup CronJob
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-backup
+  namespace: backup-system
+  labels:
+    app: postgres-backup
+    backup-type: database
+spec:
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 3600  # 1 hour timeout
+      template:
+        spec:
+          serviceAccountName: backup-operator
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            fsGroup: 2000
+          
+          initContainers:
+          # Pre-backup validation
+          - name: pre-backup-check
+            image: postgres:15.4-alpine
+            command: ['sh', '-c']
+            args:
+            - |
+              echo "Starting pre-backup validation..."
+              pg_isready -h postgres-service.multimodal-contract-extractor.svc.cluster.local -p 5432 -U $POSTGRES_USER
+              echo "Database is ready for backup"
+            envFrom:
+            - secretRef:
+                name: postgres-backup-credentials
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+          
+          containers:
+          - name: postgres-backup
+            image: postgres:15.4-alpine
+            command: ['sh', '-c']
+            args:
+            - |
+              set -e
+              
+              # Generate backup filename with timestamp
+              TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+              BACKUP_FILE="mce_postgres_${TIMESTAMP}.sql"
+              BACKUP_COMPRESSED="${BACKUP_FILE}.gz"
+              
+              echo "Creating database backup: ${BACKUP_FILE}"
+              
+              # Create full database backup
+              pg_dump \
+                -h postgres-service.multimodal-contract-extractor.svc.cluster.local \
+                -p 5432 \
+                -U $POSTGRES_USER \
+                -d $POSTGRES_DB \
+                --verbose \
+                --no-password \
+                --format=custom \
+                --compress=6 \
+                --file=/tmp/${BACKUP_FILE}
+              
+              # Compress backup
+              gzip /tmp/${BACKUP_FILE}
+              
+              # Upload to primary S3 bucket
+              aws s3 cp /tmp/${BACKUP_COMPRESSED} s3://mce-backups-primary-us-west-2/database/daily/${BACKUP_COMPRESSED}
+              
+              # Upload to secondary S3 bucket (different region)
+              aws s3 cp /tmp/${BACKUP_COMPRESSED} s3://mce-backups-secondary-us-east-1/database/daily/${BACKUP_COMPRESSED}
+              
+              # Verify backup integrity
+              echo "Verifying backup integrity..."
+              aws s3api head-object \
+                --bucket mce-backups-primary-us-west-2 \
+                --key database/daily/${BACKUP_COMPRESSED} \
+                --checksum-mode ENABLED
+              
+              # Create backup metadata
+              cat > /tmp/backup_metadata.json << EOF
+              {
+                "backup_type": "postgresql_full",
+                "timestamp": "${TIMESTAMP}",
+                "database": "$POSTGRES_DB",
+                "file_name": "${BACKUP_COMPRESSED}",
+                "file_size": $(stat -c%s /tmp/${BACKUP_COMPRESSED}),
+                "checksum": "$(sha256sum /tmp/${BACKUP_COMPRESSED} | cut -d' ' -f1)",
+                "retention_policy": "daily",
+                "regions": ["us-west-2", "us-east-1"],
+                "encrypted": true
+              }
+              EOF
+              
+              # Upload metadata
+              aws s3 cp /tmp/backup_metadata.json s3://mce-backups-primary-us-west-2/metadata/database/${TIMESTAMP}_metadata.json
+              
+              # Update latest backup pointer
+              echo "${BACKUP_COMPRESSED}" > /tmp/latest_backup.txt
+              aws s3 cp /tmp/latest_backup.txt s3://mce-backups-primary-us-west-2/database/latest_backup.txt
+              
+              # Cleanup old backups based on retention policy
+              python3 /scripts/cleanup_old_backups.py --type database --retention-days 30
+              
+              echo "Database backup completed successfully"
+              
+            env:
+            - name: AWS_DEFAULT_REGION
+              value: "us-west-2"
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-backup-credentials
+                  key: password
+            envFrom:
+            - secretRef:
+                name: postgres-backup-credentials
+            
+            resources:
+              requests:
+                cpu: 500m
+                memory: 1Gi
+              limits:
+                cpu: 1000m
+                memory: 2Gi
+            
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: false
+              runAsNonRoot: true
+              runAsUser: 1000
+            
+            volumeMounts:
+            - name: backup-scripts
+              mountPath: /scripts
+              readOnly: true
+            - name: temp-storage
+              mountPath: /tmp
+          
+          volumes:
+          - name: backup-scripts
+            configMap:
+              name: backup-scripts
+              defaultMode: 0755
+          - name: temp-storage
+            emptyDir:
+              sizeLimit: 10Gi
+
+---
+# Kubernetes Configuration Backup CronJob
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: k8s-config-backup
+  namespace: backup-system
+  labels:
+    app: k8s-backup
+    backup-type: configuration
+spec:
+  schedule: "0 1 * * *"  # Daily at 1 AM
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 1800  # 30 minutes timeout
+      template:
+        spec:
+          serviceAccountName: backup-operator
+          restartPolicy: OnFailure
+          
+          containers:
+          - name: k8s-backup
+            image: bitnami/kubectl:1.28
+            command: ['sh', '-c']
+            args:
+            - |
+              set -e
+              
+              TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+              BACKUP_DIR="/tmp/k8s-backup-${TIMESTAMP}"
+              mkdir -p ${BACKUP_DIR}
+              
+              echo "Starting Kubernetes configuration backup..."
+              
+              # Backup all resources in the MCE namespace
+              kubectl get all -n multimodal-contract-extractor -o yaml > ${BACKUP_DIR}/mce-all-resources.yaml
+              kubectl get configmaps -n multimodal-contract-extractor -o yaml > ${BACKUP_DIR}/mce-configmaps.yaml
+              kubectl get secrets -n multimodal-contract-extractor -o yaml > ${BACKUP_DIR}/mce-secrets.yaml
+              kubectl get pvc -n multimodal-contract-extractor -o yaml > ${BACKUP_DIR}/mce-pvcs.yaml
+              kubectl get ingress -n multimodal-contract-extractor -o yaml > ${BACKUP_DIR}/mce-ingress.yaml
+              kubectl get networkpolicies -n multimodal-contract-extractor -o yaml > ${BACKUP_DIR}/mce-networkpolicies.yaml
+              
+              # Backup monitoring namespace
+              kubectl get all -n monitoring -o yaml > ${BACKUP_DIR}/monitoring-all-resources.yaml
+              kubectl get configmaps -n monitoring -o yaml > ${BACKUP_DIR}/monitoring-configmaps.yaml
+              kubectl get secrets -n monitoring -o yaml > ${BACKUP_DIR}/monitoring-secrets.yaml
+              
+              # Backup cluster-wide resources
+              kubectl get clusterroles -o yaml > ${BACKUP_DIR}/cluster-roles.yaml
+              kubectl get clusterrolebindings -o yaml > ${BACKUP_DIR}/cluster-rolebindings.yaml
+              kubectl get storageclasses -o yaml > ${BACKUP_DIR}/storage-classes.yaml
+              kubectl get networkpolicies --all-namespaces -o yaml > ${BACKUP_DIR}/all-networkpolicies.yaml
+              
+              # Create tar.gz archive
+              cd /tmp
+              tar -czf k8s-backup-${TIMESTAMP}.tar.gz k8s-backup-${TIMESTAMP}/
+              
+              # Upload to S3
+              aws s3 cp k8s-backup-${TIMESTAMP}.tar.gz s3://mce-backups-primary-us-west-2/kubernetes/daily/
+              aws s3 cp k8s-backup-${TIMESTAMP}.tar.gz s3://mce-backups-secondary-us-east-1/kubernetes/daily/
+              
+              # Create metadata
+              cat > k8s-backup-metadata-${TIMESTAMP}.json << EOF
+              {
+                "backup_type": "kubernetes_configuration",
+                "timestamp": "${TIMESTAMP}",
+                "file_name": "k8s-backup-${TIMESTAMP}.tar.gz",
+                "file_size": $(stat -c%s k8s-backup-${TIMESTAMP}.tar.gz),
+                "checksum": "$(sha256sum k8s-backup-${TIMESTAMP}.tar.gz | cut -d' ' -f1)",
+                "namespaces": ["multimodal-contract-extractor", "monitoring", "backup-system"],
+                "regions": ["us-west-2", "us-east-1"]
+              }
+              EOF
+              
+              aws s3 cp k8s-backup-metadata-${TIMESTAMP}.json s3://mce-backups-primary-us-west-2/metadata/kubernetes/
+              
+              # Update latest pointer
+              echo "k8s-backup-${TIMESTAMP}.tar.gz" > latest_k8s_backup.txt
+              aws s3 cp latest_k8s_backup.txt s3://mce-backups-primary-us-west-2/kubernetes/latest_backup.txt
+              
+              echo "Kubernetes configuration backup completed"
+              
+            env:
+            - name: AWS_DEFAULT_REGION
+              value: "us-west-2"
+            
+            resources:
+              requests:
+                cpu: 200m
+                memory: 512Mi
+              limits:
+                cpu: 500m
+                memory: 1Gi
+            
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: false
+              runAsNonRoot: true
+              runAsUser: 1000
+
+---
+# Volume Snapshot Backup CronJob
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: volume-snapshot-backup
+  namespace: backup-system
+  labels:
+    app: volume-backup
+    backup-type: volumes
+spec:
+  schedule: "0 3 * * *"  # Daily at 3 AM
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: backup-operator
+          restartPolicy: OnFailure
+          
+          containers:
+          - name: volume-backup
+            image: bitnami/kubectl:1.28
+            command: ['sh', '-c']
+            args:
+            - |
+              set -e
+              
+              TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+              
+              echo "Starting volume snapshot backup..."
+              
+              # Get all PVCs in MCE namespace
+              for pvc in $(kubectl get pvc -n multimodal-contract-extractor -o jsonpath='{.items[*].metadata.name}'); do
+                echo "Creating snapshot for PVC: ${pvc}"
+                
+                # Create VolumeSnapshot
+                kubectl apply -f - << EOF
+              apiVersion: snapshot.storage.k8s.io/v1
+              kind: VolumeSnapshot
+              metadata:
+                name: ${pvc}-snapshot-${TIMESTAMP}
+                namespace: multimodal-contract-extractor
+                labels:
+                  backup-timestamp: "${TIMESTAMP}"
+                  source-pvc: "${pvc}"
+              spec:
+                source:
+                  persistentVolumeClaimName: ${pvc}
+                volumeSnapshotClassName: csi-aws-vsc
+              EOF
+                
+                # Wait for snapshot to be ready
+                kubectl wait --for=condition=ReadyToUse volumesnapshot/${pvc}-snapshot-${TIMESTAMP} -n multimodal-contract-extractor --timeout=300s
+              done
+              
+              # Create snapshot metadata
+              kubectl get volumesnapshots -n multimodal-contract-extractor -l backup-timestamp=${TIMESTAMP} -o yaml > /tmp/snapshots-${TIMESTAMP}.yaml
+              
+              # Upload metadata to S3
+              aws s3 cp /tmp/snapshots-${TIMESTAMP}.yaml s3://mce-backups-primary-us-west-2/volumes/snapshots/
+              
+              echo "Volume snapshot backup completed"
+              
+            env:
+            - name: AWS_DEFAULT_REGION
+              value: "us-west-2"
+            
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                cpu: 200m
+                memory: 512Mi
+
+---
+# Backup cleanup scripts
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backup-scripts
+  namespace: backup-system
+data:
+  cleanup_old_backups.py: |
+    #!/usr/bin/env python3
+    import boto3
+    import argparse
+    from datetime import datetime, timedelta
+    import json
+    
+    def cleanup_old_backups(backup_type, retention_days, bucket_name):
+        s3 = boto3.client('s3')
+        cutoff_date = datetime.now() - timedelta(days=retention_days)
+        
+        # List objects in backup path
+        prefix = f"{backup_type}/daily/"
+        response = s3.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
+        
+        deleted_count = 0
+        for obj in response.get('Contents', []):
+            if obj['LastModified'].replace(tzinfo=None) < cutoff_date:
+                print(f"Deleting old backup: {obj['Key']}")
+                s3.delete_object(Bucket=bucket_name, Key=obj['Key'])
+                deleted_count += 1
+        
+        print(f"Cleaned up {deleted_count} old backups")
+    
+    if __name__ == "__main__":
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--type", required=True, help="Backup type (database, kubernetes, volumes)")
+        parser.add_argument("--retention-days", type=int, default=30, help="Retention period in days")
+        parser.add_argument("--bucket", default="mce-backups-primary-us-west-2", help="S3 bucket name")
+        
+        args = parser.parse_args()
+        cleanup_old_backups(args.type, args.retention_days, args.bucket)
+
+  restore_database.py: |
+    #!/usr/bin/env python3
+    import boto3
+    import subprocess
+    import sys
+    import os
+    from datetime import datetime
+    
+    def restore_database(backup_file, target_db):
+        print(f"Starting database restore from {backup_file}")
+        
+        # Download backup from S3
+        s3 = boto3.client('s3')
+        local_file = f"/tmp/{backup_file}"
+        
+        s3.download_file('mce-backups-primary-us-west-2', f'database/daily/{backup_file}', local_file)
+        
+        # Decompress if needed
+        if backup_file.endswith('.gz'):
+            subprocess.run(['gunzip', local_file], check=True)
+            local_file = local_file[:-3]  # Remove .gz extension
+        
+        # Restore database
+        restore_cmd = [
+            'pg_restore',
+            '--host', os.getenv('POSTGRES_HOST', 'postgres-service.multimodal-contract-extractor.svc.cluster.local'),
+            '--port', '5432',
+            '--username', os.getenv('POSTGRES_USER'),
+            '--dbname', target_db,
+            '--clean',
+            '--if-exists',
+            '--verbose',
+            '--no-password',
+            local_file
+        ]
+        
+        result = subprocess.run(restore_cmd, capture_output=True, text=True)
+        
+        if result.returncode == 0:
+            print("Database restore completed successfully")
+        else:
+            print(f"Database restore failed: {result.stderr}")
+            sys.exit(1)
+        
+        # Cleanup
+        os.remove(local_file)
+    
+    if __name__ == "__main__":
+        if len(sys.argv) != 3:
+            print("Usage: restore_database.py <backup_file> <target_database>")
+            sys.exit(1)
+        
+        restore_database(sys.argv[1], sys.argv[2])
+
+  disaster_recovery.py: |
+    #!/usr/bin/env python3
+    import boto3
+    import subprocess
+    import json
+    import time
+    from datetime import datetime
+    
+    def initiate_disaster_recovery():
+        print("Initiating disaster recovery procedure...")
+        
+        # 1. Activate secondary region infrastructure
+        activate_secondary_region()
+        
+        # 2. Restore latest database backup
+        restore_latest_database()
+        
+        # 3. Deploy application to DR region
+        deploy_to_dr_region()
+        
+        # 4. Update DNS to point to DR region
+        update_dns_failover()
+        
+        # 5. Verify DR deployment
+        verify_dr_deployment()
+        
+        print("Disaster recovery completed successfully")
+    
+    def activate_secondary_region():
+        print("Activating secondary region infrastructure...")
+        # Implementation would use Terraform or AWS APIs
+        # to spin up infrastructure in DR region
+        pass
+    
+    def restore_latest_database():
+        print("Restoring latest database backup in DR region...")
+        # Get latest backup from S3
+        s3 = boto3.client('s3', region_name='us-east-1')
+        response = s3.get_object(
+            Bucket='mce-backups-secondary-us-east-1',
+            Key='database/latest_backup.txt'
+        )
+        latest_backup = response['Body'].read().decode('utf-8').strip()
+        
+        # Restore database
+        subprocess.run([
+            'python3', '/scripts/restore_database.py',
+            latest_backup, 'mce_db'
+        ], check=True)
+    
+    def deploy_to_dr_region():
+        print("Deploying application to DR region...")
+        # Deploy Kubernetes manifests to DR cluster
+        subprocess.run([
+            'kubectl', 'apply', '-f', '/manifests/',
+            '--context', 'dr-cluster-context'
+        ], check=True)
+    
+    def update_dns_failover():
+        print("Updating DNS for failover...")
+        # Update Route53 health checks and failover routing
+        route53 = boto3.client('route53')
+        # Implementation for DNS failover
+        pass
+    
+    def verify_dr_deployment():
+        print("Verifying DR deployment...")
+        # Health checks and verification
+        time.sleep(60)  # Wait for deployment to be ready
+        
+        # Run health checks
+        result = subprocess.run([
+            'curl', '-f', 'https://dr.contract-extractor.example.com/health'
+        ], capture_output=True)
+        
+        if result.returncode == 0:
+            print("DR deployment health check passed")
+        else:
+            raise Exception("DR deployment health check failed")
+    
+    if __name__ == "__main__":
+        initiate_disaster_recovery()
+
+---
+# Secrets for backup operations
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-backup-credentials
+  namespace: backup-system
+type: Opaque
+stringData:
+  POSTGRES_USER: "mce_user"
+  POSTGRES_DB: "mce_db"
+  password: "CHANGE_ME_IN_PRODUCTION"
+  POSTGRES_HOST: "postgres-service.multimodal-contract-extractor.svc.cluster.local"
+
+---
+# AWS credentials for backup operations (if not using IAM roles)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: aws-backup-credentials
+  namespace: backup-system
+type: Opaque
+stringData:
+  AWS_ACCESS_KEY_ID: "YOUR_ACCESS_KEY_ID"
+  AWS_SECRET_ACCESS_KEY: "YOUR_SECRET_ACCESS_KEY"
+
+---
+# Volume Snapshot Class for AWS EBS
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: csi-aws-vsc
+  labels:
+    backup-enabled: "true"
+driver: ebs.csi.aws.com
+deletionPolicy: Retain
+parameters:
+  tagSpecification_1: "Key=Name,Value=mce-snapshot"
+  tagSpecification_2: "Key=Environment,Value=production"
+  tagSpecification_3: "Key=BackupType,Value=automated"
+
+---
+# Monitoring for backup operations
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: backup-operations-monitor
+  namespace: backup-system
+  labels:
+    backup: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: backup-metrics
+  endpoints:
+  - port: metrics
+    path: /metrics
+    interval: 30s
+
+---
+# Backup metrics exporter deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backup-metrics-exporter
+  namespace: backup-system
+  labels:
+    app: backup-metrics
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backup-metrics
+  template:
+    metadata:
+      labels:
+        app: backup-metrics
+    spec:
+      serviceAccountName: backup-operator
+      containers:
+      - name: backup-metrics
+        image: prom/node-exporter:v1.6.1
+        ports:
+        - containerPort: 9100
+          name: metrics
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+
+---
+# Service for backup metrics
+apiVersion: v1
+kind: Service
+metadata:
+  name: backup-metrics-service
+  namespace: backup-system
+  labels:
+    app: backup-metrics
+spec:
+  ports:
+  - name: metrics
+    port: 9100
+    targetPort: 9100
+  selector:
+    app: backup-metrics

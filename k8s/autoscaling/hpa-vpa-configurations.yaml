@@ -1,0 +1,712 @@
+# Comprehensive Auto-scaling Configuration
+# Horizontal Pod Autoscaler (HPA), Vertical Pod Autoscaler (VPA), and Cluster Autoscaler
+
+# =============================================================================
+# Horizontal Pod Autoscaler (HPA) - Scale out/in based on metrics
+# =============================================================================
+
+# HPA for main application
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: mce-app-hpa
+  namespace: multimodal-contract-extractor
+  labels:
+    app: mce-app
+    autoscaling: horizontal
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: mce-app
+  minReplicas: 3
+  maxReplicas: 50
+  targetCPUUtilizationPercentage: 70
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 15
+      - type: Pods
+        value: 4
+        periodSeconds: 15
+      selectPolicy: Max
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60
+      - type: Pods
+        value: 2
+        periodSeconds: 60
+      selectPolicy: Min
+  metrics:
+  # CPU utilization
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  # Memory utilization
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  # Custom metric: Request rate
+  - type: Pods
+    pods:
+      metric:
+        name: http_requests_per_second
+      target:
+        type: AverageValue
+        averageValue: "30"
+  # Custom metric: Document processing queue
+  - type: Pods
+    pods:
+      metric:
+        name: document_processing_queue_size
+      target:
+        type: AverageValue
+        averageValue: "10"
+  # Custom metric: Response time
+  - type: Pods
+    pods:
+      metric:
+        name: http_request_duration_seconds_p95
+      target:
+        type: AverageValue
+        averageValue: "2"
+
+---
+# HPA for GPU-enabled pods (more aggressive scaling due to cost)
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: mce-app-gpu-hpa
+  namespace: multimodal-contract-extractor
+  labels:
+    app: mce-app-gpu
+    autoscaling: horizontal
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: mce-app-gpu
+  minReplicas: 0  # Scale to zero when not needed
+  maxReplicas: 10
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+      - type: Percent
+        value: 200
+        periodSeconds: 15
+      selectPolicy: Max
+    scaleDown:
+      stabilizationWindowSeconds: 600  # Longer stabilization for expensive resources
+      policies:
+      - type: Percent
+        value: 25
+        periodSeconds: 120
+      selectPolicy: Min
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 60
+  - type: Resource
+    resource:
+      name: nvidia.com/gpu
+      target:
+        type: Utilization
+        averageUtilization: 80
+  - type: Pods
+    pods:
+      metric:
+        name: gpu_processing_queue_size
+      target:
+        type: AverageValue
+        averageValue: "5"
+
+---
+# =============================================================================
+# Vertical Pod Autoscaler (VPA) - Scale up/down resource limits
+# =============================================================================
+
+# VPA for main application
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: mce-app-vpa
+  namespace: multimodal-contract-extractor
+  labels:
+    app: mce-app
+    autoscaling: vertical
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: mce-app
+  updatePolicy:
+    updateMode: "Auto"  # Automatically apply recommendations
+    minReplicas: 2      # Maintain minimum replicas during updates
+  resourcePolicy:
+    containerPolicies:
+    - containerName: mce-app
+      minAllowed:
+        cpu: 200m
+        memory: 512Mi
+      maxAllowed:
+        cpu: 4000m
+        memory: 8Gi
+      controlledResources: ["cpu", "memory"]
+      controlledValues: RequestsAndLimits
+    - containerName: monitoring-agent
+      mode: "Off"  # Don't auto-scale sidecar containers
+
+---
+# VPA for database (PostgreSQL)
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: postgres-vpa
+  namespace: multimodal-contract-extractor
+  labels:
+    app: postgres
+    autoscaling: vertical
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: postgres
+  updatePolicy:
+    updateMode: "Initial"  # Only set resources on pod creation
+  resourcePolicy:
+    containerPolicies:
+    - containerName: postgres
+      minAllowed:
+        cpu: 500m
+        memory: 1Gi
+      maxAllowed:
+        cpu: 2000m
+        memory: 4Gi
+      controlledResources: ["cpu", "memory"]
+
+---
+# =============================================================================
+# Pod Disruption Budgets for High Availability
+# =============================================================================
+
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: mce-app-pdb
+  namespace: multimodal-contract-extractor
+spec:
+  minAvailable: 2  # Always keep at least 2 pods running
+  selector:
+    matchLabels:
+      app: mce-app
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: postgres-pdb
+  namespace: multimodal-contract-extractor
+spec:
+  maxUnavailable: 0  # Never allow database to go down
+  selector:
+    matchLabels:
+      app: postgres
+
+---
+# =============================================================================
+# Custom Metrics for Advanced Auto-scaling
+# =============================================================================
+
+# ServiceMonitor for custom metrics
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: mce-custom-metrics
+  namespace: multimodal-contract-extractor
+  labels:
+    app: mce-app
+    metrics: custom
+spec:
+  selector:
+    matchLabels:
+      app: mce-app
+  endpoints:
+  - port: metrics
+    path: /metrics
+    interval: 15s
+    honorLabels: true
+
+---
+# Prometheus Adapter for custom metrics
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: adapter-config
+  namespace: monitoring
+data:
+  config.yaml: |
+    rules:
+    # HTTP request rate
+    - seriesQuery: 'http_requests_total{namespace!="",pod!=""}'
+      metricsQuery: 'rate(http_requests_total{<<.LabelMatchers>>}[2m])'
+      name:
+        matches: "^http_requests_total"
+        as: "http_requests_per_second"
+      resources:
+        overrides:
+          namespace: {resource: "namespace"}
+          pod: {resource: "pod"}
+    
+    # Document processing queue size
+    - seriesQuery: 'document_processing_queue_size{namespace!="",pod!=""}'
+      metricsQuery: 'document_processing_queue_size{<<.LabelMatchers>>}'
+      name:
+        matches: "^document_processing_queue_size"
+        as: "document_processing_queue_size"
+      resources:
+        overrides:
+          namespace: {resource: "namespace"}
+          pod: {resource: "pod"}
+    
+    # HTTP request duration 95th percentile
+    - seriesQuery: 'http_request_duration_seconds_bucket{namespace!="",pod!=""}'
+      metricsQuery: 'histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{<<.LabelMatchers>>}[2m]))'
+      name:
+        matches: "^http_request_duration_seconds_bucket"
+        as: "http_request_duration_seconds_p95"
+      resources:
+        overrides:
+          namespace: {resource: "namespace"}
+          pod: {resource: "pod"}
+    
+    # GPU processing queue size
+    - seriesQuery: 'gpu_processing_queue_size{namespace!="",pod!=""}'
+      metricsQuery: 'gpu_processing_queue_size{<<.LabelMatchers>>}'
+      name:
+        matches: "^gpu_processing_queue_size"
+        as: "gpu_processing_queue_size"
+      resources:
+        overrides:
+          namespace: {resource: "namespace"}
+          pod: {resource: "pod"}
+    
+    # Business metrics: Clause detection accuracy
+    - seriesQuery: 'clause_detection_accuracy{namespace!="",pod!=""}'
+      metricsQuery: 'clause_detection_accuracy{<<.LabelMatchers>>}'
+      name:
+        matches: "^clause_detection_accuracy"
+        as: "clause_detection_accuracy"
+      resources:
+        overrides:
+          namespace: {resource: "namespace"}
+          pod: {resource: "pod"}
+    
+    # Cost-based scaling metric
+    - seriesQuery: 'cost_per_request{namespace!="",pod!=""}'
+      metricsQuery: 'cost_per_request{<<.LabelMatchers>>}'
+      name:
+        matches: "^cost_per_request"
+        as: "cost_per_request"
+      resources:
+        overrides:
+          namespace: {resource: "namespace"}
+          pod: {resource: "pod"}
+
+---
+# Prometheus Adapter Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: custom-metrics-apiserver
+  namespace: monitoring
+  labels:
+    app: custom-metrics-apiserver
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: custom-metrics-apiserver
+  template:
+    metadata:
+      labels:
+        app: custom-metrics-apiserver
+    spec:
+      serviceAccountName: custom-metrics-apiserver
+      containers:
+      - name: custom-metrics-apiserver
+        image: k8s.gcr.io/prometheus-adapter/prometheus-adapter:v0.11.1
+        args:
+        - --cert-dir=/var/run/serving-cert
+        - --config=/etc/adapter/config.yaml
+        - --logtostderr=true
+        - --prometheus-url=http://prometheus-operated.monitoring.svc.cluster.local:9090/
+        - --metrics-relist-interval=1m
+        - --v=4
+        - --secure-port=6443
+        - --tls-cipher-suites=TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_RSA_WITH_AES_128_CBC_SHA,TLS_RSA_WITH_AES_256_CBC_SHA
+        ports:
+        - containerPort: 6443
+          name: https
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: https
+            scheme: HTTPS
+          initialDelaySeconds: 30
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: https
+            scheme: HTTPS
+          initialDelaySeconds: 5
+          timeoutSeconds: 5
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 250m
+            memory: 256Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 10001
+        volumeMounts:
+        - mountPath: /etc/adapter/
+          name: config
+          readOnly: true
+        - mountPath: /tmp
+          name: tmp-vol
+        - mountPath: /var/run/serving-cert
+          name: volume-serving-cert
+          readOnly: true
+      volumes:
+      - name: config
+        configMap:
+          name: adapter-config
+      - name: tmp-vol
+        emptyDir: {}
+      - name: volume-serving-cert
+        secret:
+          secretName: cm-adapter-serving-certs
+
+---
+# =============================================================================
+# Cost Optimization Policies
+# =============================================================================
+
+# Priority Classes for workload prioritization
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: high-priority
+value: 1000000
+globalDefault: false
+description: "High priority class for critical application components"
+
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: medium-priority
+value: 1000
+globalDefault: false
+description: "Medium priority class for standard application components"
+
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: low-priority
+value: 100
+globalDefault: false
+description: "Low priority class for batch processing and non-critical components"
+
+---
+# Resource Quotas for Cost Control
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: compute-quota
+  namespace: multimodal-contract-extractor
+spec:
+  hard:
+    # CPU limits
+    requests.cpu: "20"
+    limits.cpu: "50"
+    
+    # Memory limits
+    requests.memory: 40Gi
+    limits.memory: 100Gi
+    
+    # GPU limits (expensive resources)
+    requests.nvidia.com/gpu: "4"
+    limits.nvidia.com/gpu: "8"
+    
+    # Storage limits
+    requests.storage: 1Ti
+    persistentvolumeclaims: "20"
+    
+    # Object limits
+    pods: "50"
+    services: "10"
+    secrets: "20"
+    configmaps: "20"
+
+---
+# Limit Ranges for Default Resource Limits
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: resource-limits
+  namespace: multimodal-contract-extractor
+spec:
+  limits:
+  # Container limits
+  - default:
+      cpu: "1000m"
+      memory: "2Gi"
+    defaultRequest:
+      cpu: "100m"
+      memory: "128Mi"
+    max:
+      cpu: "4000m"
+      memory: "8Gi"
+    min:
+      cpu: "50m"
+      memory: "64Mi"
+    type: Container
+  
+  # PVC limits
+  - default:
+      storage: "10Gi"
+    max:
+      storage: "100Gi"
+    min:
+      storage: "1Gi"
+    type: PersistentVolumeClaim
+
+---
+# =============================================================================
+# Intelligent Scheduling and Node Affinity
+# =============================================================================
+
+# Node Affinity for Cost Optimization
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: node-affinity-config
+  namespace: multimodal-contract-extractor
+data:
+  preferred-node-types.yaml: |
+    # Prefer spot instances for non-critical workloads
+    spot-instances:
+      weight: 100
+      matchExpressions:
+      - key: karpenter.sh/capacity-type
+        operator: In
+        values: ["spot"]
+    
+    # Prefer cheaper instance types
+    cost-optimized:
+      weight: 80
+      matchExpressions:
+      - key: node.kubernetes.io/instance-type
+        operator: In
+        values: ["t3.medium", "t3.large", "m5.large"]
+    
+    # GPU nodes only for GPU workloads
+    gpu-nodes:
+      weight: 100
+      matchExpressions:
+      - key: accelerator
+        operator: In
+        values: ["nvidia-tesla-t4", "nvidia-tesla-v100"]
+
+---
+# =============================================================================
+# Karpenter Node Pool Configuration (for AWS)
+# =============================================================================
+
+apiVersion: karpenter.sh/v1beta1
+kind: NodePool
+metadata:
+  name: default-node-pool
+spec:
+  # Disruption settings for cost optimization
+  disruption:
+    consolidationPolicy: WhenNodeEmpty
+    consolidateAfter: 30s
+    expireAfter: 30m
+  
+  # Template for nodes
+  template:
+    metadata:
+      labels:
+        node-type: "general-purpose"
+        cost-optimized: "true"
+      annotations:
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+    
+    spec:
+      # Node requirements
+      requirements:
+      - key: kubernetes.io/arch
+        operator: In
+        values: ["amd64"]
+      - key: karpenter.sh/capacity-type
+        operator: In
+        values: ["spot", "on-demand"]
+      - key: node.kubernetes.io/instance-type
+        operator: In
+        values: ["t3.medium", "t3.large", "t3.xlarge", "m5.large", "m5.xlarge", "m5.2xlarge"]
+      
+      # Prefer spot instances for cost savings
+      nodeClassRef:
+        apiVersion: karpenter.k8s.aws/v1beta1
+        kind: EC2NodeClass
+        name: default-node-class
+      
+      # Startup and shutdown taints
+      startupTaints:
+      - key: karpenter.sh/unschedulable
+        value: "true"
+        effect: NoSchedule
+      
+      taints:
+      - key: node-type
+        value: "general-purpose"
+        effect: NoSchedule
+
+---
+# GPU Node Pool (expensive, use carefully)
+apiVersion: karpenter.sh/v1beta1
+kind: NodePool
+metadata:
+  name: gpu-node-pool
+spec:
+  disruption:
+    consolidationPolicy: WhenEmpty
+    consolidateAfter: 10s  # Quick consolidation for expensive resources
+    expireAfter: 5m        # Short expiry time
+  
+  template:
+    metadata:
+      labels:
+        node-type: "gpu"
+        accelerator: "nvidia-tesla-t4"
+      annotations:
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
+    
+    spec:
+      requirements:
+      - key: karpenter.sh/capacity-type
+        operator: In
+        values: ["on-demand"]  # GPU instances on on-demand for reliability
+      - key: node.kubernetes.io/instance-type
+        operator: In
+        values: ["g4dn.xlarge", "g4dn.2xlarge", "p3.2xlarge"]
+      
+      nodeClassRef:
+        apiVersion: karpenter.k8s.aws/v1beta1
+        kind: EC2NodeClass
+        name: gpu-node-class
+      
+      taints:
+      - key: nvidia.com/gpu
+        value: "true"
+        effect: NoSchedule
+      - key: node-type
+        value: "gpu"
+        effect: NoSchedule
+
+---
+# =============================================================================
+# Cost Monitoring and Alerting
+# =============================================================================
+
+# PrometheusRule for cost-related alerts
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cost-optimization-alerts
+  namespace: monitoring
+  labels:
+    prometheus: mce
+    role: alert-rules
+spec:
+  groups:
+  - name: cost-optimization
+    rules:
+    - alert: HighResourceUtilization
+      expr: |
+        (
+          sum(rate(container_cpu_usage_seconds_total{container!="POD",namespace="multimodal-contract-extractor"}[5m])) /
+          sum(kube_pod_container_resource_requests{resource="cpu",namespace="multimodal-contract-extractor"})
+        ) > 0.9
+      for: 5m
+      labels:
+        severity: warning
+        category: cost-optimization
+      annotations:
+        summary: "High CPU utilization - consider scaling up"
+        description: "CPU utilization is {{ $value | humanizePercentage }} which suggests resources are under-provisioned"
+    
+    - alert: LowResourceUtilization
+      expr: |
+        (
+          sum(rate(container_cpu_usage_seconds_total{container!="POD",namespace="multimodal-contract-extractor"}[5m])) /
+          sum(kube_pod_container_resource_requests{resource="cpu",namespace="multimodal-contract-extractor"})
+        ) < 0.3
+      for: 15m
+      labels:
+        severity: info
+        category: cost-optimization
+      annotations:
+        summary: "Low CPU utilization - consider scaling down"
+        description: "CPU utilization is {{ $value | humanizePercentage }} which suggests over-provisioning"
+    
+    - alert: ExpensiveGPUIdling
+      expr: |
+        (
+          sum(nvidia_gpu_duty_cycle) /
+          count(nvidia_gpu_duty_cycle)
+        ) < 50
+      for: 10m
+      labels:
+        severity: warning
+        category: cost-optimization
+      annotations:
+        summary: "GPU resources are underutilized"
+        description: "GPU utilization is {{ $value }}% - consider scaling down GPU nodes"
+    
+    - alert: HighStorageCost
+      expr: |
+        sum(kube_persistentvolume_capacity_bytes * on(persistentvolume) group_left(storageclass) kube_persistentvolume_info{storageclass=~"fast-ssd|premium-ssd"}) > 10737418240000  # 10TB
+      for: 1h
+      labels:
+        severity: warning
+        category: cost-optimization
+      annotations:
+        summary: "High premium storage usage"
+        description: "Premium storage usage is {{ $value | humanizeBytes }} - consider archiving old data"
