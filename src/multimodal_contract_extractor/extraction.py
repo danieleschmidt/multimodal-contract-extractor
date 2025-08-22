@@ -1,4 +1,11 @@
-"""High-level extraction functions that bridge OCR detection with structured output."""
+"""High-level extraction functions that bridge OCR detection with structured output.
+
+Generation 1 Enhanced Features:
+- Real-time streaming processing
+- Advanced fraud detection
+- Adaptive ML model selection
+- Enhanced contract party identification
+"""
 
 from __future__ import annotations
 
@@ -39,6 +46,10 @@ from .robust_validation import (
     handle_processing_error,
     validate_extraction_comprehensive,
 )
+from .real_time_streaming import StreamingProcessor, StreamingMode
+from .fraud_detection import FraudDetector, FraudRiskLevel
+from .adaptive_ml_models import ModelSelector, ModelType
+from .party_identification import ContractPartyExtractor
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -79,7 +90,11 @@ def extract_from_document(file_path: Path, *,
                          enable_neuromorphic_analysis: bool = True,
                          enable_quantum_analysis: bool = True,
                          validation_level: ValidationLevel = ValidationLevel.STANDARD,
-                         enable_security_scanning: bool = True) -> dict[str, Any]:
+                         enable_security_scanning: bool = True,
+                         enable_streaming: bool = True,
+                         enable_fraud_detection: bool = True,
+                         enable_adaptive_ml: bool = True,
+                         enable_party_identification: bool = True) -> dict[str, Any]:
     """Extract clauses from a document and return structured JSON-compatible data.
 
     This function provides the main extraction pipeline that:
@@ -106,6 +121,14 @@ def extract_from_document(file_path: Path, *,
         Level of validation to perform on extraction results.
     enable_security_scanning : bool
         Whether to perform security scanning on input files.
+    enable_streaming : bool
+        Whether to enable real-time streaming processing for large documents.
+    enable_fraud_detection : bool
+        Whether to enable fraud detection analysis on contract content.
+    enable_adaptive_ml : bool
+        Whether to enable adaptive ML model selection for optimal extraction.
+    enable_party_identification : bool
+        Whether to enable advanced contract party identification.
 
     Returns
     -------
@@ -131,7 +154,11 @@ def extract_from_document(file_path: Path, *,
             'enable_adaptive_processing': enable_adaptive_processing,
             'enable_neuromorphic_analysis': enable_neuromorphic_analysis,
             'enable_quantum_analysis': enable_quantum_analysis,
-            'validation_level': validation_level.value
+            'validation_level': validation_level.value,
+            'enable_streaming': enable_streaming,
+            'enable_fraud_detection': enable_fraud_detection,
+            'enable_adaptive_ml': enable_adaptive_ml,
+            'enable_party_identification': enable_party_identification
         }
         cache_key = cache_manager.get_cache_key(file_path, processing_settings)
 
@@ -186,8 +213,29 @@ def extract_from_document(file_path: Path, *,
 
             logger.info("Starting extraction for %s", file_path.name)
 
-            # Adaptive document loading: use streaming for large files to optimize memory usage
-            document = _load_document_adaptive(file_path)
+            # Generation 1: Enhanced document loading with streaming support
+            if enable_streaming:
+                streaming_processor = StreamingProcessor(
+                    mode=StreamingMode.ADAPTIVE,
+                    chunk_size=config.extraction.streaming_chunk_size
+                )
+                document = streaming_processor.load_document(file_path)
+                logger.info("Streaming processing enabled for document: %s", file_path.name)
+            else:
+                # Adaptive document loading: use streaming for large files to optimize memory usage
+                document = _load_document_adaptive(file_path)
+
+            # Generation 1: Adaptive ML model selection
+            selected_model = None
+            if enable_adaptive_ml:
+                model_selector = ModelSelector()
+                selected_model = model_selector.select_optimal_model(
+                    document_type=document.path.suffix,
+                    file_size=document.path.stat().st_size,
+                    language_code=language_code or "en"
+                )
+                logger.info("Selected ML model: %s (confidence: %.3f)", 
+                          selected_model.model_type.value, selected_model.confidence)
 
             # Use adaptive processing pipeline if enabled
             if enable_adaptive_processing:
@@ -211,6 +259,32 @@ def extract_from_document(file_path: Path, *,
             if enable_advanced_classification:
                 clauses = _enhance_clauses_with_advanced_classification(clauses, language_code or "en")
 
+            # Generation 1: Fraud detection analysis
+            fraud_analysis = None
+            if enable_fraud_detection:
+                fraud_detector = FraudDetector()
+                fraud_analysis = fraud_detector.analyze_document(
+                    document_text=" ".join([clause.text for clause in clauses]),
+                    clauses=clauses,
+                    document_metadata={
+                        "filename": document.path.name,
+                        "file_size": document.path.stat().st_size,
+                        "processing_time": time.perf_counter() - start_time
+                    }
+                )
+                logger.info("Fraud detection completed: risk_level=%s, score=%.3f",
+                          fraud_analysis.risk_level.value, fraud_analysis.fraud_score)
+
+            # Generation 1: Enhanced party identification
+            parties_identified = []
+            if enable_party_identification:
+                party_extractor = ContractPartyExtractor()
+                parties_identified = party_extractor.extract_parties(
+                    document_text=" ".join([clause.text for clause in clauses]),
+                    clauses=clauses
+                )
+                logger.info("Identified %d contract parties", len(parties_identified))
+
             processing_time = time.perf_counter() - start_time
 
             # Record metrics
@@ -227,7 +301,24 @@ def extract_from_document(file_path: Path, *,
             # Record successful processing
             record_document_processed("success")
 
-            result = _build_extraction_result(document, clauses, processing_time, enable_advanced_classification)
+            result = _build_extraction_result(
+                document, 
+                clauses, 
+                processing_time, 
+                enable_advanced_classification,
+                parties_identified if enable_party_identification else None,
+                fraud_analysis if enable_fraud_detection else None,
+                selected_model if enable_adaptive_ml else None
+            )
+
+            # Generation 1: Add streaming processing metadata
+            if enable_streaming and 'streaming_processor' in locals():
+                result["metadata"]["streaming_processing"] = {
+                    "mode": streaming_processor.mode.value,
+                    "chunks_processed": streaming_processor.chunks_processed,
+                    "memory_efficiency": streaming_processor.get_memory_efficiency(),
+                    "processing_speed": streaming_processor.get_processing_speed()
+                }
 
             # Add adaptive processing metadata if it was used
             if enable_adaptive_processing and 'adaptive_result' in locals():
@@ -342,7 +433,11 @@ def extract_from_document(file_path: Path, *,
                         "features_enabled": {
                             "neuromorphic": enable_neuromorphic_analysis,
                             "quantum": enable_quantum_analysis,
-                            "validation": validation_level.value
+                            "validation": validation_level.value,
+                            "streaming": enable_streaming,
+                            "fraud_detection": enable_fraud_detection,
+                            "adaptive_ml": enable_adaptive_ml,
+                            "party_identification": enable_party_identification
                         }
                     }
                 )
@@ -441,7 +536,13 @@ def extract_from_document(file_path: Path, *,
 
 
 def _build_extraction_result(
-    document: Document, clauses: list, processing_time: float, enable_advanced_classification: bool = True
+    document: Document, 
+    clauses: list, 
+    processing_time: float, 
+    enable_advanced_classification: bool = True,
+    parties_identified: Optional[List[Any]] = None,
+    fraud_analysis: Optional[Any] = None,
+    selected_model: Optional[Any] = None
 ) -> dict[str, Any]:
     """Build the structured extraction result.
 
@@ -483,7 +584,7 @@ def _build_extraction_result(
             if contract_type_scores[best_type] > 0.6:
                 document_type = best_type
 
-    # Build document info
+    # Build document info with Generation 1 enhancements
     document_info = {
         "filename": document.path.name,
         "pages": len(document.pages),
@@ -491,6 +592,25 @@ def _build_extraction_result(
         "overall_confidence": round(overall_confidence, 2),
         "document_type": document_type,
     }
+    
+    # Add fraud analysis results if available
+    if fraud_analysis:
+        document_info["fraud_analysis"] = {
+            "fraud_score": fraud_analysis.fraud_score,
+            "risk_level": fraud_analysis.risk_level.value,
+            "indicators_count": len(fraud_analysis.indicators),
+            "high_risk_indicators": len([i for i in fraud_analysis.indicators if i.risk_score > 0.7]),
+            "recommendations_count": len(fraud_analysis.recommendations)
+        }
+    
+    # Add ML model selection info if available
+    if selected_model:
+        document_info["ml_model_used"] = {
+            "model_type": selected_model.model_type.value,
+            "selection_confidence": selected_model.confidence,
+            "estimated_accuracy": selected_model.estimated_accuracy,
+            "reasoning": selected_model.reasoning
+        }
 
     # Add contract type scores if advanced classification was used
     if enable_advanced_classification and contract_type_scores:
@@ -498,10 +618,32 @@ def _build_extraction_result(
             k: round(v, 3) for k, v in contract_type_scores.items() if v > 0.1
         }
 
-    # Build result in documented JSON format
-    return {
+    # Generation 1: Add parties section if identified
+    result = {
         "document_info": document_info,
-        "clauses": [
+    }
+    
+    # Add parties if identified
+    if parties_identified:
+        result["parties"] = [
+            {
+                "name": party.name,
+                "role": party.role,
+                "party_type": party.party_type,
+                "confidence": round(party.confidence, 3),
+                "contact_info": {
+                    "email": party.contact_info.email,
+                    "phone": party.contact_info.phone,
+                    "address": party.contact_info.address,
+                    "website": party.contact_info.website
+                } if hasattr(party, 'contact_info') else {},
+                "legal_entity_type": getattr(party, 'legal_entity_type', None),
+                "aliases": getattr(party, 'aliases', [])
+            }
+            for party in parties_identified
+        ]
+    
+    result["clauses"] = [
             {
                 "id": clause.id
                 or f"clause_{i:03d}",  # Use clause ID if available, fallback to generated
@@ -522,20 +664,42 @@ def _build_extraction_result(
                    and hasattr(clause, 'advanced_classification') else {})
             }
             for i, clause in enumerate(clauses, 1)
-        ],
-        "metadata": {
-            "extraction_timestamp": datetime.now(timezone.utc).isoformat(),
-            "model_version": "v0.1.0-ocr-multilang",
-            "processing_method": "ocr_keyword_detection" + ("_advanced" if enable_advanced_classification else "") + ("_adaptive" if enable_adaptive_processing else "") + ("_neuromorphic" if enable_neuromorphic_analysis else "") + ("_quantum" if enable_quantum_analysis else ""),
-            "features_enabled": {
-                "multi_language_support": True,
-                "advanced_classification": enable_advanced_classification,
-                "adaptive_processing": enable_adaptive_processing,
-                "neuromorphic_analysis": enable_neuromorphic_analysis,
-                "quantum_analysis": enable_quantum_analysis,
-            }
-        },
+        ]
+    
+    # Add fraud analysis details if available
+    if fraud_analysis:
+        result["fraud_analysis"] = {
+            "fraud_score": fraud_analysis.fraud_score,
+            "risk_level": fraud_analysis.risk_level.value,
+            "analysis_time": round(fraud_analysis.analysis_time, 3),
+            "indicators": [
+                {
+                    "type": indicator.indicator_type,
+                    "description": indicator.description,
+                    "risk_score": indicator.risk_score,
+                    "confidence": indicator.confidence,
+                    "evidence": indicator.evidence[:3]  # Limit evidence items
+                }
+                for indicator in fraud_analysis.indicators
+            ],
+            "document_anomalies": fraud_analysis.document_anomalies,
+            "recommendations": fraud_analysis.recommendations
+        }
+    
+    result["metadata"] = {
+        "extraction_timestamp": datetime.now(timezone.utc).isoformat(),
+        "model_version": "v0.1.0-gen1-enhanced",
+        "processing_method": "ocr_keyword_detection" + ("_advanced" if enable_advanced_classification else "") + ("_adaptive" if enable_adaptive_processing else "") + ("_neuromorphic" if enable_neuromorphic_analysis else "") + ("_quantum" if enable_quantum_analysis else ""),
+        "features_enabled": {
+            "multi_language_support": True,
+            "advanced_classification": enable_advanced_classification,
+            "adaptive_processing": enable_adaptive_processing,
+            "neuromorphic_analysis": enable_neuromorphic_analysis,
+            "quantum_analysis": enable_quantum_analysis,
+        }
     }
+    
+    return result
 
 
 def _calculate_clause_confidence(clause) -> float:
