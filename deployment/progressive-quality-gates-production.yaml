@@ -1,0 +1,575 @@
+---
+# Progressive Quality Gates Production Deployment Configuration
+# Kubernetes deployment for Autonomous SDLC with Quality Gates
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: autonomous-sdlc
+  labels:
+    app: autonomous-sdlc
+    version: v4.0
+    component: progressive-quality-gates
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: progressive-quality-gates
+  namespace: autonomous-sdlc
+  labels:
+    app: progressive-quality-gates
+    version: v4.0
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: progressive-quality-gates
+  template:
+    metadata:
+      labels:
+        app: progressive-quality-gates
+        version: v4.0
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+      - name: quality-gates-engine
+        image: terragon/autonomous-sdlc:v4.0
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        - containerPort: 8081
+          name: health
+          protocol: TCP
+        env:
+        - name: ENVIRONMENT
+          value: "production"
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: QUALITY_GATES_ENABLED
+          value: "true"
+        - name: ERROR_RECOVERY_ENABLED
+          value: "true"
+        - name: PERFORMANCE_OPTIMIZATION_ENABLED
+          value: "true"
+        - name: MONITORING_ENABLED
+          value: "true"
+        - name: POSTGRES_HOST
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: host
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: username
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: password
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: cache-credentials
+              key: url
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8081
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config
+          readOnly: true
+        - name: logs-volume
+          mountPath: /app/logs
+        - name: temp-volume
+          mountPath: /tmp
+      - name: monitoring-sidecar
+        image: prom/node-exporter:latest
+        ports:
+        - containerPort: 9100
+          name: metrics
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "10m"
+          limits:
+            memory: "64Mi"
+            cpu: "50m"
+      volumes:
+      - name: config-volume
+        configMap:
+          name: quality-gates-config
+      - name: logs-volume
+        emptyDir: {}
+      - name: temp-volume
+        emptyDir:
+          sizeLimit: 1Gi
+      nodeSelector:
+        kubernetes.io/os: linux
+        node-type: compute
+      tolerations:
+      - key: "dedicated"
+        operator: "Equal"
+        value: "compute"
+        effect: "NoSchedule"
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - progressive-quality-gates
+              topologyKey: kubernetes.io/hostname
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: progressive-quality-gates-service
+  namespace: autonomous-sdlc
+  labels:
+    app: progressive-quality-gates
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  - port: 8081
+    targetPort: 8081
+    protocol: TCP
+    name: health
+  - port: 9100
+    targetPort: 9100
+    protocol: TCP
+    name: metrics
+  selector:
+    app: progressive-quality-gates
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: progressive-quality-gates-ingress
+  namespace: autonomous-sdlc
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+spec:
+  tls:
+  - hosts:
+    - sdlc.terragon.ai
+    secretName: sdlc-tls
+  rules:
+  - host: sdlc.terragon.ai
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: progressive-quality-gates-service
+            port:
+              number: 80
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: progressive-quality-gates-hpa
+  namespace: autonomous-sdlc
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: progressive-quality-gates
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: quality-gates-config
+  namespace: autonomous-sdlc
+data:
+  config.yaml: |
+    # Autonomous SDLC Progressive Quality Gates Configuration
+    quality_gates:
+      enabled: true
+      strict_mode: true
+      generation_phases:
+        - generation_1
+        - generation_2
+        - generation_3
+        - research_phase
+        - production_ready
+      
+    error_recovery:
+      enabled: true
+      max_retries: 3
+      backoff_factor: 2.0
+      circuit_breaker:
+        failure_threshold: 5
+        timeout_seconds: 60
+        half_open_max_calls: 1
+    
+    performance_optimization:
+      enabled: true
+      level: "balanced"  # conserve, balanced, performance, maximum
+      monitoring_interval: 5.0
+      cache:
+        max_size: 5000
+        ttl_seconds: 3600
+    
+    monitoring:
+      enabled: true
+      collection_interval: 5.0
+      retention_hours: 24
+      health_weights:
+        performance: 0.3
+        resources: 0.25
+        errors: 0.25
+        availability: 0.2
+    
+    logging:
+      level: "INFO"
+      format: "json"
+      structured: true
+      
+    security:
+      max_file_size_mb: 100
+      request_id_length_limit: 64
+      
+    database:
+      connection_pool_size: 10
+      connection_timeout: 30
+      query_timeout: 60
+      
+    redis:
+      connection_pool_size: 20
+      connection_timeout: 10
+      
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+    
+    scrape_configs:
+    - job_name: 'quality-gates'
+      static_configs:
+      - targets: ['localhost:8080']
+      metrics_path: '/metrics'
+      scrape_interval: 10s
+    
+    - job_name: 'node-exporter'
+      static_configs:
+      - targets: ['localhost:9100']
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: db-credentials
+  namespace: autonomous-sdlc
+type: Opaque
+data:
+  # Base64 encoded values - replace with actual values
+  host: cG9zdGdyZXMtc2VydmljZQ==  # postgres-service
+  username: YXV0b25vbW91c19zZGxj  # autonomous_sdlc
+  password: <REPLACE_WITH_ACTUAL_PASSWORD>
+  
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cache-credentials
+  namespace: autonomous-sdlc
+type: Opaque
+data:
+  # Base64 encoded values - replace with actual values
+  url: cmVkaXM6Ly9yZWRpcy1zZXJ2aWNlOjYzNzk=  # redis://redis-service:6379
+
+---
+# PostgreSQL Database for Quality Gates Data
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: autonomous-sdlc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15-alpine
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_DB
+          value: "autonomous_sdlc"
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: username
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: password
+        volumeMounts:
+        - name: postgres-storage
+          mountPath: /var/lib/postgresql/data
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+      volumes:
+      - name: postgres-storage
+        persistentVolumeClaim:
+          claimName: postgres-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+  namespace: autonomous-sdlc
+spec:
+  selector:
+    app: postgres
+  ports:
+  - port: 5432
+    targetPort: 5432
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: autonomous-sdlc
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: fast-ssd
+
+---
+# Redis Cache for Performance Optimization
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: autonomous-sdlc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        ports:
+        - containerPort: 6379
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "250m"
+        volumeMounts:
+        - name: redis-storage
+          mountPath: /data
+      volumes:
+      - name: redis-storage
+        emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-service
+  namespace: autonomous-sdlc
+spec:
+  selector:
+    app: redis
+  ports:
+  - port: 6379
+    targetPort: 6379
+
+---
+# Service Monitor for Prometheus
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: quality-gates-monitor
+  namespace: autonomous-sdlc
+  labels:
+    app: progressive-quality-gates
+spec:
+  selector:
+    matchLabels:
+      app: progressive-quality-gates
+  endpoints:
+  - port: http
+    interval: 30s
+    path: /metrics
+  - port: metrics
+    interval: 30s
+
+---
+# Pod Disruption Budget
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: quality-gates-pdb
+  namespace: autonomous-sdlc
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: progressive-quality-gates
+
+---
+# Network Policy for Security
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: quality-gates-network-policy
+  namespace: autonomous-sdlc
+spec:
+  podSelector:
+    matchLabels:
+      app: progressive-quality-gates
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector: {}
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 8080
+    - protocol: TCP
+      port: 8081
+    - protocol: TCP
+      port: 9100
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app: postgres
+    ports:
+    - protocol: TCP
+      port: 5432
+  - to:
+    - podSelector:
+        matchLabels:
+          app: redis
+    ports:
+    - protocol: TCP
+      port: 6379
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 53
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 80
