@@ -1,0 +1,312 @@
+# Docker Compose for Progressive Quality Gates Autonomous SDLC
+# Complete stack for local development and testing
+
+version: '3.8'
+
+networks:
+  autonomous-sdlc:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  logs_data:
+  reports_data:
+
+services:
+  # Main Progressive Quality Gates Application
+  quality-gates:
+    build:
+      context: .
+      dockerfile: Dockerfile.progressive-quality-gates
+      target: production
+      args:
+        INSTALL_DEV: "false"
+    image: terragon/autonomous-sdlc:v4.0
+    container_name: progressive-quality-gates
+    restart: unless-stopped
+    ports:
+      - "8080:8080"  # API port
+      - "8081:8081"  # Health check port
+      - "9100:9100"  # Metrics port
+    environment:
+      # Application Configuration
+      - ENVIRONMENT=production
+      - LOG_LEVEL=INFO
+      - QUALITY_GATES_ENABLED=true
+      - ERROR_RECOVERY_ENABLED=true
+      - PERFORMANCE_OPTIMIZATION_ENABLED=true
+      - MONITORING_ENABLED=true
+      
+      # Database Configuration
+      - POSTGRES_HOST=postgres
+      - POSTGRES_DB=autonomous_sdlc
+      - POSTGRES_USER=autonomous_sdlc
+      - POSTGRES_PASSWORD=secure_quality_gates_2024
+      
+      # Redis Configuration
+      - REDIS_URL=redis://redis:6379
+      
+      # Performance Settings
+      - PERFORMANCE_LEVEL=balanced
+      - CACHE_SIZE=5000
+      - MONITORING_INTERVAL=5
+      
+      # Security Settings
+      - MAX_FILE_SIZE_MB=100
+      - REQUEST_ID_LENGTH_LIMIT=64
+    volumes:
+      - logs_data:/app/logs
+      - reports_data:/app/reports
+      - /tmp:/app/temp
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - autonomous-sdlc
+    healthcheck:
+      test: ["/usr/local/bin/health-check.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: quality-gates-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=autonomous_sdlc
+      - POSTGRES_USER=autonomous_sdlc
+      - POSTGRES_PASSWORD=secure_quality_gates_2024
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    networks:
+      - autonomous-sdlc
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U autonomous_sdlc -d autonomous_sdlc"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: >
+      postgres
+      -c shared_preload_libraries='pg_stat_statements'
+      -c pg_stat_statements.max=10000
+      -c pg_stat_statements.track=all
+      -c max_connections=200
+      -c shared_buffers=256MB
+      -c effective_cache_size=1GB
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: quality-gates-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./config/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    networks:
+      - autonomous-sdlc
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    command: redis-server /usr/local/etc/redis/redis.conf
+
+  # Prometheus Monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: quality-gates-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./config/alert.rules.yml:/etc/prometheus/alert.rules.yml:ro
+    networks:
+      - autonomous-sdlc
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+
+  # Grafana Dashboard
+  grafana:
+    image: grafana/grafana:latest
+    container_name: quality-gates-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=autonomous_quality_2024
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+    volumes:
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+      - autonomous-sdlc
+    depends_on:
+      - prometheus
+
+  # Jaeger Tracing (Optional)
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: quality-gates-jaeger
+    restart: unless-stopped
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "14268:14268"  # HTTP collector
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      - autonomous-sdlc
+
+  # NGINX Load Balancer (for multiple instances)
+  nginx:
+    image: nginx:alpine
+    container_name: quality-gates-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./config/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./config/nginx/ssl:/etc/nginx/ssl:ro
+    networks:
+      - autonomous-sdlc
+    depends_on:
+      - quality-gates
+
+  # Development Services (Optional)
+  quality-gates-dev:
+    profiles: ["dev"]
+    build:
+      context: .
+      dockerfile: Dockerfile.progressive-quality-gates
+      target: development
+    container_name: progressive-quality-gates-dev
+    restart: unless-stopped
+    ports:
+      - "8082:8080"  # Dev API port
+      - "8083:8081"  # Dev health port
+      - "5678:5678"  # Debug port
+      - "8888:8888"  # Jupyter port
+    environment:
+      - ENVIRONMENT=development
+      - LOG_LEVEL=DEBUG
+      - QUALITY_GATES_ENABLED=true
+      - ERROR_RECOVERY_ENABLED=true
+      - PERFORMANCE_OPTIMIZATION_ENABLED=true
+      - MONITORING_ENABLED=true
+      - POSTGRES_HOST=postgres
+      - POSTGRES_DB=autonomous_sdlc
+      - POSTGRES_USER=autonomous_sdlc
+      - POSTGRES_PASSWORD=secure_quality_gates_2024
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - .:/app:cached
+      - logs_data:/app/logs
+      - reports_data:/app/reports
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - autonomous-sdlc
+
+  # Testing Services
+  quality-gates-test:
+    profiles: ["test"]
+    build:
+      context: .
+      dockerfile: Dockerfile.progressive-quality-gates
+      target: testing
+    container_name: progressive-quality-gates-test
+    restart: "no"
+    environment:
+      - ENVIRONMENT=testing
+      - LOG_LEVEL=DEBUG
+      - TESTING=true
+      - POSTGRES_HOST=postgres
+      - POSTGRES_DB=autonomous_sdlc_test
+      - POSTGRES_USER=autonomous_sdlc
+      - POSTGRES_PASSWORD=secure_quality_gates_2024
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - .:/app:cached
+      - ./test-results:/app/test-results
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - autonomous-sdlc
+    command: >
+      sh -c "
+        echo 'Running Progressive Quality Gates Tests...' &&
+        python -m pytest tests/ -v --tb=short --junitxml=test-results/junit.xml --cov=src --cov-report=html:test-results/coverage --cov-report=term &&
+        echo 'Tests completed!'
+      "
+
+  # Security Scanning
+  quality-gates-security:
+    profiles: ["security"]
+    build:
+      context: .
+      dockerfile: Dockerfile.progressive-quality-gates
+      target: security
+    container_name: progressive-quality-gates-security
+    restart: "no"
+    volumes:
+      - .:/app:cached
+      - ./security-results:/app/security-results
+    networks:
+      - autonomous-sdlc
+    command: >
+      sh -c "
+        echo 'Running security scans...' &&
+        mkdir -p security-results &&
+        safety check --json --output security-results/safety-report.json || echo 'Safety scan completed with warnings' &&
+        bandit -r src/ -f json -o security-results/bandit-report.json || echo 'Bandit scan completed with warnings' &&
+        echo 'Security scans completed!'
+      "
+
+  # Database Management (Optional)
+  adminer:
+    profiles: ["dev"]
+    image: adminer
+    container_name: quality-gates-adminer
+    restart: unless-stopped
+    ports:
+      - "8084:8080"
+    networks:
+      - autonomous-sdlc
+    depends_on:
+      - postgres
+
+  # Redis Management (Optional)
+  redis-commander:
+    profiles: ["dev"]
+    image: rediscommander/redis-commander:latest
+    container_name: quality-gates-redis-commander
+    restart: unless-stopped
+    ports:
+      - "8085:8081"
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    networks:
+      - autonomous-sdlc
+    depends_on:
+      - redis

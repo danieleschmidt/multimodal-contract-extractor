@@ -1,0 +1,142 @@
+# Multi-stage Dockerfile for Progressive Quality Gates Autonomous SDLC
+# Optimized for production deployment with security and performance
+
+# Stage 1: Base Python runtime
+FROM python:3.11-slim as base
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    --no-install-recommends \
+    build-essential \
+    curl \
+    git \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Create non-root user for security
+RUN groupadd --gid 1000 autonomous && \
+    useradd --uid 1000 --gid autonomous --shell /bin/bash --create-home autonomous
+
+# Set working directory
+WORKDIR /app
+
+# Stage 2: Dependencies installation
+FROM base as dependencies
+
+# Copy dependency files
+COPY requirements.txt requirements-dev.txt ./
+
+# Install Python dependencies
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# For development dependencies (optional)
+ARG INSTALL_DEV=false
+RUN if [ "$INSTALL_DEV" = "true" ]; then \
+    pip install --no-cache-dir -r requirements-dev.txt; \
+    fi
+
+# Stage 3: Application code
+FROM dependencies as application
+
+# Copy source code
+COPY src/ ./src/
+COPY autonomous_sdlc_progressive_orchestrator.py ./
+COPY tests/ ./tests/
+COPY pyproject.toml ./
+COPY config.*.yml ./
+
+# Install the package
+RUN pip install -e .
+
+# Stage 4: Production runtime
+FROM application as production
+
+# Copy health check script
+COPY scripts/health-check.sh /usr/local/bin/health-check.sh
+RUN chmod +x /usr/local/bin/health-check.sh
+
+# Create necessary directories
+RUN mkdir -p /app/logs /app/reports /app/temp /app/config && \
+    chown -R autonomous:autonomous /app
+
+# Set environment variables
+ENV PYTHONPATH=/app/src \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    ENVIRONMENT=production \
+    LOG_LEVEL=INFO \
+    QUALITY_GATES_ENABLED=true \
+    ERROR_RECOVERY_ENABLED=true \
+    PERFORMANCE_OPTIMIZATION_ENABLED=true \
+    MONITORING_ENABLED=true
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD /usr/local/bin/health-check.sh
+
+# Switch to non-root user
+USER autonomous
+
+# Expose ports
+EXPOSE 8080 8081 9100
+
+# Default command
+CMD ["python", "-m", "src.api.app"]
+
+# Stage 5: Development variant
+FROM application as development
+
+# Install development dependencies
+RUN pip install --no-cache-dir -r requirements-dev.txt
+
+# Install additional dev tools
+RUN pip install --no-cache-dir \
+    jupyter \
+    ipython \
+    debugpy
+
+# Set development environment
+ENV ENVIRONMENT=development \
+    LOG_LEVEL=DEBUG \
+    PYTHONDONTWRITEBYTECODE=0
+
+# Switch to non-root user
+USER autonomous
+
+# Development command
+CMD ["python", "-m", "debugpy", "--listen", "0.0.0.0:5678", "--wait-for-client", "-m", "src.api.app"]
+
+# Stage 6: Testing variant
+FROM development as testing
+
+# Copy test configurations
+COPY pytest.ini ./
+COPY .coveragerc ./
+
+# Set testing environment
+ENV ENVIRONMENT=testing \
+    LOG_LEVEL=DEBUG \
+    TESTING=true
+
+# Run tests by default
+CMD ["python", "-m", "pytest", "-v", "--cov=src", "--cov-report=html", "--cov-report=term"]
+
+# Stage 7: Security scanning variant
+FROM production as security
+
+# Install security scanning tools
+USER root
+RUN pip install --no-cache-dir safety bandit
+
+# Copy security configurations
+COPY bandit.yaml ./
+COPY trivy.yaml ./
+
+# Security scan command
+USER autonomous
+CMD ["sh", "-c", "safety check && bandit -r src/ -f json"]
+
+# Default stage for builds
+FROM production as default
