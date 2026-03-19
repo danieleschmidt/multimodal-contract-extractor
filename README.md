@@ -2,6 +2,104 @@
 
 Vision-Language-Model pipeline that intelligently identifies and extracts clauses from scanned PDFs, handwritten contracts, and image-based documents, outputting structured JSON data.
 
+**Part of the [DocGraph](https://github.com/danieleschmidt) ecosystem** — this is the document input pipeline that feeds directly into the [Neuro-Symbolic-Law-Prover](https://github.com/danieleschmidt/neuro-symbolic-law-prover) and Graph-Hypernetwork-Forge.
+
+---
+
+## DocGraph Integration
+
+### Pipeline Position
+
+```
+Raw Contract (PDF / Image / Text)
+        │
+        ▼
+┌─────────────────────────────────────────┐
+│  multimodal-contract-extractor (THIS)   │
+│                                         │
+│  ContractParser → ClauseExtractor       │
+│  → EntityExtractor → KGLinker           │
+│                                         │
+│  Output: LegalEntityGraph JSON          │
+└─────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────┐
+│  neuro-symbolic-law-prover              │
+│  github.com/danieleschmidt/            │
+│  neuro-symbolic-law-prover             │
+│                                         │
+│  Input: LegalEntityGraph.from_dict()    │
+│  Runs compliance / reasoning rules      │
+└─────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────┐
+│  graph-hypernetwork-forge               │
+│  (downstream graph reasoning)           │
+└─────────────────────────────────────────┘
+```
+
+### Core Pipeline Components
+
+| Component | Description |
+|-----------|-------------|
+| `ContractParser` | Extracts raw text from PDFs (pdfplumber) and images (pytesseract OCR) |
+| `ClauseExtractor` | Labels clauses by type: payment, liability, termination, data_protection, ip, confidentiality |
+| `EntityExtractor` | Extracts parties, dates, amounts, jurisdictions, data categories from clause text |
+| `KGLinker` | Builds a `ContractKG` edge list — compatible with `LegalEntityGraph` in Neuro-Symbolic-Law-Prover |
+
+### Integration Example
+
+```python
+from multimodal_contract_extractor.contract_parser import ContractParser
+from multimodal_contract_extractor.clause_extractor import ClauseExtractor
+from multimodal_contract_extractor.entity_extractor import EntityExtractor
+from multimodal_contract_extractor.kg_linker import KGLinker
+
+# 1. Parse the contract
+parser = ContractParser()
+text = parser.parse_file("contract.pdf")  # or parse_text(raw_text)
+
+# 2. Extract typed clauses
+clauses = ClauseExtractor().extract(text)
+
+# 3. Extract entities from clauses
+entities = EntityExtractor().extract_from_clauses(clauses)
+
+# 4. Build knowledge graph
+kg = KGLinker().build(clauses, entities)
+
+# 5. Export for Neuro-Symbolic-Law-Prover
+import json
+leg_dict = kg.to_legal_entity_graph_dict()
+# → pass to LegalEntityGraph.from_dict(leg_dict)
+print(json.dumps(leg_dict, indent=2))
+```
+
+Run the full demo:
+```bash
+python demo.py
+```
+
+### Output Format (LegalEntityGraph-compatible)
+
+```json
+{
+  "entities": [
+    {"id": "contract:main", "type": "Contract", "label": "Contract"},
+    {"id": "clause:payment:0", "type": "ContractClause", "clause_type": "payment", ...},
+    {"id": "contractparty:the_client", "type": "ContractParty", "label": "the Client"}
+  ],
+  "relations": [
+    {"source": "contract:main", "predicate": "HAS_CLAUSE", "target": "clause:payment:0"},
+    {"source": "clause:payment:0", "predicate": "HAS_PAYMENT_TERM", "target": "monetaryvalue:_15_000"}
+  ]
+}
+```
+
+---
+
 ## Features
 
 - **Multimodal Processing**: Handles scanned PDFs, images, and handwritten documents

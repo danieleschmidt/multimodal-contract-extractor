@@ -1,0 +1,291 @@
+{
+  "entities": [
+    {
+      "id": "contract:main",
+      "type": "Contract",
+      "label": "Contract"
+    },
+    {
+      "id": "clause:payment:0",
+      "type": "ContractClause",
+      "label": "PAYMENT clause",
+      "clause_type": "payment",
+      "confidence": 0.373,
+      "text_snippet": "The Client shall pay to the Service Provider a monthly service fee of $15,000 USD,\npayable within 30 days of invoice dat\u2026"
+    },
+    {
+      "id": "clause:liability:1",
+      "type": "ContractClause",
+      "label": "LIABILITY clause",
+      "clause_type": "liability",
+      "confidence": 0.278,
+      "text_snippet": "In no event shall either party be liable to the other for any consequential, incidental,\nindirect, or punitive damages a\u2026"
+    },
+    {
+      "id": "clause:data_protection:2",
+      "type": "ContractClause",
+      "label": "DATA_PROTECTION clause",
+      "clause_type": "data_protection",
+      "confidence": 0.268,
+      "text_snippet": "The Service Provider shall process personal data on behalf of the Client solely in\naccordance with the Client's instruct\u2026"
+    },
+    {
+      "id": "clause:ip:3",
+      "type": "ContractClause",
+      "label": "IP clause",
+      "clause_type": "ip",
+      "confidence": 0.694,
+      "text_snippet": "All intellectual property, including copyrights, patents, and trade secrets, developed\nby the Service Provider in connec\u2026"
+    },
+    {
+      "id": "clause:confidentiality:4",
+      "type": "ContractClause",
+      "label": "CONFIDENTIALITY clause",
+      "clause_type": "confidentiality",
+      "confidence": 0.312,
+      "text_snippet": "Each party (the \"Receiving Party\") agrees to hold the other party's (the \"Disclosing Party\")\nproprietary information and\u2026"
+    },
+    {
+      "id": "contractparty:the_client",
+      "type": "ContractParty",
+      "label": "The Client",
+      "entity_type": "party"
+    },
+    {
+      "id": "temporalanchor:30_days",
+      "type": "TemporalAnchor",
+      "label": "30 days",
+      "entity_type": "date"
+    },
+    {
+      "id": "temporalanchor:within_30_days",
+      "type": "TemporalAnchor",
+      "label": "within 30 days",
+      "entity_type": "date"
+    },
+    {
+      "id": "monetaryvalue:_15_000",
+      "type": "MonetaryValue",
+      "label": "$15,000",
+      "entity_type": "amount"
+    },
+    {
+      "id": "monetaryvalue:15_000_usd",
+      "type": "MonetaryValue",
+      "label": "15,000 USD",
+      "entity_type": "amount"
+    },
+    {
+      "id": "temporalanchor:12_months",
+      "type": "TemporalAnchor",
+      "label": "12 months",
+      "entity_type": "date"
+    },
+    {
+      "id": "temporalanchor:7_years",
+      "type": "TemporalAnchor",
+      "label": "7 years",
+      "entity_type": "date"
+    },
+    {
+      "id": "datacategory:personal_data",
+      "type": "DataCategory",
+      "label": "personal data",
+      "entity_type": "data_category"
+    },
+    {
+      "id": "datacategory:contact_details",
+      "type": "DataCategory",
+      "label": "contact details",
+      "entity_type": "data_category"
+    },
+    {
+      "id": "datacategory:email_addresses",
+      "type": "DataCategory",
+      "label": "email\naddresses",
+      "entity_type": "data_category"
+    },
+    {
+      "id": "datacategory:ip_addresses",
+      "type": "DataCategory",
+      "label": "IP addresses",
+      "entity_type": "data_category"
+    },
+    {
+      "id": "datacategory:behavioral_data",
+      "type": "DataCategory",
+      "label": "behavioral data",
+      "entity_type": "data_category"
+    },
+    {
+      "id": "contractparty:the_licensor",
+      "type": "ContractParty",
+      "label": "The Licensor",
+      "entity_type": "party"
+    },
+    {
+      "id": "temporalanchor:5_years",
+      "type": "TemporalAnchor",
+      "label": "5 years",
+      "entity_type": "date"
+    },
+    {
+      "id": "jurisdiction:england_and_wales",
+      "type": "Jurisdiction",
+      "label": "England and Wales",
+      "entity_type": "jurisdiction"
+    }
+  ],
+  "relations": [
+    {
+      "source": "contract:main",
+      "predicate": "HAS_CLAUSE",
+      "target": "clause:payment:0",
+      "weight": 0.373
+    },
+    {
+      "source": "contract:main",
+      "predicate": "HAS_CLAUSE",
+      "target": "clause:liability:1",
+      "weight": 0.278
+    },
+    {
+      "source": "contract:main",
+      "predicate": "HAS_CLAUSE",
+      "target": "clause:data_protection:2",
+      "weight": 0.268
+    },
+    {
+      "source": "contract:main",
+      "predicate": "HAS_CLAUSE",
+      "target": "clause:ip:3",
+      "weight": 0.694
+    },
+    {
+      "source": "contract:main",
+      "predicate": "HAS_CLAUSE",
+      "target": "clause:confidentiality:4",
+      "weight": 0.312
+    },
+    {
+      "source": "clause:payment:0",
+      "predicate": "IS_PARTY_TO",
+      "target": "contractparty:the_client",
+      "weight": 1.0
+    },
+    {
+      "source": "contract:main",
+      "predicate": "HAS_PARTY",
+      "target": "contractparty:the_client",
+      "weight": 1.0
+    },
+    {
+      "source": "clause:payment:0",
+      "predicate": "HAS_DEADLINE",
+      "target": "temporalanchor:30_days",
+      "weight": 1.0
+    },
+    {
+      "source": "clause:payment:0",
+      "predicate": "HAS_DEADLINE",
+      "target": "temporalanchor:within_30_days",
+      "weight": 1.0
+    },
+    {
+      "source": "clause:payment:0",
+      "predicate": "HAS_PAYMENT_TERM",
+      "target": "monetaryvalue:_15_000",
+      "weight": 1.0
+    },
+    {
+      "source": "clause:payment:0",
+      "predicate": "HAS_PAYMENT_TERM",
+      "target": "monetaryvalue:15_000_usd",
+      "weight": 1.0
+    },
+    {
+      "source": "clause:liability:1",
+      "predicate": "IS_PARTY_TO",
+      "target": "contractparty:the_client",
+      "weight": 1.0
+    },
+    {
+      "source": "clause:liability:1",
+      "predicate": "HAS_TEMPORAL_ANCHOR",
+      "target": "temporalanchor:12_months",
+      "weight": 1.0
+    },
+    {
+      "source": "clause:data_protection:2",
+      "predicate": "IS_PARTY_TO",
+      "target": "contractparty:the_client",
+      "weight": 1.0
+    },
+    {
+      "source": "clause:data_protection:2",
+      "predicate": "RETENTION_PERIOD",
+      "target": "temporalanchor:7_years",
+      "weight": 1.0
+    },
+    {
+      "source": "clause:data_protection:2",
+      "predicate": "COVERS_DATA",
+      "target": "datacategory:personal_data",
+      "weight": 1.0
+    },
+    {
+      "source": "clause:data_protection:2",
+      "predicate": "COVERS_DATA",
+      "target": "datacategory:contact_details",
+      "weight": 1.0
+    },
+    {
+      "source": "clause:data_protection:2",
+      "predicate": "COVERS_DATA",
+      "target": "datacategory:email_addresses",
+      "weight": 1.0
+    },
+    {
+      "source": "clause:data_protection:2",
+      "predicate": "COVERS_DATA",
+      "target": "datacategory:ip_addresses",
+      "weight": 1.0
+    },
+    {
+      "source": "clause:data_protection:2",
+      "predicate": "COVERS_DATA",
+      "target": "datacategory:behavioral_data",
+      "weight": 1.0
+    },
+    {
+      "source": "clause:ip:3",
+      "predicate": "HAS_LICENSE",
+      "target": "contractparty:the_client",
+      "weight": 1.0
+    },
+    {
+      "source": "clause:ip:3",
+      "predicate": "HAS_LICENSE",
+      "target": "contractparty:the_licensor",
+      "weight": 1.0
+    },
+    {
+      "source": "contract:main",
+      "predicate": "HAS_PARTY",
+      "target": "contractparty:the_licensor",
+      "weight": 1.0
+    },
+    {
+      "source": "clause:confidentiality:4",
+      "predicate": "HAS_DEADLINE",
+      "target": "temporalanchor:5_years",
+      "weight": 1.0
+    },
+    {
+      "source": "clause:confidentiality:4",
+      "predicate": "GOVERNED_BY",
+      "target": "jurisdiction:england_and_wales",
+      "weight": 1.0
+    }
+  ]
+}
